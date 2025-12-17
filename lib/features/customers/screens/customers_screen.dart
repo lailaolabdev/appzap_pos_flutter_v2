@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../core/utils/responsive.dart';
+import '../../../shared/widgets/app_sidebar.dart';
 import '../providers/customer_provider.dart';
 import '../widgets/add_customer_dialog.dart';
 import '../widgets/customer_detail_dialog.dart';
@@ -27,11 +30,14 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
   @override
   Widget build(BuildContext context) {
     final customersState = ref.watch(customersProvider);
+    final isMobile = Responsive.isMobile(context);
 
-    return Scaffold(
-      backgroundColor: AppTheme.scaffoldBackground,
-      appBar: AppBar(
-        title: const Text('Customers'),
+    return AppShell(
+      child: Scaffold(
+        backgroundColor: AppTheme.scaffoldBackground,
+        drawer: isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
+        appBar: AppBar(
+          title: const Text('Customers'),
         actions: [
           IconButton(
             icon: const Icon(Icons.person_add_outlined),
@@ -173,6 +179,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                           ),
           ),
         ],
+      ),
       ),
     );
   }

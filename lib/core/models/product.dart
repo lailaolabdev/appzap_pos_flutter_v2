@@ -33,6 +33,24 @@ class Product extends Equatable {
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
+    // Handle populated categoryId (can be String or Object with _id and name)
+    String? categoryId;
+    String? categoryName;
+    
+    final categoryData = json['categoryId'];
+    if (categoryData is Map<String, dynamic>) {
+      // Populated object: { _id: "...", name: "..." }
+      categoryId = categoryData['_id'] as String?;
+      categoryName = categoryData['name'] as String?;
+    } else if (categoryData is String) {
+      // Direct string ID
+      categoryId = categoryData;
+      categoryName = json['categoryName'] as String?;
+    } else {
+      // Fallback
+      categoryName = json['categoryName'] as String?;
+    }
+    
     return Product(
       id: json['_id'] as String? ?? '',
       name: json['name'] as String? ?? '',
@@ -40,8 +58,8 @@ class Product extends Equatable {
       itemCode: json['itemCode'] as String?,
       barcode: json['barcode'] as String?,
       sku: json['sku'] as String?,
-      categoryId: json['categoryId'] as String?,
-      categoryName: json['categoryName'] as String?,
+      categoryId: categoryId,
+      categoryName: categoryName,
       pricing: ProductPricing.fromJson(
         json['pricing'] as Map<String, dynamic>? ?? {},
       ),
@@ -270,6 +288,7 @@ class Category extends Equatable {
   final int displayOrder;
   final bool isActive;
   final int? itemCount;
+  final String? color;
 
   const Category({
     required this.id,
@@ -278,6 +297,7 @@ class Category extends Equatable {
     this.displayOrder = 0,
     this.isActive = true,
     this.itemCount,
+    this.color,
   });
 
   factory Category.fromJson(Map<String, dynamic> json) {
@@ -288,6 +308,7 @@ class Category extends Equatable {
       displayOrder: json['displayOrder'] as int? ?? 0,
       isActive: json['isActive'] as bool? ?? true,
       itemCount: json['itemCount'] as int?,
+      color: json['color'] as String?,
     );
   }
 
@@ -299,6 +320,7 @@ class Category extends Equatable {
       'displayOrder': displayOrder,
       'isActive': isActive,
       'itemCount': itemCount,
+      if (color != null) 'color': color,
     };
   }
 
@@ -310,5 +332,6 @@ class Category extends Equatable {
     displayOrder,
     isActive,
     itemCount,
+    color,
   ];
 }

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
 import '../../../core/models/inventory.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../core/utils/responsive.dart';
+import '../../../shared/widgets/app_sidebar.dart';
 import '../../../shared/widgets/error_banner.dart';
 import '../providers/inventory_provider.dart';
 import '../widgets/adjust_stock_dialog.dart';
@@ -63,12 +66,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   Widget build(BuildContext context) {
     final inventoryState = ref.watch(inventoryProvider);
     final valuationAsync = ref.watch(inventoryValuationProvider);
+    final isMobile = Responsive.isMobile(context);
 
-    return Scaffold(
-      backgroundColor: AppTheme.scaffoldBackground,
-      appBar: AppBar(
-        title: const Text('Inventory Management'),
-        actions: [
+    return AppShell(
+      child: Scaffold(
+        backgroundColor: AppTheme.scaffoldBackground,
+        drawer: isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
+        appBar: AppBar(
+          title: const Text('Inventory Management'),
+          actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.filter_list),
             tooltip: 'Filter',
@@ -241,6 +247,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           ),
           ),
         ],
+      ),
       ),
     );
   }

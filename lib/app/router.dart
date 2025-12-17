@@ -10,6 +10,8 @@ import '../features/auth/screens/registration_screen.dart';
 import '../features/auth/screens/otp_screen.dart';
 import '../features/auth/screens/forgot_pin_screen.dart';
 import '../features/pos/screens/pos_screen.dart';
+import '../features/menu/screens/menu_screen.dart';
+import '../features/orders/screens/orders_screen.dart';
 import '../features/inventory/screens/inventory_screen.dart';
 import '../features/customers/screens/customers_screen.dart';
 import '../features/reports/screens/reports_screen.dart';
@@ -26,6 +28,7 @@ class AppRoutes {
   static const String otp = '/otp';
   static const String forgotPin = '/forgot-pin';
   static const String pos = '/pos';
+  static const String menu = '/menu';
   static const String orders = '/orders';
   static const String inventory = '/inventory';
   static const String customers = '/customers';
@@ -131,11 +134,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const POSScreen(),
       ),
       GoRoute(
+        path: AppRoutes.menu,
+        builder: (context, state) => const MenuScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.orders,
-        builder: (context, state) => Scaffold(
-          appBar: AppBar(title: const Text('Orders')),
-          body: const Center(child: Text('Orders Screen - Coming Soon')),
-        ),
+        builder: (context, state) => const OrdersScreen(),
       ),
       GoRoute(
         path: AppRoutes.inventory,

@@ -30,9 +30,19 @@ class AppSidebar extends ConsumerWidget {
 
     return Container(
       width: width,
-      color: AppTheme.neutral900,
-      child: Column(
-        children: [
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(2, 0),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
           // Logo/Brand
           Container(
             height: isInDrawer ? 120 : 80,
@@ -43,7 +53,7 @@ class AppSidebar extends ConsumerWidget {
           // Divider
           Container(
             height: 1,
-            color: AppTheme.neutral800,
+            color: AppTheme.neutral200,
           ),
 
           // Navigation Items
@@ -62,6 +72,19 @@ class AppSidebar extends ConsumerWidget {
                       if (isInDrawer) Navigator.of(context).pop(); // Close drawer
                     },
                   ),
+                  // Menu - accessible to admins and managers
+                  if (user?.isAdmin == true || user?.isManager == true)
+                    _SidebarItem(
+                      icon: Icons.restaurant_menu,
+                      label: 'Menu',
+                      route: AppRoutes.menu,
+                      isActive: currentRoute == AppRoutes.menu,
+                      isInDrawer: isInDrawer,
+                      onTap: () {
+                        context.go(AppRoutes.menu);
+                        if (isInDrawer) Navigator.of(context).pop();
+                      },
+                    ),
                   // Orders - accessible to everyone who can manage sales
                   _SidebarItem(
                     icon: Icons.receipt_long_outlined,
@@ -126,7 +149,7 @@ class AppSidebar extends ConsumerWidget {
                 // Divider
                 Container(
                   height: 1,
-                  color: AppTheme.neutral800,
+                  color: AppTheme.neutral200,
                   margin: const EdgeInsets.only(bottom: 8),
                 ),
 
@@ -147,6 +170,7 @@ class AppSidebar extends ConsumerWidget {
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -196,7 +220,7 @@ class AppSidebar extends ConsumerWidget {
             const Text(
               'AppZap POS',
               style: TextStyle(
-                color: Colors.white,
+                color: AppTheme.neutral900,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -209,7 +233,7 @@ class AppSidebar extends ConsumerWidget {
           Text(
             user!.branch!.name!,
             style: const TextStyle(
-              color: AppTheme.neutral400,
+              color: AppTheme.neutral600,
               fontSize: 13,
             ),
           ),
@@ -301,7 +325,7 @@ class _SidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? AppTheme.primaryOrange : AppTheme.neutral400;
+    final color = isActive ? AppTheme.primaryOrange : AppTheme.neutral700;
 
     return InkWell(
       onTap: onTap,

@@ -17,6 +17,7 @@ class InventoryService {
 
   /// Get all inventory items for a branch
   Future<List<InventoryItem>> getInventoryItems({
+    required String restaurantId,
     required String branchId,
     String? search,
     String? categoryId,
@@ -27,6 +28,7 @@ class InventoryService {
     final response = await _apiClient.get(
       ApiConstants.inventoryItems,
       queryParameters: {
+        'restaurantId': restaurantId,
         'branchId': branchId,
         'page': page,
         'limit': limit,
@@ -53,11 +55,13 @@ class InventoryService {
 
   /// Get low stock items
   Future<List<InventoryItem>> getLowStockItems({
+    required String restaurantId,
     required String branchId,
     int page = 1,
     int limit = 100,
   }) async {
     return await getInventoryItems(
+      restaurantId: restaurantId,
       branchId: branchId,
       status: 'low_stock',
       page: page,
@@ -67,11 +71,13 @@ class InventoryService {
 
   /// Get out of stock items
   Future<List<InventoryItem>> getOutOfStockItems({
+    required String restaurantId,
     required String branchId,
     int page = 1,
     int limit = 100,
   }) async {
     return await getInventoryItems(
+      restaurantId: restaurantId,
       branchId: branchId,
       status: 'out_of_stock',
       page: page,
@@ -157,12 +163,14 @@ class InventoryService {
 
   /// Get inventory alerts (low stock, out of stock, expiring soon)
   Future<List<InventoryAlert>> getInventoryAlerts({
+    required String restaurantId,
     required String branchId,
     String? alertType, // low_stock, out_of_stock, expiring_soon
   }) async {
     final response = await _apiClient.get(
       ApiConstants.inventoryAlerts,
       queryParameters: {
+        'restaurantId': restaurantId,
         'branchId': branchId,
         if (alertType != null) 'alertType': alertType,
       },
@@ -257,11 +265,15 @@ class InventoryService {
 
   /// Get inventory valuation
   Future<InventoryValuation> getInventoryValuation({
+    required String restaurantId,
     required String branchId,
   }) async {
     final response = await _apiClient.get(
       ApiConstants.inventoryValuation,
-      queryParameters: {'branchId': branchId},
+      queryParameters: {
+        'restaurantId': restaurantId,
+        'branchId': branchId,
+      },
     );
 
     return InventoryValuation.fromJson(

@@ -789,6 +789,394 @@ final product = await productService.findByBarcode(
 
 ---
 
+### 3.5 Create Menu Item (Product)
+
+```http
+POST /menu-items
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "restaurantId": "60d5ec954b24c72d88c4e120",
+  "branchId": "60d5ec954b24c72d88c4e121",
+  "categoryId": "60d5eca74b24c72d88c4e124",
+  "name": "Iced Latte",
+  "description": "Cold espresso with milk",
+  "itemCode": "LATTE001",
+  "barcode": "8851234567890",
+  "sku": "ICE-LATTE-16OZ",
+  "itemLevel": "restaurant",
+  
+  "pricing": {
+    "basePrice": 25000,
+    "costPrice": 15000,
+    "taxRate": 10,
+    "taxIncluded": false,
+    "currency": "LAK"
+  },
+  
+  "inventory": {
+    "trackStock": true,
+    "lowStockThreshold": 10,
+    "unit": "unit"
+  },
+  
+  "isActive": true,
+  "displayOrder": 1
+}
+```
+
+**Item Levels:**
+- `restaurant` - Available across all branches (default)
+- `branch` - Specific to one branch only (requires branchId)
+- `override` - Branch-specific override of restaurant item
+
+**Response (201 Created):**
+```json
+{
+  "success": true,
+  "message": "Menu item created successfully with inventory tracking (auto_create) - Strategy: create_for_all_branches",
+  "data": {
+    "menuItem": {
+      "_id": "60d5ecb94b24c72d88c4e127",
+      "name": "Iced Latte",
+      "itemCode": "LATTE001",
+      "restaurantId": "60d5ec954b24c72d88c4e120",
+      "branchId": null,
+      "categoryId": {
+        "_id": "60d5eca74b24c72d88c4e124",
+        "name": "Beverages",
+        "discount": {...}
+      },
+      "recipeId": {
+        "_id": "60d5ecb14b24c72d88c4e125",
+        "name": "Latte Recipe",
+        "ingredients": [...]
+      },
+      "pricing": {
+        "basePrice": 25000,
+        "costPrice": 15000,
+        "taxRate": 10,
+        "currency": "LAK"
+      },
+      "inventory": {
+        "trackInventory": true,
+        "preparationMethod": "auto_create",
+        "stockLevel": 0,
+        "reorderPoint": 10,
+        "reorderQuantity": 50
+      },
+      "images": [],
+      "customizations": [],
+      "itemLevel": "restaurant",
+      "isActive": true,
+      "createdBy": {
+        "_id": "60d5ec954b24c72d88c4e121",
+        "name": "John Admin"
+      },
+      "updatedBy": null,
+      "createdAt": "2025-01-15T10:00:00.000Z",
+      "updatedAt": "2025-01-15T10:00:00.000Z"
+    },
+    "inventoryActivation": {
+      "strategy": "create_for_all_branches",
+      "inventoryItemsCreated": 2,
+      "pendingBranchesCount": 0,
+      "pendingBranches": []
+    }
+  }
+}
+```
+
+**⚠️ Important Notes:**
+- The menu item is nested under `data.menuItem`, not directly in `data`
+- `categoryId`, `recipeId`, `createdBy`, `updatedBy` are **populated objects**, not string IDs
+- `inventoryActivation` provides details about inventory creation across branches
+- If your model expects string IDs, extract them from the populated objects (e.g., `categoryId._id`)
+
+**Flutter Parsing Example:**
+```dart
+final response = await dio.post('/api/v1/menu-items', data: {...});
+
+// Access nested menuItem
+final menuItemData = response.data['data']['menuItem'];
+
+// Extract inventory activation info (optional)
+final inventoryInfo = response.data['data']['inventoryActivation'];
+
+// Normalize populated fields to IDs if needed
+if (menuItemData['categoryId'] is Map) {
+  menuItemData['categoryId'] = menuItemData['categoryId']['_id'];
+}
+if (menuItemData['recipeId'] is Map) {
+  menuItemData['recipeId'] = menuItemData['recipeId']['_id'];
+}
+if (menuItemData['createdBy'] is Map) {
+  menuItemData['createdBy'] = menuItemData['createdBy']['_id'];
+}
+
+final menuItem = MenuItem.fromJson(menuItemData);
+```
+
+---
+
+### 3.6 Update Menu Item
+
+```http
+PATCH /menu-items/:itemId
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "Iced Latte (Large)",
+  "pricing": {
+    "basePrice": 28000
+  },
+  "isActive": true
+}
+```
+
+**Note:** Send only the fields you want to update.
+
+**Response (200 OK):**
+```json
+{
+  "_id": "60d5ecb94b24c72d88c4e127",
+  "restaurantId": "60d5ec954b24c72d88c4e120",
+  "name": "Iced Latte (Large)",
+  "itemCode": "LATTE001",
+  "categoryId": "60d5eca74b24c72d88c4e124",
+  "pricing": {
+    "basePrice": 28000,
+    "costPrice": 15000,
+    "taxRate": 10
+  },
+  "inventory": {...},
+  "isActive": true,
+  "createdAt": "2025-01-15T10:00:00Z",
+  "updatedAt": "2025-01-15T11:00:00Z"
+}
+```
+
+**⚠️ Important:** Response is the **direct menu item object**, not wrapped in `{ success, data }` format!
+
+---
+
+### 3.7 Delete Menu Item
+
+```http
+DELETE /menu-items/:itemId
+Authorization: Bearer {token}
+```
+
+**Response (204 No Content):**
+```
+No content returned
+```
+
+**Note:** Hard delete - item is permanently removed from database.
+
+---
+
+### 3.8 Bulk Create Menu Items
+
+```http
+POST /menu-items/bulk
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "restaurantId": "60d5ec954b24c72d88c4e120",
+  "items": [
+    {
+      "name": "Espresso",
+      "categoryId": "60d5eca74b24c72d88c4e124",
+      "pricing": { "basePrice": 15000 },
+      "itemCode": "ESP001"
+    },
+    {
+      "name": "Cappuccino",
+      "categoryId": "60d5eca74b24c72d88c4e124",
+      "pricing": { "basePrice": 20000 },
+      "itemCode": "CAP001"
+    }
+  ]
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "success": true,
+  "message": "2 menu items created successfully",
+  "data": {
+    "created": 2,
+    "items": [
+      { "_id": "...", "name": "Espresso" },
+      { "_id": "...", "name": "Cappuccino" }
+    ]
+  }
+}
+```
+
+---
+
+### 3.9 Upload Menu Item Image
+
+```http
+POST /menu-items/:itemId/upload
+Authorization: Bearer {token}
+Content-Type: multipart/form-data
+
+{
+  "image": <file>
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Image uploaded successfully",
+  "data": {
+    "imageId": "img_123",
+    "url": "https://cdn.appzap.la/images/menu/latte-001.jpg",
+    "thumbnailUrl": "https://cdn.appzap.la/images/menu/thumbs/latte-001.jpg"
+  }
+}
+```
+
+---
+
+## 3.10 Menu Category Management
+
+### 3.10.1 Create Menu Category
+
+```http
+POST /menu-categories
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "restaurantId": "60d5ec954b24c72d88c4e120",
+  "name": "Hot Beverages",
+  "description": "Hot coffee, tea, and chocolate drinks",
+  "displayOrder": 1,
+  "isActive": true,
+  "color": "#FF5733"
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "_id": "60d5eca74b24c72d88c4e124",
+  "restaurantId": "60d5ec954b24c72d88c4e120",
+  "name": "Hot Beverages",
+  "description": "Hot coffee, tea, and chocolate drinks",
+  "displayOrder": 1,
+  "isActive": true,
+  "itemLevel": "restaurant",
+  "color": "#FF5733",
+  "parentCategoryId": null,
+  "overrideParentId": null,
+  "createdBy": {
+    "_id": "...",
+    "name": "Staff Name"
+  },
+  "updatedBy": null,
+  "createdAt": "2025-01-15T10:00:00Z",
+  "updatedAt": "2025-01-15T10:00:00Z"
+}
+```
+
+**⚠️ Important:** Response is the **direct category object**, not wrapped in `{ success, data }` format!
+
+---
+
+### 3.10.2 Update Menu Category
+
+```http
+PATCH /menu-categories/:categoryId
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "Hot Drinks",
+  "description": "All hot beverages",
+  "displayOrder": 2
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "_id": "60d5eca74b24c72d88c4e124",
+  "restaurantId": "60d5ec954b24c72d88c4e120",
+  "name": "Hot Drinks",
+  "description": "All hot beverages",
+  "displayOrder": 2,
+  "isActive": true,
+  "itemLevel": "restaurant",
+  "parentCategoryId": null,
+  "overrideParentId": null,
+  "createdBy": {...},
+  "updatedBy": {...},
+  "createdAt": "2025-01-15T10:00:00Z",
+  "updatedAt": "2025-01-15T11:00:00Z"
+}
+```
+
+**⚠️ Important:** Response is the **direct category object**, not wrapped in `{ success, data }` format!
+
+---
+
+### 3.10.3 Delete Menu Category
+
+```http
+DELETE /menu-categories/:categoryId
+Authorization: Bearer {token}
+```
+
+**Response (204 No Content):**
+```
+No content returned
+```
+
+**Note:** Cannot delete category if it contains active menu items.
+
+---
+
+### 3.10.4 Get Single Category
+
+```http
+GET /menu-categories/:categoryId
+Authorization: Bearer {token}
+```
+
+**Response (200 OK):**
+```json
+{
+  "_id": "60d5eca74b24c72d88c4e124",
+  "restaurantId": "60d5ec954b24c72d88c4e120",
+  "name": "Beverages",
+  "description": "All drinks",
+  "displayOrder": 1,
+  "isActive": true,
+  "itemLevel": "restaurant",
+  "parentCategoryId": null,
+  "overrideParentId": null,
+  "createdBy": {...},
+  "updatedBy": {...},
+  "createdAt": "2025-01-15T10:00:00Z",
+  "updatedAt": "2025-01-15T10:00:00Z"
+}
+```
+
+**⚠️ Important:** Response is the **direct category object**, not wrapped in `{ success, data }` format!
+
+---
+
 ## 4. Sales & Checkout
 
 ### 4.1 Create Sale/Order (Takeaway/Quick Sale)
@@ -1201,7 +1589,8 @@ GET /inventory/items
 Authorization: Bearer {token}
 
 Query Parameters:
-  branchId (required)
+  restaurantId (required) - Restaurant ID
+  branchId (required) - Branch ID
   search (optional)
   categoryId (optional)
   status (optional) - active, low_stock, out_of_stock
@@ -1283,7 +1672,8 @@ GET /inventory/alerts
 Authorization: Bearer {token}
 
 Query Parameters:
-  branchId (required)
+  restaurantId (required) - Restaurant ID
+  branchId (required) - Branch ID
   alertType (optional) - low_stock, out_of_stock, expiring_soon
 ```
 
@@ -1335,7 +1725,11 @@ GET /inventory/valuation
 Authorization: Bearer {token}
 
 Query Parameters:
-  branchId (required)
+  restaurantId (required) - Restaurant ID
+  branchId (required) - Branch ID
+  valuationMethod (optional) - FIFO, LIFO, AVERAGE
+  categoryId (optional) - Filter by category
+  itemType (optional) - Filter by item type
 ```
 
 **Response:**

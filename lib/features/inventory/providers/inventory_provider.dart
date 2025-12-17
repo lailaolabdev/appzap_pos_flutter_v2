@@ -48,9 +48,10 @@ class InventoryState {
 /// Inventory notifier
 class InventoryNotifier extends StateNotifier<InventoryState> {
   final InventoryService _inventoryService;
+  final String? _restaurantId;
   final String? _branchId;
 
-  InventoryNotifier(this._inventoryService, this._branchId)
+  InventoryNotifier(this._inventoryService, this._restaurantId, this._branchId)
     : super(const InventoryState()) {
     loadInventory();
     loadAlerts();
@@ -58,9 +59,9 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
 
   /// Load inventory items
   Future<void> loadInventory() async {
-    if (_branchId == null) {
+    if (_restaurantId == null || _branchId == null) {
       state = state.copyWith(
-        error: 'Branch not configured',
+        error: 'Restaurant or Branch not configured',
         isLoading: false,
       );
       return;
@@ -70,6 +71,7 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
 
     try {
       final items = await _inventoryService.getInventoryItems(
+        restaurantId: _restaurantId,
         branchId: _branchId,
         search: state.searchQuery.isEmpty ? null : state.searchQuery,
         status: state.statusFilter,
@@ -89,10 +91,11 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
 
   /// Load inventory alerts
   Future<void> loadAlerts() async {
-    if (_branchId == null) return;
+    if (_restaurantId == null || _branchId == null) return;
 
     try {
       final alerts = await _inventoryService.getInventoryAlerts(
+        restaurantId: _restaurantId,
         branchId: _branchId,
       );
 
@@ -137,18 +140,21 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
 final inventoryProvider = StateNotifierProvider<InventoryNotifier, InventoryState>(
   (ref) {
     final inventoryService = ref.watch(inventoryServiceProvider);
+    final restaurantId = ref.watch(currentRestaurantIdProvider);
     final branchId = ref.watch(currentBranchIdProvider);
-    return InventoryNotifier(inventoryService, branchId);
+    return InventoryNotifier(inventoryService, restaurantId, branchId);
   },
 );
 
 /// Inventory valuation provider
 final inventoryValuationProvider = FutureProvider<InventoryValuation?>((ref) async {
+  final restaurantId = ref.watch(currentRestaurantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  if (branchId == null) return null;
+  if (restaurantId == null || branchId == null) return null;
 
   try {
     return await ref.read(inventoryServiceProvider).getInventoryValuation(
+      restaurantId: restaurantId,
       branchId: branchId,
     );
   } catch (e) {
