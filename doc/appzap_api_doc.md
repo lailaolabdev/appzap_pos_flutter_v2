@@ -137,6 +137,39 @@ Option: Phone + 4-digit PIN (⚡ 2 seconds)
 - ✅ **Instant access** - Create account & start selling in 60 seconds
 - ✅ **Optional PIN** - Convenience feature for faster daily logins
 
+---
+
+### 📋 Important: Response Format Standards
+
+> **For Flutter Team:** All authentication responses follow these formats consistently:
+
+**Code Formats:**
+```
+Restaurant Code:  5 characters      e.g., "JC001", "MS123", "AB789"
+User ID:          {code}-OWN/001    e.g., "JC001-OWN", "MS001-001"
+Branch Code:      {code}B1          e.g., "JC1B1", "MS1B1"
+```
+
+**User Roles:**
+```
+restaurant_admin  → Full restaurant access (owner/admin)
+branch_admin      → Branch-level admin
+manager           → Manager permissions
+cashier           → POS operations
+waiter            → Service operations
+chef              → Kitchen operations
+custom            → Custom role with specific permissions
+```
+
+**Key Response Fields:**
+- `user.role` → Always one of the valid roles above (NOT "owner")
+- `user.userId` → Format depends on role: "{code}-OWN" for admins, "{code}-001" for staff
+- `restaurant.code` → Always 5 characters max
+- `branch.branchCode` → Format: "{restaurantCode}B{number}"
+- `subscription` → Present for new registrations (trial info)
+
+---
+
 ### 2.2 Send OTP (Works for ANY Phone Number) 🌍
 
 Send OTP to **any valid phone number** - registered or not!
@@ -219,16 +252,22 @@ Content-Type: application/json
     "_id": "60d5ec954b24c72d88c4e123",
     "name": "John Doe",
     "phone": "+85620123456789",
-    "userId": "STORE01-OWNER",
-    "role": "owner",
+    "userId": "MS001-OWN",
+    "role": "restaurant_admin",
     "restaurantId": {
       "_id": "60d5ec854b24c72d88c4e120",
       "name": "My Store",
-      "currency": "LAK"
+      "code": "MS001",
+      "settings": {
+        "currency": {
+          "mainCurrency": "LAK"
+        }
+      }
     },
     "branchId": {
       "_id": "60d5ec954b24c72d88c4e121",
-      "name": "Main Branch"
+      "name": "Main Branch",
+      "branchCode": "MS1B1"
     },
     "permissions": [...]
   },
@@ -315,6 +354,13 @@ Content-Type: application/json
 **Optional Fields:**
 - `pin` - 4-digit PIN for faster future logins
 
+**Important Response Details:**
+- 🏷️ **Restaurant Code**: 5-character format (e.g., "JC001", "MS123", "AB789")
+- 🏷️ **User ID**: `{restaurantCode}-OWN` (e.g., "JC001-OWN")
+- 🏷️ **Branch Code**: `{restaurantCode}B1` (e.g., "JC1B1" for first branch)
+- 👤 **User Role**: `restaurant_admin` (full restaurant permissions)
+- 🎁 **Trial**: 1-year free trial subscription included
+
 **Response (201 Created) - ACCOUNT CREATED & LOGGED IN:**
 ```json
 {
@@ -324,16 +370,22 @@ Content-Type: application/json
     "_id": "60d5ec954b24c72d88c4e123",
     "name": "John Doe",
     "phone": "+85620123456789",
-    "userId": "REST12345678-OWNER",
-    "role": "owner",
+    "userId": "JC001-OWN",
+    "role": "restaurant_admin",
     "restaurantId": {
       "_id": "60d5ec854b24c72d88c4e120",
       "name": "John's Coffee Shop",
-      "currency": "LAK"
+      "code": "JC001",
+      "settings": {
+        "currency": {
+          "mainCurrency": "LAK"
+        }
+      }
     },
     "branchId": {
       "_id": "60d5ec954b24c72d88c4e121",
-      "name": "Main Branch"
+      "name": "Main Branch",
+      "branchCode": "JC1B1"
     },
     "permissions": [
       "manage_sales",
@@ -358,30 +410,48 @@ Content-Type: application/json
   "restaurant": {
     "_id": "60d5ec854b24c72d88c4e120",
     "name": "John's Coffee Shop",
-    "code": "REST12345678"
+    "code": "JC001"
   },
   "branch": {
     "_id": "60d5ec954b24c72d88c4e121",
-    "name": "Main Branch"
+    "name": "Main Branch",
+    "branchCode": "JC1B1"
   },
-  "message": "Registration successful! Welcome to AppZap POS"
+  "subscription": {
+    "_id": "60d5ec854b24c72d88c4e122",
+    "status": "trial",
+    "endDate": "2026-12-17T12:00:00Z"
+  },
+  "message": "Registration successful! Welcome to AppZap POS - 1 Year Free Trial"
 }
 ```
 
 **🎉 Account Created & User is LOGGED IN!**
 
 **What Gets Created Automatically:**
-- ✅ Restaurant account
-- ✅ Main branch
-- ✅ Owner account (you)
-- ✅ All owner permissions
+- ✅ Restaurant account (with 5-char code, e.g., "JC001")
+- ✅ Main branch (with branchCode, e.g., "JC1B1")
+- ✅ Restaurant admin account (you - full permissions)
+- ✅ 1-year free trial subscription
 - ✅ Full authentication tokens
 
 **Key Benefits:**
 - ✅ **Super simple** - Only 3 required fields!
 - ✅ **Instant setup** - Everything created automatically
-- ✅ **Owner role** - Full access to all features
+- ✅ **Restaurant admin role** - Full access to all features
+- ✅ **Free trial** - 1 year trial period included
 - ✅ **Ready to use** - Start selling immediately
+
+**Response Fields Explained:**
+
+| Field | Format | Example | Description |
+|-------|--------|---------|-------------|
+| `restaurant.code` | 5 chars | "JC001" | Unique restaurant identifier |
+| `user.userId` | `{code}-OWN` | "JC001-OWN" | Unique user login ID |
+| `user.role` | String | "restaurant_admin" | Full restaurant permissions |
+| `branch.branchCode` | `{code}B1` | "JC1B1" | Branch identifier |
+| `subscription.status` | String | "trial" | Free trial status |
+| `subscription.endDate` | ISO Date | "2026-12-17T..." | Trial expires in 1 year |
 
 **Error Responses:**
 
@@ -432,16 +502,22 @@ Content-Type: application/json
     "_id": "60d5ec954b24c72d88c4e123",
     "name": "John Doe",
     "phone": "+85620123456789",
-    "userId": "STORE01-345678",
+    "userId": "MS001-001",
     "role": "cashier",
     "restaurantId": {
       "_id": "60d5ec854b24c72d88c4e120",
       "name": "My Store",
-      "currency": "LAK"
+      "code": "MS001",
+      "settings": {
+        "currency": {
+          "mainCurrency": "LAK"
+        }
+      }
     },
     "branchId": {
       "_id": "60d5ec954b24c72d88c4e121",
-      "name": "Main Branch"
+      "name": "Main Branch",
+      "branchCode": "MS1B1"
     },
     "permissions": [
       "manage_sales",
@@ -580,11 +656,12 @@ POST /auth/quick-login        # UserId + Passcode
 ### 3.1 Get Products/Menu Items
 
 ```http
-GET /menu/items
+GET /menu-items
 Authorization: Bearer {token}
 
 Query Parameters:
-  branchId (required) - Current branch ID
+  restaurantId (required) - Restaurant ID
+  branchId (optional) - Filter by branch ID
   isActive (optional) - Filter active items (default: true)
   categoryId (optional) - Filter by category
   search (optional) - Search by name, SKU, or barcode
@@ -594,7 +671,7 @@ Query Parameters:
 
 **Example Request:**
 ```http
-GET /menu/items?branchId=60d5ec954b24c72d88c4e121&isActive=true&limit=500
+GET /menu-items?restaurantId=60d5ec954b24c72d88c4e120&branchId=60d5ec954b24c72d88c4e121&isActive=true&limit=500
 ```
 
 **Response (200 OK):**
@@ -652,14 +729,14 @@ GET /menu/items?branchId=60d5ec954b24c72d88c4e121&isActive=true&limit=500
 ### 3.2 Get Product by ID
 
 ```http
-GET /menu/items/:itemId
+GET /menu-items/:itemId
 Authorization: Bearer {token}
 ```
 
 ### 3.3 Get Categories
 
 ```http
-GET /menu/categories
+GET /menu-categories
 Authorization: Bearer {token}
 
 Query Parameters:
@@ -695,7 +772,7 @@ Query Parameters:
 ### 3.4 Search Product by Barcode
 
 ```http
-GET /menu/items?branchId={branchId}&search={barcode}
+GET /menu-items?restaurantId={restaurantId}&branchId={branchId}&search={barcode}
 Authorization: Bearer {token}
 ```
 
@@ -703,7 +780,11 @@ Authorization: Bearer {token}
 ```dart
 // Flutter: Use barcode scanner package
 final barcode = await BarcodeScanner.scan();
-final product = await productService.findByBarcode(barcode);
+final product = await productService.findByBarcode(
+  restaurantId: currentUser.restaurantId,
+  branchId: currentBranch.id,
+  barcode: barcode
+);
 ```
 
 ---
@@ -713,7 +794,7 @@ final product = await productService.findByBarcode(barcode);
 ### 4.1 Create Sale/Order (Takeaway/Quick Sale)
 
 ```http
-POST /orders/takeaway
+POST /orders/takeaway-order/
 Authorization: Bearer {token}
 Content-Type: application/json
 
@@ -816,12 +897,23 @@ Content-Type: application/json
 }
 ```
 
-### 4.2 Get Order by ID
+### 4.2 Get Orders (List/Filter)
 
 ```http
-GET /orders/:orderId
+GET /orders/
 Authorization: Bearer {token}
+
+Query Parameters:
+  branchId (optional) - Filter by branch
+  orderType (optional) - Filter by type (table, takeaway, delivery)
+  status (optional) - Filter by status
+  startDate (optional) - Filter from date
+  endDate (optional) - Filter to date
+  page (optional) - Page number
+  limit (optional) - Results per page
 ```
+
+**Note:** To get a specific order, use `GET /orders/?orderId={orderId}` or filter the results.
 
 ### 4.3 Update Order Status
 
@@ -1315,7 +1407,7 @@ Content-Type: application/json
 ### 7.3 Get Customer Loyalty Points
 
 ```http
-GET /crm/customers/:customerId/points
+GET /crm/customers/:customerId/loyalty/available-points
 Authorization: Bearer {token}
 ```
 
@@ -1345,7 +1437,7 @@ Authorization: Bearer {token}
 ### 7.4 Redeem Loyalty Points
 
 ```http
-POST /crm/loyalty-program/redeem
+POST /crm/loyalty-programs/:programId/redeem-points
 Authorization: Bearer {token}
 Content-Type: application/json
 
@@ -1356,6 +1448,9 @@ Content-Type: application/json
 }
 ```
 
+**Path Parameters:**
+- `programId` - The loyalty program ID (required)
+
 ---
 
 ## 8. Reports
@@ -1363,13 +1458,22 @@ Content-Type: application/json
 ### 8.1 Daily Sales Summary
 
 ```http
-GET /reports/daily-summary
+GET /daily-summary/:restaurantId/:branchId
 Authorization: Bearer {token}
 
 Query Parameters:
-  branchId (required)
   startDate (required) - YYYY-MM-DD
   endDate (required) - YYYY-MM-DD
+```
+
+**Alternative (Get Today's Summary):**
+```http
+GET /daily-summary/:restaurantId/:branchId/today
+```
+
+**Alternative (Get Specific Date):**
+```http
+GET /daily-summary/:restaurantId/:branchId/:date
 ```
 
 **Response:**
@@ -1407,12 +1511,17 @@ Query Parameters:
 ### 8.2 End of Day Report
 
 ```http
-GET /reports/end-of-day
+GET /end-of-day/
 Authorization: Bearer {token}
 
 Query Parameters:
   branchId (required)
   date (required) - YYYY-MM-DD
+```
+
+**Get EOD Summary:**
+```http
+GET /end-of-day/summary
 ```
 
 ### 8.3 Sales by Product

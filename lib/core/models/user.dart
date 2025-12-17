@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../constants/user_roles.dart';
+
 /// User model for authenticated staff
 class User extends Equatable {
   final String id;
@@ -75,11 +77,24 @@ class User extends Equatable {
   bool get canManageInventory => permissions.contains('manage_inventory');
   bool get canManageStaff => permissions.contains('manage_staff');
   bool get canManageSettings => permissions.contains('manage_settings');
+  bool get canManageOrders => permissions.contains('manage_orders');
 
-  // Role checks
-  bool get isAdmin => role == 'admin' || role == 'owner';
-  bool get isManager => role == 'manager' || isAdmin;
-  bool get isCashier => role == 'cashier';
+  // Role checks (using correct API role values)
+  bool get isRestaurantAdmin => role == UserRole.restaurantAdmin;
+  bool get isBranchAdmin => role == UserRole.branchAdmin;
+  bool get isManager => role == UserRole.manager;
+  bool get isCashier => role == UserRole.cashier;
+  bool get isWaiter => role == UserRole.waiter;
+  bool get isChef => role == UserRole.chef;
+  
+  // Helper: Any admin role
+  bool get isAdmin => isRestaurantAdmin || isBranchAdmin;
+  
+  // Helper: Management level
+  bool get isManagementLevel => isAdmin || isManager;
+  
+  // Get role display name
+  String get roleDisplayName => UserRole.getDisplayName(role);
 
   User copyWith({
     String? id,
@@ -123,46 +138,161 @@ class User extends Equatable {
 class Restaurant extends Equatable {
   final String id;
   final String? name;
-  final String currency;
+  final String? code; // 5-character code (e.g., "JC001", "MS123")
+  final RestaurantSettings? settings;
 
-  const Restaurant({required this.id, this.name, this.currency = 'LAK'});
+  const Restaurant({
+    required this.id,
+    this.name,
+    this.code,
+    this.settings,
+  });
 
   factory Restaurant.fromJson(Map<String, dynamic> json) {
     return Restaurant(
       id: json['_id'] as String? ?? '',
       name: json['name'] as String?,
-      currency: json['currency'] as String? ?? 'LAK',
+      code: json['code'] as String?,
+      settings: json['settings'] != null
+          ? RestaurantSettings.fromJson(json['settings'] as Map<String, dynamic>)
+          : null,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'_id': id, 'name': name, 'currency': currency};
+    return {
+      '_id': id,
+      'name': name,
+      'code': code,
+      'settings': settings?.toJson(),
+    };
+  }
+
+  // Helper to get currency
+  String get currency => settings?.currency.mainCurrency ?? 'LAK';
+
+  @override
+  List<Object?> get props => [id, name, code, settings];
+}
+
+/// Restaurant settings
+class RestaurantSettings extends Equatable {
+  final CurrencySettings currency;
+
+  const RestaurantSettings({required this.currency});
+
+  factory RestaurantSettings.fromJson(Map<String, dynamic> json) {
+    return RestaurantSettings(
+      currency: json['currency'] != null
+          ? CurrencySettings.fromJson(json['currency'] as Map<String, dynamic>)
+          : const CurrencySettings(mainCurrency: 'LAK'),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'currency': currency.toJson()};
   }
 
   @override
-  List<Object?> get props => [id, name, currency];
+  List<Object?> get props => [currency];
+}
+
+/// Currency settings
+class CurrencySettings extends Equatable {
+  final String mainCurrency; // LAK, USD, THB
+
+  const CurrencySettings({required this.mainCurrency});
+
+  factory CurrencySettings.fromJson(Map<String, dynamic> json) {
+    return CurrencySettings(
+      mainCurrency: json['mainCurrency'] as String? ?? 'LAK',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'mainCurrency': mainCurrency};
+  }
+
+  @override
+  List<Object?> get props => [mainCurrency];
 }
 
 /// Branch model
 class Branch extends Equatable {
   final String id;
   final String? name;
+  final String? branchCode; // Code format: "{restaurantCode}B{number}" (e.g., "MS1B1", "JC1B1")
 
-  const Branch({required this.id, this.name});
+  const Branch({
+    required this.id,
+    this.name,
+    this.branchCode,
+  });
 
   factory Branch.fromJson(Map<String, dynamic> json) {
     return Branch(
       id: json['_id'] as String? ?? '',
       name: json['name'] as String?,
+      branchCode: json['branchCode'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'_id': id, 'name': name};
+    return {
+      '_id': id,
+      'name': name,
+      'branchCode': branchCode,
+    };
   }
 
   @override
-  List<Object?> get props => [id, name];
+  List<Object?> get props => [id, name, branchCode];
+}
+
+/// Subscription model (trial, active, expired)
+class Subscription extends Equatable {
+  final String id;
+  final String status; // 'trial', 'active', 'expired'
+  final DateTime? endDate;
+
+  const Subscription({
+    required this.id,
+    required this.status,
+    this.endDate,
+  });
+
+  factory Subscription.fromJson(Map<String, dynamic> json) {
+    return Subscription(
+      id: json['_id'] as String? ?? '',
+      status: json['status'] as String? ?? 'trial',
+      endDate: json['endDate'] != null
+          ? DateTime.tryParse(json['endDate'] as String)
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'status': status,
+      'endDate': endDate?.toIso8601String(),
+    };
+  }
+
+  // Helper methods
+  bool get isTrial => status == 'trial';
+  bool get isActive => status == 'active';
+  bool get isExpired => status == 'expired';
+
+  int get daysRemaining {
+    if (endDate == null) return 0;
+    final now = DateTime.now();
+    if (endDate!.isBefore(now)) return 0;
+    return endDate!.difference(now).inDays;
+  }
+
+  @override
+  List<Object?> get props => [id, status, endDate];
 }
 
 /// Authentication tokens

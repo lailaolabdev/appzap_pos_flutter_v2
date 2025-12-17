@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../app/router.dart';
+import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
 import '../../../core/models/cart.dart';
 import '../../../core/models/customer.dart';
 import '../../../core/models/payment.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../core/utils/responsive.dart';
+import '../../../shared/widgets/app_sidebar.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../customers/widgets/customer_lookup_dialog.dart';
 import '../../customers/widgets/redeem_points_dialog.dart';
@@ -147,238 +148,246 @@ class _POSScreenState extends ConsumerState<POSScreen> {
     }
   }
 
-  Future<void> _handleLogout() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      await ref.read(authProvider.notifier).logout();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
     final productsState = ref.watch(productsProvider);
     final cart = ref.watch(cartProvider);
     final cartItemCount = ref.watch(cartItemCountProvider);
+    final isMobile = Responsive.isMobile(context);
 
-    return Scaffold(
-      backgroundColor: AppTheme.scaffoldBackground,
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('AppZap POS'),
-            if (user?.branch?.name != null)
-              Text(
-                user!.branch!.name!,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.neutral500,
-                  fontWeight: FontWeight.normal,
+    return AppShell(
+      child: Scaffold(
+        backgroundColor: AppTheme.scaffoldBackground,
+        // Add drawer for mobile
+        drawer: isMobile ? const Drawer(
+          child: AppSidebar(isInDrawer: true),
+        ) : null,
+        appBar: AppBar(
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('AppZap POS'),
+              if (user?.branch?.name != null)
+                Text(
+                  user!.branch!.name!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.neutral500,
+                    fontWeight: FontWeight.normal,
+                  ),
                 ),
+            ],
+          ),
+          actions: [
+            // Cart icon (mobile only - shows cart modal)
+            if (isMobile)
+              IconButton(
+                icon: Badge(
+                  label: Text('$cartItemCount'),
+                  isLabelVisible: cartItemCount > 0,
+                  child: const Icon(Icons.shopping_cart_outlined),
+                ),
+                tooltip: 'Cart',
+                onPressed: () => _showMobileCart(context, cart),
               ),
+            const SizedBox(width: 8),
           ],
         ),
-        actions: [
-          // Inventory
-          IconButton(
-            icon: const Icon(Icons.inventory_2_outlined),
-            tooltip: 'Inventory',
-            onPressed: () => context.push(AppRoutes.inventory),
-          ),
-          // Customers
-          IconButton(
-            icon: const Icon(Icons.people_outline),
-            tooltip: 'Customers',
-            onPressed: () => context.push(AppRoutes.customers),
-          ),
-          // Reports
-          IconButton(
-            icon: const Icon(Icons.assessment_outlined),
-            tooltip: 'Reports',
-            onPressed: () => context.push(AppRoutes.reports),
-          ),
-          // User menu
-          PopupMenuButton<String>(
-            icon: CircleAvatar(
-              backgroundColor: AppTheme.primaryOrangeBackground,
-              child: Text(
-                user?.name.isNotEmpty == true
-                    ? user!.name[0].toUpperCase()
-                    : 'U',
-                style: const TextStyle(
-                  color: AppTheme.primaryOrange,
-                  fontWeight: FontWeight.bold,
-                ),
+        body: isMobile 
+            ? _buildMobileLayout(productsState, cart) 
+            : _buildTabletLayout(productsState, cart),
+      ),
+    );
+  }
+
+  /// Mobile layout: Full-screen products + cart modal
+  Widget _buildMobileLayout(dynamic productsState, Cart cart) {
+    return Column(
+      children: [
+        // Search Bar
+        POSSearchBar(
+          controller: _searchController,
+          onSearch: _handleSearch,
+          onBarcodeScan: _handleBarcodeScan,
+        ),
+
+        // Category Bar
+        CategoryBar(
+          categories: productsState.categories,
+          selectedCategoryId: productsState.selectedCategoryId,
+          onCategorySelected: (categoryId) {
+            ref.read(productsProvider.notifier).selectCategory(categoryId);
+          },
+        ),
+
+        // Products Grid
+        Expanded(
+          child: _buildProductsGrid(productsState),
+        ),
+      ],
+    );
+  }
+
+  /// Tablet layout: Products + Cart side by side
+  Widget _buildTabletLayout(dynamic productsState, Cart cart) {
+    return Row(
+      children: [
+        // Left: Products Panel
+        Expanded(
+          flex: 2,
+          child: Column(
+            children: [
+              // Search Bar
+              POSSearchBar(
+                controller: _searchController,
+                onSearch: _handleSearch,
+                onBarcodeScan: _handleBarcodeScan,
               ),
-            ),
-            onSelected: (value) {
-              switch (value) {
-                case 'logout':
-                  _handleLogout();
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                enabled: false,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user?.name ?? 'User',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.neutral900,
-                      ),
-                    ),
-                    Text(
-                      user?.role ?? 'Cashier',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.neutral500,
-                      ),
-                    ),
-                  ],
-                ),
+
+              // Category Bar
+              CategoryBar(
+                categories: productsState.categories,
+                selectedCategoryId: productsState.selectedCategoryId,
+                onCategorySelected: (categoryId) {
+                  ref.read(productsProvider.notifier).selectCategory(categoryId);
+                },
               ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    Icon(Icons.logout, color: AppTheme.error),
-                    SizedBox(width: 8),
-                    Text('Logout', style: TextStyle(color: AppTheme.error)),
-                  ],
-                ),
+
+              // Products Grid
+              Expanded(
+                child: _buildProductsGrid(productsState),
               ),
             ],
           ),
-          const SizedBox(width: 8),
-        ],
+        ),
+
+        // Divider
+        Container(
+          width: 1,
+          color: AppTheme.neutral200,
+        ),
+
+        // Right: Cart Panel
+        SizedBox(
+          width: 350,
+          child: CartPanel(
+            cart: cart,
+            onUpdateQuantity: (productId, quantity) {
+              ref.read(cartProvider.notifier).updateQuantity(productId, quantity);
+            },
+            onRemoveItem: (productId) {
+              ref.read(cartProvider.notifier).removeItem(productId);
+            },
+            onClearCart: () {
+              ref.read(cartProvider.notifier).clear();
+            },
+            onApplyLoyalty: _handleApplyLoyalty,
+            onCheckout: _handleCheckout,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Products grid (shared by mobile and tablet)
+  Widget _buildProductsGrid(dynamic productsState) {
+    if (productsState.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (productsState.error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              size: 48,
+              color: AppTheme.error,
+            ),
+            const SizedBox(height: 16),
+            Text(productsState.error!),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                ref.read(productsProvider.notifier).refresh();
+              },
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        await ref.read(productsProvider.notifier).refresh();
+      },
+      child: ProductGrid(
+        products: productsState.filteredProducts,
+        onProductTap: (product) {
+          ref.read(cartProvider.notifier).addProduct(product);
+        },
       ),
-      body: Row(
-        children: [
-          // Left: Products Panel
-          Expanded(
-            flex: 2,
+    );
+  }
+
+  /// Show cart modal on mobile
+  void _showMobileCart(BuildContext context, Cart cart) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            ),
             child: Column(
               children: [
-                // Search Bar
-                POSSearchBar(
-                  controller: _searchController,
-                  onSearch: _handleSearch,
-                  onBarcodeScan: _handleBarcodeScan,
+                // Handle
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.neutral300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-
-                // Category Bar
-                CategoryBar(
-                  categories: productsState.categories,
-                  selectedCategoryId: productsState.selectedCategoryId,
-                  onCategorySelected: (categoryId) {
-                    ref.read(productsProvider.notifier).selectCategory(categoryId);
-                  },
-                ),
-
-                // Products Grid
+                
+                // Cart panel
                 Expanded(
-                  child: productsState.isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : productsState.error != null
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.error_outline,
-                                    size: 48,
-                                    color: AppTheme.error,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(productsState.error!),
-                                  const SizedBox(height: 16),
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      ref.read(productsProvider.notifier).refresh();
-                                    },
-                                    child: const Text('Retry'),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : RefreshIndicator(
-                              onRefresh: () async {
-                                await ref.read(productsProvider.notifier).refresh();
-                              },
-                              child: ProductGrid(
-                                products: productsState.filteredProducts,
-                                onProductTap: (product) {
-                                  ref.read(cartProvider.notifier).addProduct(product);
-                                },
-                              ),
-                            ),
+                  child: CartPanel(
+                    cart: cart,
+                    onUpdateQuantity: (productId, quantity) {
+                      ref.read(cartProvider.notifier).updateQuantity(productId, quantity);
+                    },
+                    onRemoveItem: (productId) {
+                      ref.read(cartProvider.notifier).removeItem(productId);
+                    },
+                    onClearCart: () {
+                      ref.read(cartProvider.notifier).clear();
+                    },
+                    onApplyLoyalty: _handleApplyLoyalty,
+                    onCheckout: () {
+                      Navigator.pop(context); // Close modal first
+                      _handleCheckout();
+                    },
+                  ),
                 ),
               ],
             ),
-          ),
-
-          // Divider
-          Container(
-            width: 1,
-            color: AppTheme.neutral200,
-          ),
-
-          // Right: Cart Panel
-          SizedBox(
-            width: 380,
-            child: CartPanel(
-              cart: cart,
-              onUpdateQuantity: (productId, quantity) {
-                ref.read(cartProvider.notifier).updateQuantity(productId, quantity);
-              },
-              onRemoveItem: (productId) {
-                ref.read(cartProvider.notifier).removeItem(productId);
-              },
-              onClearCart: () {
-                ref.read(cartProvider.notifier).clear();
-              },
-              onApplyLoyalty: _handleApplyLoyalty,
-              onCheckout: _handleCheckout,
-            ),
-          ),
-        ],
+          );
+        },
       ),
-
-      // Mobile: Show cart button if items exist
-      floatingActionButton: MediaQuery.of(context).size.width < 800 && cartItemCount > 0
-          ? FloatingActionButton.extended(
-              onPressed: _handleCheckout,
-              backgroundColor: AppTheme.primaryOrange,
-              icon: Badge(
-                label: Text(cartItemCount.toString()),
-                child: const Icon(Icons.shopping_cart),
-              ),
-              label: Text(CurrencyFormatter.formatLAKWithSymbol(cart.total)),
-            )
-          : null,
     );
   }
 }

@@ -26,6 +26,7 @@ class AppRoutes {
   static const String otp = '/otp';
   static const String forgotPin = '/forgot-pin';
   static const String pos = '/pos';
+  static const String orders = '/orders';
   static const String inventory = '/inventory';
   static const String customers = '/customers';
   static const String reports = '/reports';
@@ -128,6 +129,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.pos,
         builder: (context, state) => const POSScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.orders,
+        builder: (context, state) => Scaffold(
+          appBar: AppBar(title: const Text('Orders')),
+          body: const Center(child: Text('Orders Screen - Coming Soon')),
+        ),
       ),
       GoRoute(
         path: AppRoutes.inventory,

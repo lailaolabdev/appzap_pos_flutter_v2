@@ -92,7 +92,10 @@ class ProductsNotifier extends StateNotifier<ProductsState> {
 
     try {
       final results = await Future.wait([
-        _productService.getProducts(branchId: _branchId),
+        _productService.getProducts(
+          restaurantId: _restaurantId,
+          branchId: _branchId,
+        ),
         _productService.getCategories(restaurantId: _restaurantId),
       ]);
 

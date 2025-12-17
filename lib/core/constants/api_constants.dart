@@ -54,11 +54,13 @@ class ApiConstants {
   static const String refreshTokens = '/auth/refresh-tokens';
 
   // ============ PRODUCT ENDPOINTS ============
-  static const String menuItems = '/menu/items';
-  static const String menuCategories = '/menu/categories';
+  static const String menuItems = '/menu-items'; // Fixed: hyphen not slash
+  static const String menuCategories =
+      '/menu-categories'; // Fixed: hyphen not slash
 
   // ============ ORDER ENDPOINTS ============
-  static const String createOrder = '/orders/takeaway';
+  static const String createOrder =
+      '/orders/takeaway-order'; // Fixed: added -order
   static const String orders = '/orders';
 
   // ============ PAYMENT ENDPOINTS ============
@@ -76,12 +78,16 @@ class ApiConstants {
 
   // ============ CUSTOMER ENDPOINTS ============
   static const String customers = '/crm/customers';
-  static const String customerPoints = '/crm/customers/{customerId}/points';
-  static const String redeemPoints = '/crm/loyalty-program/redeem';
+  static const String customerAvailablePoints =
+      '/crm/customers/{customerId}/loyalty/available-points'; // Fixed path
+  static const String redeemPoints =
+      '/crm/loyalty-programs/{programId}/redeem-points'; // Fixed path
 
   // ============ REPORT ENDPOINTS ============
-  static const String dailySummary = '/reports/daily-summary';
-  static const String endOfDay = '/reports/end-of-day';
+  static const String dailySummary =
+      '/daily-summary'; // Fixed: removed /reports prefix
+  static const String endOfDay =
+      '/end-of-day'; // Fixed: removed /reports prefix
   static const String salesItemsReport = '/reports/sales-items-report';
   static const String salesByEmployee = '/reports/sales-by-employee';
 }

@@ -17,7 +17,8 @@ class ProductService {
 
   /// Get all products for a branch
   Future<List<Product>> getProducts({
-    required String branchId,
+    required String restaurantId,
+    String? branchId,
     String? categoryId,
     String? search,
     bool isActive = true,
@@ -27,7 +28,8 @@ class ProductService {
     final response = await _apiClient.get(
       ApiConstants.menuItems,
       queryParameters: {
-        'branchId': branchId,
+        'restaurantId': restaurantId,
+        if (branchId != null) 'branchId': branchId,
         'isActive': isActive,
         'page': page,
         'limit': limit,
@@ -50,10 +52,12 @@ class ProductService {
 
   /// Search product by barcode
   Future<Product?> getProductByBarcode({
+    required String restaurantId,
     required String branchId,
     required String barcode,
   }) async {
     final products = await getProducts(
+      restaurantId: restaurantId,
       branchId: branchId,
       search: barcode,
     );

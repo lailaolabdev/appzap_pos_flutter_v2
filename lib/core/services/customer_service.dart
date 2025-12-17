@@ -106,7 +106,7 @@ class CustomerService {
 
   /// Get customer loyalty points and history
   Future<CustomerPoints> getCustomerPoints(String customerId) async {
-    final url = ApiConstants.customerPoints.replaceAll('{customerId}', customerId);
+    final url = ApiConstants.customerAvailablePoints.replaceAll('{customerId}', customerId);
     final response = await _apiClient.get(url);
 
     return CustomerPoints.fromJson(response['data'] as Map<String, dynamic>);

@@ -142,9 +142,15 @@ class AuthService {
         await _storageService.saveBranchId(user.branch!.id);
       }
 
+      // Parse subscription (included in registration response)
+      final subscription = data['subscription'] != null
+          ? Subscription.fromJson(data['subscription'] as Map<String, dynamic>)
+          : null;
+
       return AuthResult(
         user: user,
         hasPIN: pin != null,
+        subscription: subscription,
       );
     }
 
@@ -382,14 +388,18 @@ class AuthResult {
   /// Whether the user has PIN set up
   final bool hasPIN;
 
+  /// Subscription information (present for new registrations)
+  final Subscription? subscription;
+
   const AuthResult({
     required this.user,
     this.hasPIN = false,
+    this.subscription,
   });
 
   @override
   String toString() {
-    return 'AuthResult(user: ${user.name}, hasPIN: $hasPIN)';
+    return 'AuthResult(user: ${user.name}, hasPIN: $hasPIN, subscription: ${subscription?.status})';
   }
 }
 

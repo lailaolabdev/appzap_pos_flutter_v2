@@ -88,7 +88,10 @@ class SyncService {
       if (branchId == null || restaurantId == null) return;
 
       // Fetch products from server
-      final products = await _productService.getProducts(branchId: branchId);
+      final products = await _productService.getProducts(
+        restaurantId: restaurantId,
+        branchId: branchId,
+      );
 
       // Convert to database companions
       final companions =
