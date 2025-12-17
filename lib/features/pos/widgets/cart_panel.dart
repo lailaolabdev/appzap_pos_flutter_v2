@@ -11,6 +11,7 @@ class CartPanel extends StatelessWidget {
   final void Function(String productId) onRemoveItem;
   final VoidCallback onClearCart;
   final VoidCallback onCheckout;
+  final VoidCallback? onApplyLoyalty;
 
   const CartPanel({
     super.key,
@@ -19,6 +20,7 @@ class CartPanel extends StatelessWidget {
     required this.onRemoveItem,
     required this.onClearCart,
     required this.onCheckout,
+    this.onApplyLoyalty,
   });
 
   @override
@@ -58,6 +60,15 @@ class CartPanel extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
+                if (cart.isNotEmpty && onApplyLoyalty != null)
+                  TextButton.icon(
+                    onPressed: onApplyLoyalty,
+                    icon: const Icon(Icons.card_giftcard, size: 18),
+                    label: const Text('Loyalty'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppTheme.primaryOrange,
+                    ),
+                  ),
                 if (cart.isNotEmpty)
                   TextButton(
                     onPressed: onClearCart,

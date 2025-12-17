@@ -6,6 +6,7 @@ import '../features/auth/providers/auth_provider.dart';
 import '../features/auth/screens/login_screen.dart';
 import '../features/auth/screens/pin_login_screen.dart';
 import '../features/auth/screens/register_screen.dart';
+import '../features/auth/screens/registration_screen.dart';
 import '../features/auth/screens/otp_screen.dart';
 import '../features/auth/screens/forgot_pin_screen.dart';
 import '../features/pos/screens/pos_screen.dart';
@@ -91,10 +92,23 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.register,
         builder: (context, state) {
           final data = state.extra as Map<String, dynamic>?;
-          return RegisterScreen(
-            phone: data?['phone'] as String? ?? '',
-            tempToken: data?['tempToken'] as String? ?? '',
-          );
+          
+          // Check if this is the new self-service registration flow
+          final registrationToken = data?['registrationToken'] as String?;
+          
+          if (registrationToken != null) {
+            // New self-service registration flow
+            return RegistrationScreen(
+              registrationToken: registrationToken,
+              phone: data?['phone'] as String? ?? '',
+            );
+          } else {
+            // Legacy admin registration flow
+            return RegisterScreen(
+              phone: data?['phone'] as String? ?? '',
+              tempToken: data?['tempToken'] as String? ?? '',
+            );
+          }
         },
       ),
       GoRoute(

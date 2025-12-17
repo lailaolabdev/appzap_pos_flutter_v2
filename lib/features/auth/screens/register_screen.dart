@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/api/api_exception.dart';
 import '../../../core/utils/validators.dart';
+import '../../../shared/widgets/error_banner.dart';
 import '../providers/auth_provider.dart';
 
 /// Registration screen after OTP verification
@@ -28,9 +30,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _pinController = TextEditingController();
   final _confirmPinController = TextEditingController();
   final _restaurantIdController = TextEditingController();
-  
+
   int _currentStep = 0;
   String? _pinError;
+  String? _registrationError;
+  bool _isLoading = false;
+
+  String _getErrorMessage(dynamic error) {
+    if (error is ApiException) {
+      if (error.isNetworkError) {
+        return 'No internet connection. Please check your network.';
+      }
+      if (error.isServerError) {
+        return 'Server is temporarily unavailable. Please try again later.';
+      }
+      return error.message;
+    }
+    return 'Registration failed. Please try again.';
+  }
 
   @override
   void dispose() {
@@ -44,35 +61,41 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Future<void> _handleRegister() async {
     // Validate PIN match
     if (_pinController.text != _confirmPinController.text) {
-      setState(() => _pinError = 'PINs do not match');
+      if (mounted) setState(() => _pinError = 'PINs do not match');
       return;
     }
 
     final pinError = Validators.pin(_pinController.text);
     if (pinError != null) {
-      setState(() => _pinError = pinError);
+      if (mounted) setState(() => _pinError = pinError);
       return;
     }
 
-    setState(() => _pinError = null);
+    if (mounted) {
+      setState(() {
+        _pinError = null;
+        _registrationError = null;
+        _isLoading = true;
+      });
+    }
 
     try {
-      await ref.read(authProvider.notifier).register(
-        tempToken: widget.tempToken,
-        phone: widget.phone,
-        name: _nameController.text.trim(),
-        pin: _pinController.text,
-        restaurantId: _restaurantIdController.text.trim(),
-      );
+      await ref
+          .read(authProvider.notifier)
+          .register(
+            tempToken: widget.tempToken,
+            phone: widget.phone,
+            name: _nameController.text.trim(),
+            pin: _pinController.text,
+            restaurantId: _restaurantIdController.text.trim(),
+          );
       // Navigation handled by router redirect
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: AppTheme.error,
-          ),
-        );
+        setState(() {
+          _registrationError = _getErrorMessage(e);
+          _isLoading = false;
+        });
       }
     }
   }
@@ -107,8 +130,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
-    final isLoading = authState.isLoading;
+    // Use local loading state to avoid disposed widget issues
+    final isLoading = _isLoading;
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackground,
@@ -129,7 +152,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               LinearProgressIndicator(
                 value: (_currentStep + 1) / 3,
                 backgroundColor: AppTheme.neutral200,
-                valueColor: const AlwaysStoppedAnimation(AppTheme.primaryOrange),
+                valueColor: const AlwaysStoppedAnimation(
+                  AppTheme.primaryOrange,
+                ),
               ),
 
               Expanded(
@@ -184,17 +209,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
         Text(
           'What\'s your name?',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         Text(
           'This will be displayed on receipts',
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: AppTheme.neutral500,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 48),
@@ -249,17 +274,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
         Text(
           'Enter your store ID',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         Text(
           'Ask your manager for the store ID',
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: AppTheme.neutral500,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 48),
@@ -312,17 +337,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
         Text(
           'Create your PIN',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         Text(
           'You\'ll use this PIN to login quickly',
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: AppTheme.neutral500,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 32),
@@ -330,9 +355,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         // PIN Input
         Text(
           'Enter PIN',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w500,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 12),
         PinCodeTextField(
@@ -368,9 +393,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         // Confirm PIN
         Text(
           'Confirm PIN',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w500,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 12),
         PinCodeTextField(
@@ -403,15 +428,29 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         ),
 
         // Error message
-        if (_pinError != null) ...[
-          const SizedBox(height: 16),
-          Text(
-            _pinError!,
-            style: const TextStyle(
-              color: AppTheme.error,
-              fontSize: 14,
-            ),
-            textAlign: TextAlign.center,
+        if (_pinError != null || _registrationError != null) ...[
+          const SizedBox(height: 20),
+          ErrorBanner(
+            key: ValueKey(_pinError ?? _registrationError),
+            message: _registrationError ?? _pinError!,
+            title:
+                _registrationError != null
+                    ? 'Registration Failed'
+                    : 'Invalid PIN',
+            onDismiss: () {
+              if (mounted) {
+                setState(() {
+                  _pinError = null;
+                  _registrationError = null;
+                });
+              }
+            },
+            onRetry:
+                _registrationError != null
+                    ? () {
+                      if (mounted) setState(() => _registrationError = null);
+                    }
+                    : null,
           ),
         ],
 
@@ -421,20 +460,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           height: 56,
           child: ElevatedButton(
             onPressed: isLoading ? null : _handleRegister,
-            child: isLoading
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Text('Create Account'),
+            child:
+                isLoading
+                    ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
+                    : const Text('Create Account'),
           ),
         ),
       ],
     );
   }
 }
-

@@ -4,8 +4,16 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
+import '../../../core/models/cart.dart';
+import '../../../core/models/customer.dart';
+import '../../../core/models/payment.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../customers/widgets/customer_lookup_dialog.dart';
+import '../../customers/widgets/redeem_points_dialog.dart';
+import '../../payment/providers/payment_provider.dart';
+import '../../payment/widgets/cash_payment_dialog.dart';
+import '../../payment/widgets/phaypay_dialog.dart';
 import '../providers/pos_provider.dart';
 import '../widgets/category_bar.dart';
 import '../widgets/product_grid.dart';
@@ -66,16 +74,76 @@ class _POSScreenState extends ConsumerState<POSScreen> {
       return;
     }
 
-    // Show payment dialog
+    // Show payment method selection
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const _PaymentBottomSheet(),
+      builder: (context) => _PaymentBottomSheet(cart: cart),
     );
 
     if (result == true) {
+      // Payment successful - clear cart
       ref.read(cartProvider.notifier).clear();
+      
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment completed successfully!'),
+            backgroundColor: AppTheme.success,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleApplyLoyalty() async {
+    // Step 1: Look up customer
+    final Customer? customer = await showDialog<Customer>(
+      context: context,
+      builder: (context) => const CustomerLookupDialog(),
+    );
+
+    if (customer == null) return;
+
+    // Step 2: Show redemption dialog
+    final cart = ref.read(cartProvider);
+    final int? pointsRedeemed = await showDialog<int>(
+      context: context,
+      builder: (context) => RedeemPointsDialog(
+        customer: customer,
+        orderTotal: cart.total,
+        orderId: 'TEMP-${DateTime.now().millisecondsSinceEpoch}', // Temporary ID
+      ),
+    );
+
+    if (pointsRedeemed != null && pointsRedeemed > 0 && mounted) {
+      // Calculate discount (100 points = 10,000 LAK, so 1 point = 100 LAK)
+      final discountAmount = pointsRedeemed * 100.0;
+
+      // Add customer to cart
+      ref.read(cartProvider.notifier).setCustomer(customer);
+
+      // Add loyalty discount to cart
+      ref.read(cartProvider.notifier).addDiscount(
+            CartDiscount(
+              type: DiscountType.fixed,
+              value: discountAmount,
+              reason: 'Loyalty Points ($pointsRedeemed pts)',
+            ),
+          );
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Applied $pointsRedeemed loyalty points (${CurrencyFormatter.format(discountAmount)} discount)',
+          ),
+          backgroundColor: AppTheme.success,
+        ),
+      );
     }
   }
 
@@ -292,6 +360,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
               onClearCart: () {
                 ref.read(cartProvider.notifier).clear();
               },
+              onApplyLoyalty: _handleApplyLoyalty,
               onCheckout: _handleCheckout,
             ),
           ),
@@ -314,13 +383,14 @@ class _POSScreenState extends ConsumerState<POSScreen> {
   }
 }
 
-/// Payment bottom sheet (placeholder - we'll expand this)
+/// Payment bottom sheet with payment method selection
 class _PaymentBottomSheet extends ConsumerWidget {
-  const _PaymentBottomSheet();
+  final Cart cart;
+  
+  const _PaymentBottomSheet({required this.cart});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cart = ref.watch(cartProvider);
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.7,
@@ -406,9 +476,9 @@ class _PaymentBottomSheet extends ConsumerWidget {
                   _PaymentMethodButton(
                     icon: Icons.payments_outlined,
                     label: 'Cash',
-                    onTap: () {
-                      // TODO: Implement cash payment
-                      Navigator.pop(context, true);
+                    onTap: () async {
+                      Navigator.pop(context); // Close payment selection
+                      await _handleCashPayment(context, ref, cart);
                     },
                   ),
                   const SizedBox(height: 12),
@@ -418,9 +488,9 @@ class _PaymentBottomSheet extends ConsumerWidget {
                     icon: Icons.qr_code_2,
                     label: 'PhayPay (QR)',
                     subtitle: 'JDB, BCEL, LDB, IB',
-                    onTap: () {
-                      // TODO: Implement PhayPay
-                      Navigator.pop(context, true);
+                    onTap: () async {
+                      Navigator.pop(context); // Close payment selection
+                      await _handlePhayPayPayment(context, ref, cart);
                     },
                   ),
                 ],
@@ -497,6 +567,94 @@ class _PaymentMethodButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Handle cash payment (free function)
+Future<void> _handleCashPayment(
+  BuildContext context,
+  WidgetRef ref,
+  Cart cart,
+) async {
+  final result = await showDialog<Map<String, dynamic>>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => CashPaymentDialog(
+      totalAmount: cart.total,
+      onPaymentComplete: () {
+        // This will be called from the dialog
+      },
+    ),
+  );
+
+  if (result == null || !context.mounted) return;
+
+  // Process the payment with actual tendered amount
+  final tendered = result['tendered'] as double? ?? cart.total;
+  
+  final success = await ref.read(paymentProvider.notifier).processCashPayment(
+    total: cart.total,
+    tendered: tendered,
+    cart: cart,
+  );
+
+  if (success && context.mounted) {
+    Navigator.pop(context, true); // Close checkout sheet
+  } else if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Payment failed. Please try again.'),
+        backgroundColor: AppTheme.error,
+      ),
+    );
+  }
+}
+
+/// Handle PhayPay payment (free function)
+Future<void> _handlePhayPayPayment(
+  BuildContext context,
+  WidgetRef ref,
+  Cart cart,
+) async {
+  // Show bank selection
+  final bankMethod = await showDialog<PhayPayBankMethod>(
+    context: context,
+    builder: (context) => PhayPayBankSelectionDialog(
+      amount: cart.total,
+      onBankSelected: (bank) {
+        Navigator.pop(context, bank);
+      },
+    ),
+  );
+
+  if (bankMethod == null || !context.mounted) return;
+
+  // Create payment
+  final success = await ref.read(paymentProvider.notifier).processPhayPayPayment(
+    amount: cart.total,
+    bankMethod: bankMethod,
+    cart: cart,
+  );
+
+  if (!success || !context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Failed to create payment. Please try again.'),
+        backgroundColor: AppTheme.error,
+      ),
+    );
+    return;
+  }
+
+  // Show QR dialog
+  final result = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => const PhayPayQRDialog(),
+  );
+
+  if (result == true && context.mounted) {
+    Navigator.pop(context, true); // Close checkout sheet
   }
 }
 

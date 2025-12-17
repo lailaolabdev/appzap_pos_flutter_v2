@@ -5,17 +5,16 @@ import 'package:pin_code_fields/pin_code_fields.dart';
 
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
+import '../../../core/api/api_exception.dart';
 import '../../../core/utils/validators.dart';
+import '../../../shared/widgets/error_banner.dart';
 import '../providers/auth_provider.dart';
 
 /// PIN Login screen for fast authentication
 class PinLoginScreen extends ConsumerStatefulWidget {
   final String phone;
 
-  const PinLoginScreen({
-    super.key,
-    required this.phone,
-  });
+  const PinLoginScreen({super.key, required this.phone});
 
   @override
   ConsumerState<PinLoginScreen> createState() => _PinLoginScreenState();
@@ -24,6 +23,7 @@ class PinLoginScreen extends ConsumerStatefulWidget {
 class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
   final _pinController = TextEditingController();
   String? _error;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -36,28 +36,57 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
     final error = Validators.pin(pin);
 
     if (error != null) {
-      setState(() => _error = error);
+      if (mounted) setState(() => _error = error);
       return;
     }
 
-    setState(() => _error = null);
+    if (mounted) {
+      setState(() {
+        _error = null;
+        _isLoading = true;
+      });
+    }
 
     try {
-      await ref.read(authProvider.notifier).login(
-        phone: widget.phone,
-        pin: pin,
-      );
+      await ref
+          .read(authProvider.notifier)
+          .login(phone: widget.phone, pin: pin);
       // Navigation handled by router redirect
     } catch (e) {
-      setState(() => _error = 'Invalid PIN. Please try again.');
-      _pinController.clear();
+      if (mounted) {
+        String errorMessage = _getErrorMessage(e);
+        setState(() {
+          _error = errorMessage;
+          _isLoading = false;
+        });
+        _pinController.clear();
+      }
     }
+  }
+
+  String _getErrorMessage(dynamic error) {
+    if (error is ApiException) {
+      if (error.isUnauthorized) {
+        return 'Incorrect PIN. Please check and try again.';
+      }
+      if (error.isNetworkError) {
+        return 'No internet connection. Please check your network and try again.';
+      }
+      if (error.isServerError) {
+        return 'Server is temporarily unavailable. Please try again later.';
+      }
+      if (error.isRateLimited) {
+        return 'Too many attempts. Please wait a moment and try again.';
+      }
+      return error.message;
+    }
+    return 'Something went wrong. Please try again.';
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
-    final isLoading = authState.isLoading;
+    // Use local loading state to avoid disposed widget issues with provider updates
+    final isLoading = _isLoading;
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackground,
@@ -105,16 +134,19 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
               const SizedBox(height: 8),
               Text(
                 'Enter your 4-digit PIN to login',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppTheme.neutral500,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
 
               // Phone display
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.neutral100,
                   borderRadius: BorderRadius.circular(12),
@@ -122,7 +154,11 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.phone, size: 18, color: AppTheme.neutral500),
+                    const Icon(
+                      Icons.phone,
+                      size: 18,
+                      color: AppTheme.neutral500,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       Validators.formatPhone(widget.phone),
@@ -169,14 +205,20 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
 
               // Error message
               if (_error != null) ...[
-                const SizedBox(height: 16),
-                Text(
-                  _error!,
-                  style: TextStyle(
-                    color: AppTheme.error,
-                    fontSize: 14,
-                  ),
-                  textAlign: TextAlign.center,
+                const SizedBox(height: 20),
+                ErrorBanner(
+                  key: ValueKey(_error),
+                  message: _error!,
+                  title: 'Login Failed',
+                  onDismiss: () {
+                    if (mounted) setState(() => _error = null);
+                  },
+                  onRetry: () {
+                    if (mounted) {
+                      setState(() => _error = null);
+                      _pinController.clear();
+                    }
+                  },
                 ),
               ],
 
@@ -187,25 +229,25 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
                 height: 56,
                 child: ElevatedButton(
                   onPressed: isLoading ? null : _handleLogin,
-                  child: isLoading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Login'),
+                  child:
+                      isLoading
+                          ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                          : const Text('Login'),
                 ),
               ),
               const SizedBox(height: 24),
 
               // Forgot PIN
               TextButton(
-                onPressed: isLoading
-                    ? null
-                    : () => context.push(AppRoutes.forgotPin),
+                onPressed:
+                    isLoading ? null : () => context.push(AppRoutes.forgotPin),
                 child: const Text('Forgot PIN?'),
               ),
 
@@ -224,4 +266,3 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
     );
   }
 }
-

@@ -205,7 +205,21 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
                 Expanded(
                   flex: 2,
                   child: ElevatedButton(
-                    onPressed: _canComplete ? widget.onPaymentComplete : null,
+                    onPressed:
+                        _canComplete
+                            ? () {
+                              if (widget.onPaymentComplete != null) {
+                                widget.onPaymentComplete!();
+                              }
+                              Navigator.pop(
+                                context,
+                                {
+                                  'tendered': _tenderedAmount,
+                                  'change': _change,
+                                },
+                              );
+                            }
+                            : null,
                     child: const Text('Complete Payment'),
                   ),
                 ),

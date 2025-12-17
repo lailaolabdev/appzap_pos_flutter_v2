@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
+import '../../../core/api/api_exception.dart';
 import '../../../core/utils/validators.dart';
+import '../../../shared/widgets/error_banner.dart';
 import '../providers/auth_provider.dart';
 
 /// Login screen with phone number entry
@@ -19,7 +21,8 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
-  bool _isNewUser = false;
+  String? _error;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -27,47 +30,59 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _handleContinue() async {
+  String _getErrorMessage(dynamic error) {
+    if (error is ApiException) {
+      if (error.isNetworkError) {
+        return 'No internet connection. Please check your network.';
+      }
+      if (error.isServerError) {
+        return 'Server is temporarily unavailable. Please try again later.';
+      }
+      return error.message;
+    }
+    return 'Something went wrong. Please try again.';
+  }
+
+  Future<void> _sendOTP() async {
     if (!_formKey.currentState!.validate()) return;
 
     final phone = Validators.normalizePhone(_phoneController.text.trim());
 
-    try {
-      if (_isNewUser) {
-        // New user - send OTP for registration
-        await ref.read(authProvider.notifier).sendOtp(
-          phone: phone,
-          purpose: 'registration',
-        );
+    if (mounted) {
+      setState(() {
+        _error = null;
+        _isLoading = true;
+      });
+    }
 
-        if (mounted) {
-          context.push(
-            AppRoutes.otp,
-            extra: {'phone': phone, 'purpose': 'registration'},
-          );
-        }
-      } else {
-        // Existing user - go to PIN login
-        if (mounted) {
-          context.push(AppRoutes.pinLogin, extra: phone);
-        }
+    try {
+      // Send OTP for login (works for all users)
+      await ref
+          .read(authProvider.notifier)
+          .sendOtp(phone: phone, purpose: 'login');
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        // Go to OTP screen for verification
+        context.push(
+          AppRoutes.otp,
+          extra: {'phone': phone, 'purpose': 'login'},
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: AppTheme.error,
-          ),
-        );
+        setState(() {
+          _error = _getErrorMessage(e);
+          _isLoading = false;
+        });
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
-    final isLoading = authState.isLoading;
+    // Use local loading state to avoid disposed widget issues
+    final isLoading = _isLoading;
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackground,
@@ -109,13 +124,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Enter your phone number to continue',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppTheme.neutral500,
-                  ),
+                  'Enter your phone number to receive OTP',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 48),
+                const SizedBox(height: 32),
+
+                // Error Banner
+                if (_error != null) ...[
+                  ErrorBanner(
+                    key: ValueKey(_error),
+                    message: _error!,
+                    onDismiss: () {
+                      if (mounted) setState(() => _error = null);
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                ],
 
                 // Phone Input
                 TextFormField(
@@ -139,65 +166,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   validator: Validators.phone,
                   enabled: !isLoading,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 32),
 
-                // New User Toggle
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _isNewUser,
-                      onChanged: isLoading
-                          ? null
-                          : (value) {
-                              setState(() {
-                                _isNewUser = value ?? false;
-                              });
-                            },
-                    ),
-                    Text(
-                      'I\'m a new user',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                // Continue Button
+                // Send OTP Button
                 SizedBox(
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: isLoading ? null : _handleContinue,
-                    child: isLoading
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(_isNewUser ? 'Create Account' : 'Continue'),
+                    onPressed: isLoading ? null : _sendOTP,
+                    child:
+                        isLoading
+                            ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white,
+                              ),
+                            )
+                            : const Text('Send OTP'),
                   ),
                 ),
                 const SizedBox(height: 16),
 
-                // Forgot PIN
-                if (!_isNewUser)
-                  TextButton(
-                    onPressed: isLoading
-                        ? null
-                        : () => context.push(AppRoutes.forgotPin),
-                    child: const Text('Forgot PIN?'),
+                // Login with PIN instead (for returning users)
+                TextButton.icon(
+                  onPressed:
+                      isLoading
+                          ? null
+                          : () => context.push(AppRoutes.pinLogin),
+                  icon: const Icon(Icons.flash_on, size: 20),
+                  label: const Text('Login with PIN instead (⚡ faster)'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppTheme.primaryOrange,
                   ),
+                ),
 
                 const SizedBox(height: 48),
 
                 // Footer
                 Text(
                   'By continuing, you agree to our Terms of Service\nand Privacy Policy',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.neutral400,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppTheme.neutral400),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -233,4 +244,3 @@ class _PhoneNumberFormatter extends TextInputFormatter {
     );
   }
 }
-

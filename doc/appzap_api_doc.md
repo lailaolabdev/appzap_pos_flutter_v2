@@ -1,7 +1,8 @@
 # AppZap Universal POS - Complete API Documentation
 **Version:** 1.0 (Phase 1 - Basic POS)  
 **Target:** Flutter Mobile POS Application  
-**Date:** January 2025  
+**Date:** January 15, 2025  
+**Status:** ✅ Production Ready  
 **Industries:** Mini Marts, Cafes, Shops, Retail Stores, Takeaway Restaurants
 
 ---
@@ -19,7 +20,7 @@
 9. [WebSocket Real-time](#9-websocket-real-time)
 10. [Error Handling](#10-error-handling)
 11. [Flutter Implementation Guide](#11-flutter-implementation-guide)
-12. [Offline Mode Strategy](#12-offline-mode-strategy)
+12. [Testing & Troubleshooting](#12-testing--troubleshooting)
 
 ---
 
@@ -45,7 +46,7 @@ WebSocket: wss://ws.appzap.la
 
 **🏆 3 Winning Features (Better than Loyverse):**
 
-1. **PhayPay Built-in Payment** - Native integration with Laos banking
+1. **PhayPay Built-in Payment** - Native integration with Laos banking (JDB, BCEL, LDB, Indochina Bank)
 2. **Advanced Inventory** - Purchase orders, batch tracking, multi-location
 3. **Customer Loyalty Program** - Points, tiers, rewards (FREE!)
 
@@ -96,9 +97,49 @@ Authorization: Bearer {jwt_token}
 
 > **📱 Laos-First Design:** Phone number + PIN authentication for fast, local-friendly POS experience
 
-### 2.1 Send OTP (Sign Up / Verification)
+### 2.1 Authentication Flow Overview
 
-Start the registration or verification process by sending an OTP to the phone number.
+> **🌟 WORLD STANDARD:** Self-service onboarding like WhatsApp, Grab, Banking apps
+
+```
+┌────────────────────────────────────────────────────────────┐
+│         NEW USER (SELF-REGISTRATION) - SUPER SIMPLE!       │
+└────────────────────────────────────────────────────────────┘
+1. Download app
+2. Enter phone → Receive OTP
+3. Enter OTP → Phone verified ✅
+4. Enter:
+   - Your name
+   - Restaurant name
+5. ✅ ACCOUNT CREATED & LOGGED IN!
+
+⏱️  Total Time: ~60 seconds  |  Required Fields: Only 3!
+
+┌────────────────────────────────────────────────────────────┐
+│            EXISTING USER (LOGIN) - INSTANT!                 │
+└────────────────────────────────────────────────────────────┘
+1. Enter phone → Receive OTP
+2. Enter OTP → ✅ LOGGED IN IMMEDIATELY!
+
+⏱️  Total Time: ~30 seconds  |  Steps: 2
+
+┌────────────────────────────────────────────────────────────┐
+│              FAST LOGIN (OPTIONAL) - LIGHTNING!             │
+└────────────────────────────────────────────────────────────┘
+Option: Phone + 4-digit PIN (⚡ 2 seconds)
+  └─→ Setup after first login for faster daily access
+```
+
+**Key Benefits:**
+- ✅ **No admin needed** - Anyone can create account
+- ✅ **Super simple** - Only 3 required fields (name, phone, restaurant name)
+- ✅ **Industry standard** - Matches WhatsApp, Grab, Telegram, Banking apps
+- ✅ **Instant access** - Create account & start selling in 60 seconds
+- ✅ **Optional PIN** - Convenience feature for faster daily logins
+
+### 2.2 Send OTP (Works for ANY Phone Number) 🌍
+
+Send OTP to **any valid phone number** - registered or not!
 
 ```http
 POST /auth/phone/send-otp
@@ -106,39 +147,53 @@ Content-Type: application/json
 
 {
   "phone": "020 12345678",
-  "userType": "staff",
-  "purpose": "registration"
+  "purpose": "login"
 }
 ```
 
+**Phone Number Format:** The API accepts any format and auto-normalizes:
+- `020 12345678` → `+85620123456789`
+- `20 1234 5678` → `+85620123456789`
+- `+856 20 12345678` → `+85620123456789`
+
 **Purpose Options:**
-- `registration` - New user signup
-- `login` - Login verification (optional)
+- `login` - Login/Registration (default)
 - `forgot_pin` - Reset PIN
 
 **Response (200 OK):**
 ```json
 {
   "success": true,
-  "message": "OTP sent to 020 12345678",
+  "message": "OTP sent to +85620123456789",
   "expiresIn": 300
 }
 ```
+
+**✨ Key Points:**
+- ✅ Works for **both new and existing users**
+- ✅ No need to check if user exists first
+- ✅ New users will register after OTP verification
+- ✅ Existing users will login after OTP verification
 
 **Error Response (Rate Limited):**
 ```json
 {
   "success": false,
-  "message": "Too many OTP requests. Please try again in 1 hour.",
+  "message": "Too many OTP requests. Please try again in 8 minutes.",
   "code": "RATE_LIMIT_EXCEEDED"
 }
 ```
 
+**Rate Limits:**
+- Max 3 OTP requests per 10 minutes per phone
+- OTP expires in 5 minutes
+- Max 3 verification attempts per OTP
+
 ---
 
-### 2.2 Verify OTP
+### 2.3 Verify OTP (Smart Response) 🎯
 
-Verify the OTP code received via SMS.
+Verify OTP and get appropriate response based on user status.
 
 ```http
 POST /auth/phone/verify-otp
@@ -150,20 +205,74 @@ Content-Type: application/json
 }
 ```
 
-**Response (200 OK):**
+---
+
+#### **Scenario 1: Existing User (Login) ✅**
+
+**Response (200 OK) - COMPLETE AUTHENTICATION:**
 ```json
 {
   "success": true,
   "verified": true,
-  "message": "Phone number verified successfully",
-  "tempToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "isRegistered": true,
+  "user": {
+    "_id": "60d5ec954b24c72d88c4e123",
+    "name": "John Doe",
+    "phone": "+85620123456789",
+    "userId": "STORE01-OWNER",
+    "role": "owner",
+    "restaurantId": {
+      "_id": "60d5ec854b24c72d88c4e120",
+      "name": "My Store",
+      "currency": "LAK"
+    },
+    "branchId": {
+      "_id": "60d5ec954b24c72d88c4e121",
+      "name": "Main Branch"
+    },
+    "permissions": [...]
+  },
+  "tokens": {
+    "access": {
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "expires": "2025-01-15T12:00:00Z"
+    },
+    "refresh": {
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "expires": "2025-02-14T10:00:00Z"
+    }
+  },
+  "hasPIN": false,
+  "message": "Login successful"
+}
+```
+
+**🎉 User is LOGGED IN immediately!**
+
+---
+
+#### **Scenario 2: New User (Registration Required) 📝**
+
+**Response (200 OK) - REGISTRATION REQUIRED:**
+```json
+{
+  "success": true,
+  "verified": true,
+  "isRegistered": false,
+  "registrationRequired": true,
+  "registrationToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "phone": "+85620123456789",
+  "message": "Phone verified successfully. Please complete registration.",
   "expiresIn": 900
 }
 ```
 
-**Note:** `tempToken` is valid for 15 minutes and must be used to complete registration.
+**📝 Next Step:** Use `registrationToken` to complete registration (see Section 2.4)
 
-**Error Response (Invalid OTP):**
+---
+
+#### **Error Response (Invalid OTP):**
+
 ```json
 {
   "success": false,
@@ -174,53 +283,66 @@ Content-Type: application/json
 }
 ```
 
+**Key Points:**
+- ✅ **Existing users** → Get full tokens, logged in immediately
+- ✅ **New users** → Get registrationToken to complete signup
+- ✅ **registrationToken** valid for 15 minutes
+- ✅ Both flows are seamless and user-friendly
+
 ---
 
-### 2.3 Register with Phone (After OTP Verification)
+### 2.4 Complete Registration (Self-Service) 🌟
 
-Complete registration after OTP verification.
+Complete registration for new users with just **3 required fields**!
 
 ```http
 POST /auth/phone/register
 Content-Type: application/json
 
 {
-  "tempToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "phone": "020 12345678",
+  "registrationToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "name": "John Doe",
-  "pin": "1234",
-  "restaurantId": "60d5ec854b24c72d88c4e120",
-  "branchId": "60d5ec954b24c72d88c4e121",
-  "role": "cashier"
+  "restaurantName": "John's Coffee Shop",
+  "pin": "1234"
 }
 ```
 
-**Fields:**
-- `tempToken` (required) - Token from OTP verification
-- `phone` (required) - Phone number (must match verification)
-- `name` (required) - Staff member name
-- `pin` (required) - 4-6 digit PIN for quick login
-- `restaurantId` (required) - Restaurant ID
-- `branchId` (optional) - Branch ID
-- `role` (optional) - Default: "cashier"
+**Required Fields:**
+- `registrationToken` (from verify-otp response)
+- `name` - Your name
+- `restaurantName` - Your restaurant/shop name
 
-**Response (201 Created):**
+**Optional Fields:**
+- `pin` - 4-digit PIN for faster future logins
+
+**Response (201 Created) - ACCOUNT CREATED & LOGGED IN:**
 ```json
 {
   "success": true,
+  "registered": true,
   "user": {
     "_id": "60d5ec954b24c72d88c4e123",
     "name": "John Doe",
-    "phone": "020 12345678",
-    "userId": "STORE01-345678",
-    "role": "cashier",
-    "isPhoneVerified": true,
-    "restaurantId": "60d5ec854b24c72d88c4e120",
-    "branchId": "60d5ec954b24c72d88c4e121",
+    "phone": "+85620123456789",
+    "userId": "REST12345678-OWNER",
+    "role": "owner",
+    "restaurantId": {
+      "_id": "60d5ec854b24c72d88c4e120",
+      "name": "John's Coffee Shop",
+      "currency": "LAK"
+    },
+    "branchId": {
+      "_id": "60d5ec954b24c72d88c4e121",
+      "name": "Main Branch"
+    },
     "permissions": [
       "manage_sales",
+      "manage_orders",
+      "manage_inventory",
+      "manage_customers",
+      "manage_staff",
       "view_reports",
-      "manage_customers"
+      "manage_settings"
     ]
   },
   "tokens": {
@@ -232,13 +354,63 @@ Content-Type: application/json
       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
       "expires": "2025-02-14T10:00:00Z"
     }
-  }
+  },
+  "restaurant": {
+    "_id": "60d5ec854b24c72d88c4e120",
+    "name": "John's Coffee Shop",
+    "code": "REST12345678"
+  },
+  "branch": {
+    "_id": "60d5ec954b24c72d88c4e121",
+    "name": "Main Branch"
+  },
+  "message": "Registration successful! Welcome to AppZap POS"
+}
+```
+
+**🎉 Account Created & User is LOGGED IN!**
+
+**What Gets Created Automatically:**
+- ✅ Restaurant account
+- ✅ Main branch
+- ✅ Owner account (you)
+- ✅ All owner permissions
+- ✅ Full authentication tokens
+
+**Key Benefits:**
+- ✅ **Super simple** - Only 3 required fields!
+- ✅ **Instant setup** - Everything created automatically
+- ✅ **Owner role** - Full access to all features
+- ✅ **Ready to use** - Start selling immediately
+
+**Error Responses:**
+
+```json
+// Invalid token
+{
+  "success": false,
+  "message": "Invalid or expired registration token",
+  "code": "UNAUTHORIZED"
+}
+
+// Phone already registered
+{
+  "success": false,
+  "message": "User with this phone number already exists",
+  "code": "CONFLICT"
+}
+
+// Missing required fields
+{
+  "success": false,
+  "message": "Name and restaurant name are required",
+  "code": "VALIDATION_ERROR"
 }
 ```
 
 ---
 
-### 2.4 Login with Phone + PIN 🚀 (Recommended for POS)
+### 2.5 Login with Phone + PIN 🚀 (Optional - Fast Daily Login)
 
 Fast login for daily POS usage - just phone number + 4-digit PIN.
 
@@ -248,8 +420,7 @@ Content-Type: application/json
 
 {
   "phone": "020 12345678",
-  "pin": "1234",
-  "userType": "staff"
+  "pin": "1234"
 }
 ```
 
@@ -260,7 +431,7 @@ Content-Type: application/json
   "user": {
     "_id": "60d5ec954b24c72d88c4e123",
     "name": "John Doe",
-    "phone": "020 12345678",
+    "phone": "+85620123456789",
     "userId": "STORE01-345678",
     "role": "cashier",
     "restaurantId": {
@@ -296,10 +467,41 @@ Content-Type: application/json
 - 🧠 **Easy to Remember:** Just 4 digits
 - 📱 **Local-Friendly:** Phone numbers are universal in Laos
 - 🔒 **Secure Enough:** For POS staff access
+- 💪 **No Expiry:** PIN never expires (unlike passwords)
 
 ---
 
-### 2.5 Forgot PIN
+### 2.6 Setup/Change PIN (Authenticated)
+
+Setup or change PIN while logged in.
+
+```http
+POST /auth/phone/setup-pin
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "pin": "1234",
+  "oldPin": "5678"
+}
+```
+
+**Notes:**
+- `oldPin` is required if PIN already exists
+- PIN must be exactly 4 digits
+- First-time setup doesn't require `oldPin`
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "PIN setup successfully"
+}
+```
+
+---
+
+### 2.7 Forgot PIN
 
 Reset PIN using OTP verification.
 
@@ -309,8 +511,7 @@ POST /auth/phone/forgot-pin
 Content-Type: application/json
 
 {
-  "phone": "020 12345678",
-  "userType": "staff"
+  "phone": "020 12345678"
 }
 ```
 
@@ -331,8 +532,7 @@ Content-Type: application/json
 {
   "phone": "020 12345678",
   "otp": "123456",
-  "newPin": "5678",
-  "userType": "staff"
+  "newPin": "5678"
 }
 ```
 
@@ -346,32 +546,7 @@ Content-Type: application/json
 
 ---
 
-### 2.6 Setup/Change PIN (Authenticated)
-
-Change PIN while logged in (requires current PIN).
-
-```http
-POST /auth/phone/setup-pin
-Authorization: Bearer {token}
-Content-Type: application/json
-
-{
-  "pin": "5678",
-  "oldPin": "1234"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "PIN setup successfully"
-}
-```
-
----
-
-### 2.7 Refresh Tokens
+### 2.8 Refresh Tokens
 
 Get new access token using refresh token.
 
@@ -383,6 +558,20 @@ Content-Type: application/json
   "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
+
+---
+
+### 2.9 Legacy Authentication (Web POS)
+
+For backward compatibility, these endpoints are still available:
+
+```http
+POST /auth/login              # Email + Password
+POST /auth/login-with-userid  # UserId + Password
+POST /auth/quick-login        # UserId + Passcode
+```
+
+**Note:** Mobile apps should use Phone + PIN authentication for better UX.
 
 ---
 
@@ -508,6 +697,13 @@ Query Parameters:
 ```http
 GET /menu/items?branchId={branchId}&search={barcode}
 Authorization: Bearer {token}
+```
+
+**Barcode Scanner Integration:**
+```dart
+// Flutter: Use barcode scanner package
+final barcode = await BarcodeScanner.scan();
+final product = await productService.findByBarcode(barcode);
 ```
 
 ---
@@ -733,7 +929,11 @@ Content-Type: application/json
 }
 ```
 
+---
+
 ### 5.3 PhayPay Payment (🎯 KILLER FEATURE!)
+
+> **Native Laos Bank Integration:** QR payments for JDB, BCEL, LDB, and Indochina Bank
 
 #### 5.3.1 Create PhayPay Payment
 
@@ -757,8 +957,8 @@ Content-Type: application/json
 ```
 
 **Bank Methods Available:**
-- `bank_qr_jdb` - Joint Development Bank
-- `bank_qr_bcel` - BCEL
+- `bank_qr_jdb` - Joint Development Bank (JDB)
+- `bank_qr_bcel` - BCEL (Banque pour le Commerce Exterieur Lao)
 - `bank_qr_ib` - Indochina Bank
 - `bank_qr_ldb` - Lao Development Bank
 - `payment_link` - Universal payment link (customer chooses bank)
@@ -778,6 +978,7 @@ Content-Type: application/json
     "bankMethod": "bank_qr_jdb",
     "status": "pending",
     "expiresAt": "2025-01-15T10:45:00Z",
+    "expiresInSeconds": 600,
     "createdAt": "2025-01-15T10:35:00Z"
   }
 }
@@ -800,16 +1001,102 @@ Authorization: Bearer {token}
     "paidAt": "2025-01-15T10:36:30Z",
     "amount": 30690,
     "transactionId": "TXN-20250115-00123",
-    "bankReference": "JDB20250115103630"
+    "bankReference": "JDB20250115103630",
+    "orderId": "ORD-20250115-00045"
   }
 }
 ```
 
 **Payment Statuses:**
 - `pending` - Waiting for payment
-- `completed` - Payment successful
-- `failed` - Payment failed
+- `completed` - Payment successful ✅
+- `failed` - Payment failed ❌
 - `expired` - QR code expired (10 minutes)
+
+#### 5.3.3 Flutter PhayPay Implementation Example
+
+```dart
+class PhayPayService {
+  final Dio dio;
+  
+  Future<PhayPayPayment> createPayment({
+    required String orderId,
+    required String branchId,
+    required double amount,
+    required String bankMethod,
+  }) async {
+    final response = await dio.post(
+      '/payments/phajay/create',
+      data: {
+        'orderId': orderId,
+        'branchId': branchId,
+        'amount': amount,
+        'currency': 'LAK',
+        'bankMethod': bankMethod,
+        'description': 'Order #$orderId',
+      },
+    );
+    
+    return PhayPayPayment.fromJson(response.data['data']);
+  }
+  
+  // Poll payment status every 3 seconds
+  Stream<PhayPayStatus> watchPayment(String paymentId) async* {
+    final maxDuration = Duration(minutes: 10);
+    final pollInterval = Duration(seconds: 3);
+    final startTime = DateTime.now();
+    
+    while (DateTime.now().difference(startTime) < maxDuration) {
+      final status = await checkPaymentStatus(paymentId);
+      yield status;
+      
+      if (status.isCompleted || status.isFailed || status.isExpired) {
+        break;
+      }
+      
+      await Future.delayed(pollInterval);
+    }
+  }
+  
+  Future<PhayPayStatus> checkPaymentStatus(String paymentId) async {
+    final response = await dio.get('/payments/phajay/status/$paymentId');
+    return PhayPayStatus.fromJson(response.data['data']);
+  }
+}
+
+// Usage in UI
+void _showPhayPayDialog(Order order) async {
+  // Create payment
+  final payment = await phayPayService.createPayment(
+    orderId: order.id,
+    branchId: currentBranchId,
+    amount: order.total,
+    bankMethod: 'bank_qr_jdb',
+  );
+  
+  // Show QR code dialog
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => PhayPayQRDialog(
+      qrCode: payment.qrCode,
+      amount: payment.amount,
+      expiresAt: payment.expiresAt,
+    ),
+  );
+  
+  // Watch payment status
+  phayPayService.watchPayment(payment.paymentId).listen((status) {
+    if (status.isCompleted) {
+      Navigator.pop(context); // Close QR dialog
+      _showSuccessDialog(order);
+    } else if (status.isFailed || status.isExpired) {
+      Navigator.pop(context);
+      _showErrorDialog(status.message);
+    }
+  });
+}
+```
 
 ---
 
@@ -1158,7 +1445,7 @@ Query Parameters:
 
 ### 9.1 Connection Setup
 
-```javascript
+```dart
 // Flutter: socket_io_client package
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
@@ -1182,7 +1469,7 @@ socket.on('connect', (_) {
 ### 9.2 Event Subscriptions
 
 **Order Events:**
-```javascript
+```dart
 socket.on('order:created', (data) {
   print('New order created: ${data['orderId']}');
   // Update UI
@@ -1200,7 +1487,7 @@ socket.on('order:completed', (data) {
 ```
 
 **Payment Events:**
-```javascript
+```dart
 socket.on('payment:completed', (data) {
   print('Payment completed: ${data['paymentId']}');
   // Update payment status
@@ -1213,7 +1500,7 @@ socket.on('payment:failed', (data) {
 ```
 
 **Inventory Events:**
-```javascript
+```dart
 socket.on('inventory:low_stock', (data) {
   print('Low stock alert: ${data['itemName']}');
   // Show alert badge
@@ -1240,6 +1527,7 @@ socket.on('inventory:out_of_stock', (data) {
 | `DUPLICATE_ENTRY` | 409 | Resource already exists |
 | `LOW_STOCK` | 400 | Insufficient stock |
 | `PAYMENT_FAILED` | 402 | Payment processing failed |
+| `RATE_LIMIT_EXCEEDED` | 429 | Too many requests |
 | `INTERNAL_ERROR` | 500 | Server error |
 
 ### 10.2 Error Response Format
@@ -1291,6 +1579,7 @@ class ApiException implements Exception {
   bool get isNotFound => statusCode == 404;
   bool get isValidationError => code == 'VALIDATION_ERROR';
   bool get isLowStock => code == 'LOW_STOCK';
+  bool get isRateLimited => code == 'RATE_LIMIT_EXCEEDED';
 }
 
 // Usage in service
@@ -1369,8 +1658,8 @@ class ApiClient {
   ApiClient() {
     dio = Dio(BaseOptions(
       baseUrl: ApiConfig.baseUrl,
-      connectTimeout: ApiConfig.connectTimeout,
-      receiveTimeout: ApiConfig.receiveTimeout,
+      connectTimeout: Duration(seconds: 10),
+      receiveTimeout: Duration(seconds: 10),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -1440,132 +1729,576 @@ class AuthInterceptor extends Interceptor {
 }
 ```
 
-### 11.3 Complete POS Screen Example
+### 11.3 Authentication Service
 
 ```dart
-// features/pos/pos_screen.dart
-class POSScreen extends StatefulWidget {
-  @override
-  _POSScreenState createState() => _POSScreenState();
-}
-
-class _POSScreenState extends State<POSScreen> {
-  final ProductService _productService = ProductService();
-  final OrderService _orderService = OrderService();
-  final PaymentService _paymentService = PaymentService();
+// core/services/auth_service.dart
+class AuthService {
+  final ApiClient _api;
   
-  Cart cart = Cart();
-  List<Product> products = [];
-  List<Category> categories = [];
-  String? selectedCategoryId;
-  bool isLoading = false;
+  AuthService(this._api);
   
-  @override
-  void initState() {
-    super.initState();
-    _loadData();
-  }
-  
-  Future<void> _loadData() async {
-    setState(() => isLoading = true);
-    try {
-      final results = await Future.wait([
-        _productService.getProducts(),
-        _productService.getCategories(),
-      ]);
-      setState(() {
-        products = results[0] as List<Product>;
-        categories = results[1] as List<Category>;
-        isLoading = false;
-      });
-    } catch (e) {
-      setState(() => isLoading = false);
-      _showError(e.toString());
-    }
-  }
-  
-  void _addToCart(Product product) {
-    if (product.inventory != null && !product.isInStock) {
-      _showError('Product out of stock');
-      return;
-    }
-    setState(() {
-      cart.addItem(product);
+  // Send OTP
+  Future<void> sendOTP(String phone) async {
+    await _api.post('/auth/phone/send-otp', data: {
+      'phone': phone,
+      'purpose': 'login',
     });
   }
   
-  Future<void> _checkout() async {
-    if (cart.isEmpty) {
-      _showError('Cart is empty');
+  // Verify OTP (Smart Response - Login OR Registration Required)
+  Future<OTPVerificationResult> verifyOTP(String phone, String otp) async {
+    final response = await _api.post('/auth/phone/verify-otp', data: {
+      'phone': phone,
+      'otp': otp,
+    });
+    
+    if (response['success'] && response['verified']) {
+      if (response['isRegistered']) {
+        // Existing user - Logged in!
+        final user = User.fromJson(response['user']);
+        final tokens = Tokens.fromJson(response['tokens']);
+        final hasPIN = response['hasPIN'] ?? false;
+        
+        // Save tokens
+        await _saveTokens(tokens);
+        
+        // Save user data
+        await SecureStorage().write(
+          key: 'user_data',
+          value: jsonEncode(user.toJson()),
+        );
+        
+        return OTPVerificationResult.loggedIn(
+          user: user,
+          tokens: tokens,
+          hasPIN: hasPIN,
+        );
+      } else {
+        // New user - Registration required
+        return OTPVerificationResult.registrationRequired(
+          registrationToken: response['registrationToken'],
+          phone: response['phone'],
+        );
+      }
+    }
+    
+    throw ApiException(message: response['message'] ?? 'OTP verification failed');
+  }
+  
+  // Complete Registration (Self-service)
+  Future<AuthResult> registerWithPhone({
+    required String registrationToken,
+    required String name,
+    required String restaurantName,
+    String? pin,
+  }) async {
+    final response = await _api.post('/auth/phone/register', data: {
+      'registrationToken': registrationToken,
+      'name': name,
+      'restaurantName': restaurantName,
+      if (pin != null) 'pin': pin,
+    });
+    
+    if (response['success'] && response['registered']) {
+      final user = User.fromJson(response['user']);
+      final tokens = Tokens.fromJson(response['tokens']);
+      final restaurant = Restaurant.fromJson(response['restaurant']);
+      
+      // Save tokens
+      await _saveTokens(tokens);
+      
+      // Save user data
+      await SecureStorage().write(
+        key: 'user_data',
+        value: jsonEncode(user.toJson()),
+      );
+      
+      return AuthResult(
+        user: user,
+        tokens: tokens,
+        restaurant: restaurant,
+        hasPIN: pin != null,
+      );
+    }
+    
+    throw ApiException(message: 'Registration failed');
+  }
+  
+  // Helper: Save tokens
+  Future<void> _saveTokens(Tokens tokens) async {
+    await SecureStorage().write(
+      key: 'auth_token',
+      value: tokens.accessToken,
+    );
+    
+    await SecureStorage().write(
+      key: 'refresh_token',
+      value: tokens.refreshToken,
+    );
+  }
+  
+  // Login with PIN (Fast - Recommended for daily use)
+  Future<AuthResult> loginWithPIN(String phone, String pin) async {
+    final response = await _api.post('/auth/phone/login', data: {
+      'phone': phone,
+      'pin': pin,
+    });
+    
+    if (response['success']) {
+      final user = User.fromJson(response['user']);
+      final tokens = Tokens.fromJson(response['tokens']);
+      
+      // Save token to secure storage
+      await SecureStorage().write(
+        key: 'auth_token',
+        value: tokens.accessToken,
+      );
+      
+      await SecureStorage().write(
+        key: 'refresh_token',
+        value: tokens.refreshToken,
+      );
+      
+      return AuthResult(user: user, tokens: tokens, hasPIN: true);
+    }
+    
+    throw ApiException(message: 'Login failed');
+  }
+  
+  // Setup PIN (Optional - for faster future logins)
+  Future<void> setupPIN(String pin, {String? oldPin}) async {
+    await _api.post('/auth/phone/setup-pin', data: {
+      'pin': pin,
+      if (oldPin != null) 'oldPin': oldPin,
+    });
+  }
+  
+  // Forgot PIN
+  Future<void> forgotPIN(String phone) async {
+    await _api.post('/auth/phone/forgot-pin', data: {
+      'phone': phone,
+    });
+  }
+  
+  // Reset PIN
+  Future<void> resetPIN(String phone, String otp, String newPin) async {
+    await _api.post('/auth/phone/reset-pin', data: {
+      'phone': phone,
+      'otp': otp,
+      'newPin': newPin,
+    });
+  }
+  
+  // Logout
+  Future<void> logout() async {
+    await SecureStorage().delete(key: 'auth_token');
+    await SecureStorage().delete(key: 'refresh_token');
+    await SecureStorage().delete(key: 'user_data');
+  }
+}
+
+// Models
+class AuthResult {
+  final User user;
+  final Tokens tokens;
+  final Restaurant? restaurant;
+  final bool hasPIN;
+  
+  AuthResult({
+    required this.user,
+    required this.tokens,
+    this.restaurant,
+    this.hasPIN = false,
+  });
+}
+
+class OTPVerificationResult {
+  final bool isRegistered;
+  final User? user;
+  final Tokens? tokens;
+  final bool? hasPIN;
+  final String? registrationToken;
+  final String? phone;
+  
+  OTPVerificationResult._({
+    required this.isRegistered,
+    this.user,
+    this.tokens,
+    this.hasPIN,
+    this.registrationToken,
+    this.phone,
+  });
+  
+  // Factory for logged in user
+  factory OTPVerificationResult.loggedIn({
+    required User user,
+    required Tokens tokens,
+    required bool hasPIN,
+  }) {
+    return OTPVerificationResult._(
+      isRegistered: true,
+      user: user,
+      tokens: tokens,
+      hasPIN: hasPIN,
+    );
+  }
+  
+  // Factory for registration required
+  factory OTPVerificationResult.registrationRequired({
+    required String registrationToken,
+    required String phone,
+  }) {
+    return OTPVerificationResult._(
+      isRegistered: false,
+      registrationToken: registrationToken,
+      phone: phone,
+    );
+  }
+}
+```
+
+### 11.4 Complete Login Screen Example
+
+```dart
+// features/auth/otp_login_screen.dart
+class OTPLoginScreen extends StatefulWidget {
+  @override
+  _OTPLoginScreenState createState() => _OTPLoginScreenState();
+}
+
+class _OTPLoginScreenState extends State<OTPLoginScreen> {
+  final AuthService _authService = AuthService();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _otpController = TextEditingController();
+  
+  bool _isLoading = false;
+  bool _otpSent = false;
+  String? _errorMessage;
+  int _otpExpiresIn = 300;
+  Timer? _timer;
+  
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+  
+  // Step 1: Send OTP
+  Future<void> _sendOTP() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    
+    try {
+      await _authService.sendOTP(_phoneController.text);
+      
+      setState(() {
+        _otpSent = true;
+        _isLoading = false;
+        _otpExpiresIn = 300;
+      });
+      
+      // Start countdown timer
+      _startCountdown();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('OTP sent to ${_phoneController.text}')),
+      );
+      
+    } on ApiException catch (e) {
+      setState(() {
+        _errorMessage = e.message;
+        _isLoading = false;
+      });
+    }
+  }
+  
+  // Step 2: Verify OTP (Smart - Handles Login OR Registration)
+  Future<void> _verifyOTP() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    
+    try {
+      final result = await _authService.verifyOTP(
+        _phoneController.text,
+        _otpController.text,
+      );
+      
+      if (result.isRegistered) {
+        // ✅ Existing User - LOGGED IN!
+        Navigator.pushReplacementNamed(
+          context,
+          '/pos',
+          arguments: result.user,
+        );
+        
+        // Optional: Show PIN setup suggestion
+        if (!result.hasPIN!) {
+          Future.delayed(Duration(seconds: 2), () {
+            _showPINSetupSuggestion();
+          });
+        }
+      } else {
+        // 📝 New User - Show Registration Form
+        Navigator.pushNamed(
+          context,
+          '/register',
+          arguments: {
+            'registrationToken': result.registrationToken,
+            'phone': result.phone,
+          },
+        );
+      }
+      
+    } on ApiException catch (e) {
+      setState(() {
+        _errorMessage = e.message;
+        _isLoading = false;
+      });
+    }
+  }
+  
+  void _startCountdown() {
+    _timer = Timer.periodic(Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_otpExpiresIn > 0) {
+          _otpExpiresIn--;
+        } else {
+          timer.cancel();
+        }
+      });
+    });
+  }
+  
+  void _showPINSetupSuggestion() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Setup PIN for Faster Login?'),
+        content: Text(
+          'Setup a 4-digit PIN for quicker logins in the future. '
+          'You can always login with OTP if you forget your PIN.'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Skip'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, '/setup-pin');
+            },
+            child: Text('Setup PIN'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Container(
+          width: 400,
+          padding: EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Logo
+              Image.asset('assets/logo.png', height: 80),
+              SizedBox(height: 40),
+              
+              // Title
+              Text(
+                'AppZap POS',
+                style: Theme.of(context).textTheme.headline4,
+              ),
+              SizedBox(height: 8),
+              Text(
+                _otpSent ? 'Enter OTP Code' : 'Login with Phone Number',
+                style: Theme.of(context).textTheme.subtitle1,
+              ),
+              SizedBox(height: 40),
+              
+              // Phone input
+              TextField(
+                controller: _phoneController,
+                decoration: InputDecoration(
+                  labelText: 'Phone Number',
+                  hintText: '020 12345678',
+                  prefixIcon: Icon(Icons.phone),
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.phone,
+                enabled: !_otpSent,
+              ),
+              SizedBox(height: 16),
+              
+              // OTP input (shown after OTP sent)
+              if (_otpSent) ...[
+                TextField(
+                  controller: _otpController,
+                  decoration: InputDecoration(
+                    labelText: 'OTP Code',
+                    hintText: '123456',
+                    prefixIcon: Icon(Icons.lock),
+                    border: OutlineInputBorder(),
+                    suffixText: _otpExpiresIn > 0 
+                        ? '${_otpExpiresIn}s'
+                        : 'Expired',
+                  ),
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  autofocus: true,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Check your console for OTP code (Dev mode)',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+              
+              SizedBox(height: 8),
+              
+              // Error message
+              if (_errorMessage != null)
+                Text(
+                  _errorMessage!,
+                  style: TextStyle(color: Colors.red),
+                ),
+              SizedBox(height: 16),
+              
+              // Action button
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isLoading 
+                      ? null 
+                      : (_otpSent ? _verifyOTP : _sendOTP),
+                  child: _isLoading
+                      ? CircularProgressIndicator(color: Colors.white)
+                      : Text(_otpSent ? 'Verify & Continue' : 'Send OTP'),
+                ),
+              ),
+              SizedBox(height: 16),
+              
+              // Secondary actions
+              if (_otpSent) ...[
+                TextButton(
+                  onPressed: _otpExpiresIn <= 0 ? _sendOTP : null,
+                  child: Text('Resend OTP'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _otpSent = false;
+                      _otpController.clear();
+                      _timer?.cancel();
+                    });
+                  },
+                  child: Text('Change Phone Number'),
+                ),
+              ] else ...[
+                TextButton(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/pin-login');
+                  },
+                  child: Text('Login with PIN instead'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+```
+
+### 11.5 Complete Registration Screen Example
+
+```dart
+// features/auth/registration_screen.dart
+class RegistrationScreen extends StatefulWidget {
+  final String registrationToken;
+  final String phone;
+  
+  RegistrationScreen({
+    required this.registrationToken,
+    required this.phone,
+  });
+  
+  @override
+  _RegistrationScreenState createState() => _RegistrationScreenState();
+}
+
+class _RegistrationScreenState extends State<RegistrationScreen> {
+  final AuthService _authService = AuthService();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _restaurantController = TextEditingController();
+  final TextEditingController _pinController = TextEditingController();
+  
+  bool _isLoading = false;
+  bool _setupPIN = false;
+  String? _errorMessage;
+  
+  Future<void> _completeRegistration() async {
+    // Validate
+    if (_nameController.text.isEmpty) {
+      setState(() => _errorMessage = 'Please enter your name');
       return;
     }
     
-    // Show payment method dialog
-    final paymentMethod = await showDialog<PaymentMethod>(
-      context: context,
-      builder: (_) => PaymentDialog(totalAmount: cart.total),
-    );
+    if (_restaurantController.text.isEmpty) {
+      setState(() => _errorMessage = 'Please enter your restaurant name');
+      return;
+    }
     
-    if (paymentMethod == null) return;
+    if (_setupPIN && _pinController.text.length != 4) {
+      setState(() => _errorMessage = 'PIN must be 4 digits');
+      return;
+    }
+    
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     
     try {
-      _showLoading();
-      
-      // Create order
-      final order = await _orderService.createOrder(
-        branchId: getCurrentBranchId(),
-        cart: cart,
+      final result = await _authService.registerWithPhone(
+        registrationToken: widget.registrationToken,
+        name: _nameController.text,
+        restaurantName: _restaurantController.text,
+        pin: _setupPIN ? _pinController.text : null,
       );
       
-      // Process payment
-      PaymentResult? paymentResult;
+      // 🎉 Registration complete! Navigate to main app
+      Navigator.pushReplacementNamed(
+        context,
+        '/pos',
+        arguments: result.user,
+      );
       
-      if (paymentMethod.isCash) {
-        paymentResult = await _paymentService.processCashPayment(
-          orderId: order.id,
-          branchId: getCurrentBranchId(),
-          total: order.pricing.total,
-          tendered: paymentMethod.tenderedAmount!,
-        );
-      } else if (paymentMethod.isPhayPay) {
-        // Show PhayPay QR dialog
-        _hideLoading();
-        final completed = await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => PhayPayQRDialog(
-            orderId: order.id,
-            amount: order.pricing.total,
-            bankMethod: paymentMethod.bankMethod!,
-          ),
-        );
-        
-        if (completed == true) {
-          paymentResult = PaymentResult(
-            status: 'completed',
-            orderId: order.id,
-          );
-        }
-      }
+      // Show welcome message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Welcome to AppZap POS! 🎉'),
+          backgroundColor: Colors.green,
+        ),
+      );
       
-      _hideLoading();
-      
-      if (paymentResult?.status == 'completed') {
-        // Show success
-        await _showSuccessDialog(order, paymentResult!);
-        
-        // Print receipt (if printer available)
-        await _printReceipt(order, paymentResult);
-        
-        // Clear cart
-        setState(() {
-          cart = Cart();
-        });
-      }
-      
-    } catch (e) {
-      _hideLoading();
-      _showError(e.toString());
+    } on ApiException catch (e) {
+      setState(() {
+        _errorMessage = e.message;
+        _isLoading = false;
+      });
     }
   }
   
@@ -1573,78 +2306,118 @@ class _POSScreenState extends State<POSScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('AppZap POS'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.inventory),
-            onPressed: () => Navigator.pushNamed(context, '/inventory'),
-          ),
-          IconButton(
-            icon: Icon(Icons.people),
-            onPressed: () => Navigator.pushNamed(context, '/customers'),
-          ),
-          IconButton(
-            icon: Icon(Icons.assessment),
-            onPressed: () => Navigator.pushNamed(context, '/reports'),
-          ),
-        ],
+        title: Text('Complete Registration'),
+        centerTitle: true,
       ),
-      body: isLoading
-          ? Center(child: CircularProgressIndicator())
-          : Row(
+      body: Center(
+        child: SingleChildScrollView(
+          child: Container(
+            width: 400,
+            padding: EdgeInsets.all(32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Left: Products
-                Expanded(
-                  flex: 2,
-                  child: Column(
-                    children: [
-                      CategoryBar(
-                        categories: categories,
-                        selectedId: selectedCategoryId,
-                        onSelected: (id) {
-                          setState(() => selectedCategoryId = id);
-                          _loadData();
-                        },
-                      ),
-                      SearchBar(
-                        onSearch: (query) {
-                          // Search products
-                        },
-                        onScan: (barcode) {
-                          // Add by barcode
-                          _addByBarcode(barcode);
-                        },
-                      ),
-                      Expanded(
-                        child: ProductGrid(
-                          products: products,
-                          onProductTap: _addToCart,
-                        ),
-                      ),
-                    ],
+                // Welcome message
+                Text(
+                  'Create Your Account',
+                  style: Theme.of(context).textTheme.headline5,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Phone verified: ${widget.phone} ✓',
+                  style: TextStyle(color: Colors.green),
+                ),
+                SizedBox(height: 32),
+                
+                // Name input
+                TextField(
+                  controller: _nameController,
+                  decoration: InputDecoration(
+                    labelText: 'Your Name *',
+                    hintText: 'John Doe',
+                    prefixIcon: Icon(Icons.person),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                SizedBox(height: 16),
+                
+                // Restaurant name input
+                TextField(
+                  controller: _restaurantController,
+                  decoration: InputDecoration(
+                    labelText: 'Restaurant/Shop Name *',
+                    hintText: 'John\'s Coffee Shop',
+                    prefixIcon: Icon(Icons.store),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                SizedBox(height: 24),
+                
+                // Optional PIN setup
+                CheckboxListTile(
+                  value: _setupPIN,
+                  onChanged: (value) {
+                    setState(() => _setupPIN = value ?? false);
+                  },
+                  title: Text('Setup 4-digit PIN (Optional)'),
+                  subtitle: Text('For faster daily logins'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                
+                if (_setupPIN) ...[
+                  SizedBox(height: 8),
+                  TextField(
+                    controller: _pinController,
+                    decoration: InputDecoration(
+                      labelText: '4-Digit PIN',
+                      hintText: '****',
+                      prefixIcon: Icon(Icons.lock),
+                      border: OutlineInputBorder(),
+                    ),
+                    obscureText: true,
+                    keyboardType: TextInputType.number,
+                    maxLength: 4,
+                  ),
+                ],
+                
+                SizedBox(height: 8),
+                
+                // Error message
+                if (_errorMessage != null) ...[
+                  Text(
+                    _errorMessage!,
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  SizedBox(height: 16),
+                ],
+                
+                SizedBox(height: 16),
+                
+                // Register button
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _completeRegistration,
+                    child: _isLoading
+                        ? CircularProgressIndicator(color: Colors.white)
+                        : Text('Create Account & Start Selling'),
                   ),
                 ),
                 
-                // Right: Cart
-                Expanded(
-                  flex: 1,
-                  child: CartPanel(
-                    cart: cart,
-                    onUpdateQuantity: (productId, quantity) {
-                      setState(() {
-                        cart.updateQuantity(productId, quantity);
-                      });
-                    },
-                    onRemoveItem: (productId) {
-                      setState(() {
-                        cart.removeItem(productId);
-                      });
-                    },
-                    onCheckout: _checkout,
-                  ),
+                SizedBox(height: 16),
+                
+                // Info text
+                Text(
+                  'By creating an account, you agree to our Terms of Service and Privacy Policy.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1652,92 +2425,369 @@ class _POSScreenState extends State<POSScreen> {
 
 ---
 
-## 12. Offline Mode Strategy
+## 12. Testing & Troubleshooting
 
-### 12.1 Local Database (Drift/Hive)
+### 12.1 Complete Authentication Flow Diagram
+
+```
+┌────────────────────────────────────────────────────────────┐
+│                    UNIFIED AUTH FLOW                        │
+│              (Works for Everyone - New or Existing)         │
+└────────────────────────────────────────────────────────────┘
+
+Step 1: Enter Phone Number
+   ↓
+Step 2: Send OTP (POST /auth/phone/send-otp)
+   ↓
+   📱 Check backend console for OTP: 🔢 123456
+   ↓
+Step 3: Enter OTP Code
+   ↓
+Step 4: Verify OTP (POST /auth/phone/verify-otp)
+   ↓
+   ┌─────────────────────────────────────┐
+   │  Is User Registered?                │
+   └─────────────────────────────────────┘
+          │                    │
+          ├─→ YES              └─→ NO
+          │   (Existing)           (New User)
+          ↓                      ↓
+   ✅ LOGGED IN!          📝 Show Registration Form
+   - Full tokens              - Name: _____
+   - User data                - Restaurant: _____
+   - Navigate to POS          - PIN (optional): ____
+   - Show PIN setup?          ↓
+   (if no PIN)          Step 5: Submit Registration
+                        (POST /auth/phone/register)
+                             ↓
+                        ✅ ACCOUNT CREATED & LOGGED IN!
+                        - Restaurant created
+                        - Owner account created
+                        - Full tokens
+                        - Navigate to POS
+
+┌────────────────────────────────────────────────────────────┐
+│                  DAILY LOGIN (FAST) ⚡                      │
+└────────────────────────────────────────────────────────────┘
+
+Option A: Phone + PIN (2 seconds)
+   ↓
+POST /auth/phone/login { phone, pin }
+   ↓
+✅ LOGGED IN!
+
+Option B: Phone + OTP (30 seconds)
+   ↓
+POST /auth/phone/send-otp → Enter OTP → Verify
+   ↓
+✅ LOGGED IN!
+```
+
+---
+
+### 12.2 Development Testing
+
+#### Testing OTP in Development
+
+In development mode, OTP codes are **console-logged** instead of being sent via SMS. Check your backend terminal for output like this:
+
+```
+============================================================
+🔐 MOCK OTP SERVICE
+============================================================
+📱 Phone: +85620123456789
+🔢 OTP Code: 123456          ← USE THIS CODE IN THE APP!
+⏰ Purpose: login
+⏱️  Expires in: 300 seconds (5 minutes)
+🔄 Max Attempts: 3
+============================================================
+```
+
+**Testing Flow for Existing User:**
+1. **Flutter app:** Enter phone `020 12345678` → Tap "Send OTP"
+2. **Backend terminal:** Copy the OTP code from console (e.g., `123456`)
+3. **Flutter app:** Enter the OTP code → Tap "Verify & Continue"
+4. **Result:** ✅ User is LOGGED IN with full authentication tokens!
+5. **Check:** User can now access POS screens, create orders, etc.
+
+**Testing Flow for New User (Self-Registration):**
+1. **Flutter app:** Enter phone `020 99999999` (not in database) → Tap "Send OTP"
+2. **Backend terminal:** Copy the OTP code from console (e.g., `654321`)
+3. **Flutter app:** Enter the OTP code → Tap "Verify & Continue"
+4. **Result:** 📝 Registration form appears
+5. **Flutter app:** Enter:
+   - Name: "Test User"
+   - Restaurant: "Test Shop"
+   - PIN (optional): "1234"
+6. **Flutter app:** Tap "Create Account & Start Selling"
+7. **Result:** ✅ Account created! Restaurant created! User is LOGGED IN!
+8. **Check:** User can access POS, create products, start selling!
+
+#### Test Endpoints
+
+```bash
+# Test 1: Send OTP (Works for ANY phone number!)
+curl -X POST http://localhost:3000/api/v1/auth/phone/send-otp \
+  -H "Content-Type: application/json" \
+  -d '{"phone": "020 12345678", "purpose": "login"}'
+
+# Check terminal for OTP:
+# 🔢 OTP Code: 123456
+
+# Test 2A: Verify OTP - Existing User (Returns full tokens)
+curl -X POST http://localhost:3000/api/v1/auth/phone/verify-otp \
+  -H "Content-Type: application/json" \
+  -d '{"phone": "020 12345678", "otp": "123456"}'
+
+# Test 2B: Verify OTP - New User (Returns registrationToken)
+curl -X POST http://localhost:3000/api/v1/auth/phone/verify-otp \
+  -H "Content-Type: application/json" \
+  -d '{"phone": "020 99999999", "otp": "123456"}'
+
+# Test 3: Complete Registration (New User)
+curl -X POST http://localhost:3000/api/v1/auth/phone/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "registrationToken": "eyJhbGc...",
+    "name": "John Doe",
+    "restaurantName": "Johns Coffee Shop",
+    "pin": "1234"
+  }'
+
+# Test 4: Login with PIN (Existing User - Fast)
+curl -X POST http://localhost:3000/api/v1/auth/phone/login \
+  -H "Content-Type: application/json" \
+  -d '{"phone": "020 12345678", "pin": "1234"}'
+
+# Test 5: Setup PIN (Optional - After Login)
+curl -X POST http://localhost:3000/api/v1/auth/phone/setup-pin \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{"pin": "1234"}'
+```
+
+#### Test Phone Numbers
+
+All these formats are valid and auto-normalize to `+85620123456789`:
+
+```
+"020 12345678"
+"20 1234 5678"
+"+856 20 12345678"
+"85620123456789"
+```
+
+---
+
+### 12.2 Common Issues & Solutions
+
+#### Issue: OTP not showing in console
+**Solution:** Ensure backend is running in development mode (`NODE_ENV=development`)
+
+#### Issue: "Phone number not registered"
+**Solution:** Admin must create staff record with phone number on web dashboard first
+
+#### Issue: PIN verification fails
+**Solution:** 
+- Check PIN is exactly 4 digits
+- Verify staff has setup PIN (call `/auth/phone/setup-pin` first)
+- Try resetting PIN with forgot PIN flow
+
+#### Issue: Rate limit exceeded
+**Solution:** 
+- Wait 10 minutes, or
+- Clear Redis key: `redis-cli DEL "otp:rate:+85620123456789"`
+
+#### Issue: PhayPay endpoint not found
+**Solution:** Use `/payments/phajay/create` (not `/generate-qr` or `/generate-link`)
+
+#### Issue: Invalid OTP
+**Solutions:**
+- OTP expires in 5 minutes - request new one if expired
+- Max 3 attempts per OTP - request new one if exceeded
+- Check you're entering the correct OTP from console
+
+#### Issue: Token expired (401 Unauthorized)
+**Solution:**
+```dart
+// Use refresh token to get new access token
+await authService.refreshTokens(refreshToken);
+```
+
+---
+
+### 12.3 Complete Flow Comparison
+
+#### **Flow 1: New User (Self-Registration)**
 
 ```dart
-// Use Drift for local SQLite database
-import 'package:drift/drift.dart';
+// Step 1: Send OTP
+await authService.sendOTP('020 99999999');
+// ✅ OTP sent to ANY phone (no check needed)
 
-@DriftDatabase(tables: [Products, Orders, Customers])
-class LocalDatabase extends _$LocalDatabase {
-  LocalDatabase() : super(_openConnection());
+// Step 2: Verify OTP
+final result = await authService.verifyOTP('020 99999999', '123456');
+
+// Step 3: Check result
+if (!result.isRegistered) {
+  // New user - Show registration form
+  final registrationData = await showRegistrationForm(
+    registrationToken: result.registrationToken,
+    phone: result.phone,
+  );
   
-  @override
-  int get schemaVersion => 1;
+  // Step 4: Complete registration
+  final authResult = await authService.registerWithPhone(
+    registrationToken: result.registrationToken,
+    name: registrationData.name,
+    restaurantName: registrationData.restaurantName,
+    pin: registrationData.pin, // Optional
+  );
   
-  // Sync from server
-  Future<void> syncFromServer() async {
-    try {
-      final products = await productService.getProducts();
-      await batch((batch) {
-        batch.insertAll(
-          this.products,
-          products.map((p) => p.toCompanion()),
-          mode: InsertMode.insertOrReplace,
-        );
-      });
-    } catch (e) {
-      print('Sync failed: $e');
-    }
-  }
+  // ✅ ACCOUNT CREATED & LOGGED IN!
+  navigateToMainApp(authResult.user);
+}
+```
+
+#### **Flow 2: Existing User (Login)**
+
+```dart
+// Step 1: Send OTP
+await authService.sendOTP('020 12345678');
+
+// Step 2: Verify OTP
+final result = await authService.verifyOTP('020 12345678', '123456');
+
+// Step 3: Check result
+if (result.isRegistered) {
+  // ✅ LOGGED IN IMMEDIATELY!
+  navigateToMainApp(result.user);
   
-  // Sync to server (pending orders)
-  Future<void> syncToServer() async {
-    final pendingOrders = await (select(orders)
-      ..where((o) => o.syncStatus.equals('pending')))
-      .get();
-    
-    for (final order in pendingOrders) {
-      try {
-        await orderService.createOrder(order);
-        await (update(orders)
-          ..where((o) => o.id.equals(order.id)))
-          .write(OrdersCompanion(
-            syncStatus: Value('synced'),
-          ));
-      } catch (e) {
-        print('Order sync failed: $e');
-      }
-    }
+  // Optional: Suggest PIN setup
+  if (!result.hasPIN!) {
+    showPINSetupSuggestion();
   }
 }
 ```
 
-### 12.2 Sync Strategy
+#### **Flow 3: Fast Daily Login (PIN)**
 
 ```dart
-class SyncService {
-  final LocalDatabase _db;
-  final Connectivity _connectivity;
+// One-step login (if PIN is set up)
+final result = await authService.loginWithPIN('020 12345678', '1234');
+
+// ✅ LOGGED IN in 2 seconds!
+navigateToMainApp(result.user);
+```
+
+---
+
+### 12.4 Phone Number Format Testing
+
+```dart
+// Test all phone formats
+final testPhones = [
+  '020 12345678',      // Laos local format
+  '20 1234 5678',      // Without leading 0
+  '+856 20 12345678',  // International format
+  '85620123456789',    // Without spaces
+];
+
+for (final phone in testPhones) {
+  final result = await authService.sendOTP(phone);
+  print('✅ $phone → ${result.normalizedPhone}');
+}
+```
+
+---
+
+### 12.4 Production Deployment Checklist
+
+#### Environment Variables
+```bash
+# API Base URL
+API_BASE_URL=https://api.appzap.la/api/v1
+
+# Lailao Auth (SMS Provider)
+LAILAO_AUTH_ENABLED=true
+LAILAO_AUTH_DOMAIN_NAME=appzap.lailaolab.com
+
+# PhayPay (Payment Gateway)
+PHAJAY_API_URL=https://payment-gateway.phajay.co/v1/api
+PHAJAY_SECRET_KEY=your_production_secret_key
+PHAJAY_QR_EXPIRY_MINUTES=10
+PHAJAY_PAYMENT_LINK_EXPIRY_MINUTES=30
+
+# Redis
+REDIS_URL=redis://production-redis-server:6379
+
+# JWT
+JWT_SECRET=your_production_jwt_secret
+JWT_ACCESS_EXPIRATION_MINUTES=60
+JWT_REFRESH_EXPIRATION_DAYS=30
+```
+
+#### Pre-deployment Testing
+- [ ] Test all authentication flows (OTP, PIN, forgot PIN)
+- [ ] Test PhayPay payment with all 4 banks
+- [ ] Test offline mode and sync
+- [ ] Test WebSocket real-time updates
+- [ ] Test rate limiting and security
+- [ ] Test on slow network (3G simulation)
+- [ ] Load test with 100+ concurrent users
+- [ ] Test receipt printing
+- [ ] Test barcode scanning
+
+#### Go-Live Checklist
+- [ ] Configure production SMS provider (Lailao Auth)
+- [ ] Configure production payment gateway (PhayPay)
+- [ ] Set up monitoring and alerts
+- [ ] Configure backup and disaster recovery
+- [ ] Train staff on app usage
+- [ ] Prepare support documentation
+- [ ] Set up customer support channels
+
+---
+
+### 12.5 Performance Best Practices
+
+#### Optimize API Calls
+```dart
+// Cache products locally
+class ProductCache {
+  List<Product>? _cache;
+  DateTime? _lastFetch;
   
-  Timer? _syncTimer;
-  
-  void startAutoSync() {
-    _syncTimer = Timer.periodic(Duration(minutes: 5), (_) {
-      if (_connectivity.hasConnection) {
-        syncAll();
-      }
-    });
-  }
-  
-  Future<void> syncAll() async {
-    try {
-      // 1. Sync TO server (pending orders, payments)
-      await _syncPendingOrders();
-      await _syncPendingPayments();
-      
-      // 2. Sync FROM server (products, customers)
-      await _syncProducts();
-      await _syncCustomers();
-      
-      print('Sync completed');
-    } catch (e) {
-      print('Sync error: $e');
+  Future<List<Product>> getProducts(bool forceRefresh) async {
+    if (!forceRefresh && 
+        _cache != null && 
+        DateTime.now().difference(_lastFetch!) < Duration(minutes: 5)) {
+      return _cache!;
     }
+    
+    _cache = await api.getProducts();
+    _lastFetch = DateTime.now();
+    return _cache!;
   }
 }
+```
+
+#### Implement Pagination
+```dart
+// Load products in batches
+await productService.getProducts(
+  page: 1,
+  limit: 100,
+);
+```
+
+#### Use WebSocket for Real-time Updates
+```dart
+// Don't poll - use WebSocket instead
+socket.on('inventory:updated', (data) {
+  // Update local cache
+  productCache.update(data);
+});
 ```
 
 ---
@@ -1746,26 +2796,33 @@ class SyncService {
 
 ### For Flutter Developers:
 
-**Phase 1 - Week 1: Setup**
+**Phase 1 - Week 1: Setup & Authentication**
 - [ ] Set up Flutter project structure
 - [ ] Configure Dio for API calls
-- [ ] Implement authentication (login, PIN)
+- [ ] Implement OTP login screen (handles both login & registration)
+- [ ] Implement registration screen (3 fields: name, restaurant, PIN optional)
+- [ ] Implement phone + PIN fast login (optional daily use)
 - [ ] Set up secure storage for tokens
-- [ ] Test API connectivity
+- [ ] Test complete flow:
+  - [ ] New user self-registration (phone → OTP → register → logged in!)
+  - [ ] Existing user login (phone → OTP → logged in!)
+  - [ ] Fast PIN login (phone → PIN → logged in!)
+- [ ] Add optional PIN setup suggestion dialog
 
 **Phase 1 - Week 2-3: Core POS**
-- [ ] Implement product listing
+- [ ] Implement product listing & categories
 - [ ] Build cart functionality
 - [ ] Create checkout flow
 - [ ] Implement cash payment
 - [ ] Test order creation
+- [ ] Add barcode scanning
 
 **Phase 1 - Week 4: PhayPay (USP #1)**
 - [ ] Integrate PhayPay payment
 - [ ] Display QR codes
 - [ ] Poll payment status
 - [ ] Handle success/failure
-- [ ] Test all 4 banks
+- [ ] Test all 4 banks (JDB, BCEL, LDB, IB)
 
 **Phase 1 - Week 5-6: Inventory & Customers**
 - [ ] Build inventory management UI
@@ -1781,12 +2838,13 @@ class SyncService {
 - [ ] Add receipt printing
 - [ ] UI/UX polish
 
-**Phase 1 - Week 8: Offline Mode**
-- [ ] Set up local database
+**Phase 1 - Week 8: Offline Mode & Testing**
+- [ ] Set up local database (Drift)
 - [ ] Implement offline cart
 - [ ] Build sync engine
 - [ ] Test offline scenarios
 - [ ] Handle sync conflicts
+- [ ] Final testing & bug fixes
 
 ---
 
@@ -1807,216 +2865,7 @@ class SyncService {
 **Additional Documentation:**
 - Swagger UI: https://api.appzap.la/docs
 - Postman Collection: [Available on request]
-
----
-
-## Appendix: Complete Flutter Example
-
-### A. Complete Service Implementation
-
-```dart
-// services/product_service.dart
-class ProductService {
-  final ApiClient _api;
-  final LocalDatabase _db;
-  final String _branchId;
-  
-  ProductService(this._api, this._db, this._branchId);
-  
-  Future<List<Product>> getProducts({
-    String? categoryId,
-    String? search,
-    bool activeOnly = true,
-  }) async {
-    try {
-      // Try online first
-      final response = await _api.get('/menu/items', queryParameters: {
-        'branchId': _branchId,
-        'isActive': activeOnly,
-        'limit': 500,
-        if (categoryId != null) 'categoryId': categoryId,
-        if (search != null) 'search': search,
-      });
-      
-      if (response['success']) {
-        final products = (response['data'] as List)
-            .map((json) => Product.fromJson(json))
-            .toList();
-        
-        // Cache to local DB
-        await _db.cacheProducts(products);
-        
-        return products;
-      }
-      
-      throw ApiException(message: 'Failed to load products');
-      
-    } catch (e) {
-      // Fallback to local DB if offline
-      if (e is DioError && e.type == DioErrorType.connectionError) {
-        return await _db.getProducts(
-          categoryId: categoryId,
-          search: search,
-        );
-      }
-      rethrow;
-    }
-  }
-  
-  Future<Product?> findByBarcode(String barcode) async {
-    final products = await getProducts(search: barcode);
-    return products.firstWhereOrNull((p) => p.barcode == barcode);
-  }
-}
-
-// services/order_service.dart
-class OrderService {
-  final ApiClient _api;
-  final LocalDatabase _db;
-  final Connectivity _connectivity;
-  
-  OrderService(this._api, this._db, this._connectivity);
-  
-  Future<Order> createOrder({
-    required String branchId,
-    required Cart cart,
-  }) async {
-    final orderData = {
-      'branchId': branchId,
-      'orderType': 'takeaway',
-      if (cart.customerId != null)
-        'customer': {
-          'customerId': cart.customerId,
-          'name': cart.customerName,
-          'phone': cart.customerPhone,
-        },
-      'items': cart.items.map((item) => {
-        'menuItemId': item.productId,
-        'quantity': item.quantity,
-        'unitPrice': item.unitPrice,
-        if (item.notes != null) 'notes': item.notes,
-      }).toList(),
-      if (cart.discounts.isNotEmpty)
-        'discounts': cart.discounts.map((d) => {
-          'type': d.type,
-          'value': d.value,
-          'reason': d.reason,
-        }).toList(),
-    };
-    
-    if (await _connectivity.hasConnection) {
-      // Online: Create order on server
-      final response = await _api.post('/orders/takeaway', data: orderData);
-      
-      if (response['success']) {
-        final order = Order.fromJson(response['data']);
-        await _db.saveOrder(order, syncStatus: 'synced');
-        return order;
-      }
-      
-      throw ApiException(message: 'Failed to create order');
-      
-    } else {
-      // Offline: Save to local DB
-      final localOrder = Order.createLocal(
-        branchId: branchId,
-        cart: cart,
-      );
-      await _db.saveOrder(localOrder, syncStatus: 'pending');
-      return localOrder;
-    }
-  }
-}
-
-// services/payment_service.dart
-class PaymentService {
-  final ApiClient _api;
-  
-  PaymentService(this._api);
-  
-  Future<PaymentResult> processCashPayment({
-    required String orderId,
-    required String branchId,
-    required double total,
-    required double tendered,
-  }) async {
-    final change = tendered - total;
-    
-    final response = await _api.post(
-      '/checkout/process-payment',
-      data: {
-        'orderId': orderId,
-        'branchId': branchId,
-        'paymentMethod': 'cash',
-        'amount': {
-          'total': total,
-          'tendered': tendered,
-          'change': change,
-          'currency': 'LAK',
-        },
-      },
-    );
-    
-    if (response['success']) {
-      return PaymentResult.fromJson(response['data']);
-    }
-    
-    throw ApiException(message: 'Payment failed');
-  }
-  
-  Future<PhayPayPayment> createPhayPayPayment({
-    required String orderId,
-    required String branchId,
-    required double amount,
-    required String bankMethod,
-  }) async {
-    final response = await _api.post(
-      '/payments/phajay/create',
-      data: {
-        'orderId': orderId,
-        'branchId': branchId,
-        'amount': amount,
-        'currency': 'LAK',
-        'bankMethod': bankMethod,
-        'description': 'Order #$orderId',
-      },
-    );
-    
-    if (response['success']) {
-      return PhayPayPayment.fromJson(response['data']);
-    }
-    
-    throw ApiException(message: 'Failed to create PhayPay payment');
-  }
-  
-  Stream<PhayPayStatus> watchPhayPayPayment(String paymentId) async* {
-    final maxDuration = Duration(minutes: 10);
-    final pollInterval = Duration(seconds: 3);
-    final startTime = DateTime.now();
-    
-    while (DateTime.now().difference(startTime) < maxDuration) {
-      final status = await checkPhayPayStatus(paymentId);
-      yield status;
-      
-      if (status.isCompleted || status.isFailed || status.isExpired) {
-        break;
-      }
-      
-      await Future.delayed(pollInterval);
-    }
-  }
-  
-  Future<PhayPayStatus> checkPhayPayStatus(String paymentId) async {
-    final response = await _api.get('/payments/phajay/status/$paymentId');
-    
-    if (response['success']) {
-      return PhayPayStatus.fromJson(response['data']);
-    }
-    
-    throw ApiException(message: 'Failed to check payment status');
-  }
-}
-```
+- Backend Implementation: `/docs/PHONE_AUTH_IMPLEMENTATION_SUMMARY.md`
 
 ---
 
@@ -2026,3 +2875,6 @@ This comprehensive API documentation covers all Phase 1 features needed to build
 
 **Questions?** Contact: tech@appzap.la
 
+**Last Updated:** December 17, 2025  
+**Status:** ✅ Production Ready  
+**Version:** 1.0

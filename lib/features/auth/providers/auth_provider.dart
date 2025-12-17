@@ -4,13 +4,7 @@ import '../../../core/models/user.dart';
 import '../../../core/services/auth_service.dart';
 
 /// Auth state
-enum AuthStatus {
-  initial,
-  loading,
-  authenticated,
-  unauthenticated,
-  error,
-}
+enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
 
 /// Auth state model
 class AuthState {
@@ -40,7 +34,8 @@ class AuthState {
     );
   }
 
-  bool get isAuthenticated => status == AuthStatus.authenticated && user != null;
+  bool get isAuthenticated =>
+      status == AuthStatus.authenticated && user != null;
 }
 
 /// Auth provider
@@ -78,14 +73,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     try {
       final isLoggedIn = await _authService.isLoggedIn();
-      
+
       if (isLoggedIn) {
         final user = await _authService.getCurrentUser();
         if (user != null) {
-          state = AuthState(
-            status: AuthStatus.authenticated,
-            user: user,
-          );
+          state = AuthState(status: AuthStatus.authenticated, user: user);
           return;
         }
       }
@@ -101,42 +93,82 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String phone,
     String purpose = 'registration',
   }) async {
-    state = state.copyWith(isLoading: true, error: null);
-
+    // UI handles loading state locally to prevent disposed widget issues
     try {
-      await _authService.sendOtp(
-        phone: phone,
-        purpose: purpose,
-      );
-      state = state.copyWith(isLoading: false);
+      await _authService.sendOtp(phone: phone, purpose: purpose);
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
       rethrow;
     }
   }
 
-  /// Verify OTP
-  Future<String> verifyOtp({
+  /// Verify OTP - Smart Response (Handles both login AND registration)
+  /// 
+  /// Returns OTPVerificationResult which can be:
+  /// 1. isRegistered=true → User logged in (update auth state)
+  /// 2. isRegistered=false → Registration required (no auth state change)
+  Future<OTPVerificationResult> verifyOtpAndLogin({
     required String phone,
     required String otp,
   }) async {
-    state = state.copyWith(isLoading: true, error: null);
-
+    // UI handles loading state locally to prevent disposed widget issues
     try {
-      final tempToken = await _authService.verifyOtp(
+      final result = await _authService.verifyOtpAndLogin(
         phone: phone,
         otp: otp,
       );
-      state = state.copyWith(isLoading: false);
+
+      // If user is registered, update auth state
+      if (result.isRegistered && result.user != null) {
+        state = AuthState(
+          status: AuthStatus.authenticated,
+          user: result.user,
+        );
+      }
+
+      return result;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Complete registration for new users (Self-service!)
+  /// 
+  /// Called after OTP verification returns registrationToken.
+  /// Creates account and logs user in automatically.
+  Future<void> registerWithPhone({
+    required String registrationToken,
+    required String name,
+    required String restaurantName,
+    String? pin,
+  }) async {
+    // UI handles loading state locally
+    try {
+      final result = await _authService.registerWithPhone(
+        registrationToken: registrationToken,
+        name: name,
+        restaurantName: restaurantName,
+        pin: pin,
+      );
+
+      // Update auth state - user is now authenticated!
+      state = AuthState(
+        status: AuthStatus.authenticated,
+        user: result.user,
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Legacy method - Verify OTP (DEPRECATED)
+  /// Use verifyOtpAndLogin() for login flow instead
+  @Deprecated('Use verifyOtpAndLogin() for login flow')
+  Future<String> verifyOtp({required String phone, required String otp}) async {
+    // UI handles loading state locally to prevent disposed widget issues
+    try {
+      final tempToken = await _authService.verifyOtp(phone: phone, otp: otp);
       return tempToken;
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
       rethrow;
     }
   }
@@ -150,8 +182,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String restaurantId,
     String? branchId,
   }) async {
-    state = state.copyWith(isLoading: true, error: null);
-
+    // UI handles loading state locally to prevent disposed widget issues
     try {
       final user = await _authService.register(
         tempToken: tempToken,
@@ -162,57 +193,34 @@ class AuthNotifier extends StateNotifier<AuthState> {
         branchId: branchId,
       );
 
-      state = AuthState(
-        status: AuthStatus.authenticated,
-        user: user,
-      );
+      state = AuthState(status: AuthStatus.authenticated, user: user);
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
       rethrow;
     }
   }
 
   /// Login with phone and PIN
-  Future<void> login({
-    required String phone,
-    required String pin,
-  }) async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> login({required String phone, required String pin}) async {
+    // Don't update state here - let the UI handle loading state locally
+    // This prevents disposed widget issues with Riverpod notifications
 
     try {
-      final user = await _authService.login(
-        phone: phone,
-        pin: pin,
-      );
+      final user = await _authService.login(phone: phone, pin: pin);
 
-      state = AuthState(
-        status: AuthStatus.authenticated,
-        user: user,
-      );
+      state = AuthState(status: AuthStatus.authenticated, user: user);
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
+      // Don't update state on error - just rethrow
+      // The calling screen handles error state locally
       rethrow;
     }
   }
 
   /// Forgot PIN - send OTP
   Future<void> forgotPin(String phone) async {
-    state = state.copyWith(isLoading: true, error: null);
-
+    // UI handles loading state locally to prevent disposed widget issues
     try {
       await _authService.forgotPin(phone: phone);
-      state = state.copyWith(isLoading: false);
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
       rethrow;
     }
   }
@@ -223,20 +231,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String otp,
     required String newPin,
   }) async {
-    state = state.copyWith(isLoading: true, error: null);
-
+    // UI handles loading state locally to prevent disposed widget issues
     try {
-      await _authService.resetPin(
-        phone: phone,
-        otp: otp,
-        newPin: newPin,
-      );
-      state = state.copyWith(isLoading: false);
+      await _authService.resetPin(phone: phone, otp: otp, newPin: newPin);
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
       rethrow;
     }
   }
@@ -246,19 +244,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String oldPin,
     required String newPin,
   }) async {
-    state = state.copyWith(isLoading: true, error: null);
-
+    // UI handles loading state locally to prevent disposed widget issues
     try {
-      await _authService.changePin(
-        oldPin: oldPin,
-        newPin: newPin,
-      );
-      state = state.copyWith(isLoading: false);
+      await _authService.changePin(oldPin: oldPin, newPin: newPin);
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
       rethrow;
     }
   }
@@ -280,4 +269,3 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(error: null);
   }
 }
-

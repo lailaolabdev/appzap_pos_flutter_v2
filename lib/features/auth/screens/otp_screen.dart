@@ -7,7 +7,9 @@ import 'package:pin_code_fields/pin_code_fields.dart';
 
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
+import '../../../core/api/api_exception.dart';
 import '../../../core/utils/validators.dart';
+import '../../../shared/widgets/error_banner.dart';
 import '../providers/auth_provider.dart';
 
 /// OTP verification screen
@@ -15,11 +17,7 @@ class OtpScreen extends ConsumerStatefulWidget {
   final String phone;
   final String purpose;
 
-  const OtpScreen({
-    super.key,
-    required this.phone,
-    required this.purpose,
-  });
+  const OtpScreen({super.key, required this.phone, required this.purpose});
 
   @override
   ConsumerState<OtpScreen> createState() => _OtpScreenState();
@@ -30,6 +28,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   String? _error;
   int _resendCountdown = 60;
   Timer? _timer;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -46,9 +45,13 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
   void _startResendTimer() {
     _timer?.cancel();
-    setState(() => _resendCountdown = 60);
+    if (mounted) setState(() => _resendCountdown = 60);
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       if (_resendCountdown > 0) {
         setState(() => _resendCountdown--);
       } else {
@@ -57,15 +60,33 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     });
   }
 
+  String _getErrorMessage(dynamic error) {
+    if (error is ApiException) {
+      if (error.isNetworkError) {
+        return 'No internet connection. Please check your network.';
+      }
+      if (error.isServerError) {
+        return 'Server is temporarily unavailable. Please try again later.';
+      }
+      if (error.isRateLimited) {
+        return 'Too many attempts. Please wait a moment.';
+      }
+      return error.message;
+    }
+    return 'Invalid OTP. Please try again.';
+  }
+
   Future<void> _resendOtp() async {
+    if (mounted) setState(() => _isLoading = true);
+
     try {
-      await ref.read(authProvider.notifier).sendOtp(
-        phone: widget.phone,
-        purpose: widget.purpose,
-      );
+      await ref
+          .read(authProvider.notifier)
+          .sendOtp(phone: widget.phone, purpose: widget.purpose);
       _startResendTimer();
 
       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('OTP sent successfully'),
@@ -75,9 +96,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString()),
+            content: Text(_getErrorMessage(e)),
             backgroundColor: AppTheme.error,
           ),
         );
@@ -90,42 +112,119 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     final error = Validators.otp(otp);
 
     if (error != null) {
-      setState(() => _error = error);
+      if (mounted) setState(() => _error = error);
       return;
     }
 
-    setState(() => _error = null);
+    if (mounted) {
+      setState(() {
+        _error = null;
+        _isLoading = true;
+      });
+    }
 
     try {
-      final tempToken = await ref.read(authProvider.notifier).verifyOtp(
-        phone: widget.phone,
-        otp: otp,
-      );
+      if (widget.purpose == 'login') {
+        // Smart OTP flow: Handles both login AND registration!
+        final result = await ref
+            .read(authProvider.notifier)
+            .verifyOtpAndLogin(phone: widget.phone, otp: otp);
 
-      if (mounted) {
-        if (widget.purpose == 'registration') {
-          context.pushReplacement(
-            AppRoutes.register,
-            extra: {
-              'phone': widget.phone,
-              'tempToken': tempToken,
-            },
-          );
-        } else if (widget.purpose == 'forgot_pin') {
-          // Handle forgot PIN flow
-          context.pop(tempToken);
+        if (mounted) {
+          setState(() => _isLoading = false);
+
+          if (result.isRegistered) {
+            // ✅ SCENARIO 1: Existing User - LOGGED IN!
+            context.go(AppRoutes.pos);
+
+            // Show PIN setup suggestion if user doesn't have PIN
+            if (result.hasPIN == false) {
+              Future.delayed(const Duration(seconds: 2), () {
+                if (mounted) {
+                  _showPINSetupSuggestion();
+                }
+              });
+            }
+          } else {
+            // 📝 SCENARIO 2: New User - Show Registration Screen
+            context.push(
+              AppRoutes.register,
+              extra: {
+                'registrationToken': result.registrationToken!,
+                'phone': result.phone!,
+              },
+            );
+          }
+        }
+      } else {
+        // Legacy flows (registration, forgot_pin)
+        final tempToken = await ref
+            .read(authProvider.notifier)
+            .verifyOtp(phone: widget.phone, otp: otp);
+
+        if (mounted) {
+          setState(() => _isLoading = false);
+          if (widget.purpose == 'registration') {
+            context.pushReplacement(
+              AppRoutes.register,
+              extra: {'phone': widget.phone, 'tempToken': tempToken},
+            );
+          } else if (widget.purpose == 'forgot_pin') {
+            // Handle forgot PIN flow
+            context.pop(tempToken);
+          }
         }
       }
     } catch (e) {
-      setState(() => _error = 'Invalid OTP. Please try again.');
-      _otpController.clear();
+      if (mounted) {
+        setState(() {
+          _error = _getErrorMessage(e);
+          _isLoading = false;
+        });
+        _otpController.clear();
+      }
     }
+  }
+
+  void _showPINSetupSuggestion() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.flash_on, color: AppTheme.primaryOrange),
+            const SizedBox(width: 8),
+            const Text('Setup PIN for Faster Login?'),
+          ],
+        ),
+        content: const Text(
+          'Setup a 4-digit PIN for quicker logins in the future. '
+          'You can always login with OTP if you forget your PIN.\n\n'
+          '⚡ PIN login takes only 2 seconds!',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Skip'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              // Navigate to settings where user can setup PIN
+              context.push(AppRoutes.settings);
+            },
+            icon: const Icon(Icons.security, size: 20),
+            label: const Text('Setup PIN'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
-    final isLoading = authState.isLoading;
+    // Use local loading state to avoid disposed widget issues
+    final isLoading = _isLoading;
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackground,
@@ -173,17 +272,17 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               const SizedBox(height: 8),
               Text(
                 'We sent a 6-digit code to',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppTheme.neutral500,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 4),
               Text(
                 Validators.formatPhone(widget.phone),
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 48),
@@ -220,14 +319,20 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
               // Error message
               if (_error != null) ...[
-                const SizedBox(height: 16),
-                Text(
-                  _error!,
-                  style: const TextStyle(
-                    color: AppTheme.error,
-                    fontSize: 14,
-                  ),
-                  textAlign: TextAlign.center,
+                const SizedBox(height: 20),
+                ErrorBanner(
+                  key: ValueKey(_error),
+                  message: _error!,
+                  title: 'Verification Failed',
+                  onDismiss: () {
+                    if (mounted) setState(() => _error = null);
+                  },
+                  onRetry: () {
+                    if (mounted) {
+                      setState(() => _error = null);
+                      _otpController.clear();
+                    }
+                  },
                 ),
               ],
 
@@ -238,16 +343,17 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 height: 56,
                 child: ElevatedButton(
                   onPressed: isLoading ? null : _handleVerify,
-                  child: isLoading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Verify'),
+                  child:
+                      isLoading
+                          ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                          : const Text('Verify'),
                 ),
               ),
               const SizedBox(height: 24),
@@ -288,4 +394,3 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     );
   }
 }
-

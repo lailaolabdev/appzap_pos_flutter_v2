@@ -6,7 +6,9 @@ import 'package:pin_code_fields/pin_code_fields.dart';
 
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
+import '../../../core/api/api_exception.dart';
 import '../../../core/utils/validators.dart';
+import '../../../shared/widgets/error_banner.dart';
 import '../providers/auth_provider.dart';
 
 /// Forgot PIN screen
@@ -22,9 +24,26 @@ class _ForgotPinScreenState extends ConsumerState<ForgotPinScreen> {
   final _otpController = TextEditingController();
   final _newPinController = TextEditingController();
   final _confirmPinController = TextEditingController();
-  
+
   int _currentStep = 0;
   String? _error;
+  bool _isLoading = false;
+
+  String _getErrorMessage(dynamic error) {
+    if (error is ApiException) {
+      if (error.isNetworkError) {
+        return 'No internet connection. Please check your network.';
+      }
+      if (error.isServerError) {
+        return 'Server is temporarily unavailable. Please try again later.';
+      }
+      if (error.isRateLimited) {
+        return 'Too many attempts. Please wait a moment.';
+      }
+      return error.message;
+    }
+    return 'Something went wrong. Please try again.';
+  }
 
   @override
   void dispose() {
@@ -38,19 +57,34 @@ class _ForgotPinScreenState extends ConsumerState<ForgotPinScreen> {
   Future<void> _sendOtp() async {
     final phoneError = Validators.phone(_phoneController.text);
     if (phoneError != null) {
-      setState(() => _error = phoneError);
+      if (mounted) setState(() => _error = phoneError);
       return;
     }
 
-    setState(() => _error = null);
+    if (mounted) {
+      setState(() {
+        _error = null;
+        _isLoading = true;
+      });
+    }
 
     try {
-      await ref.read(authProvider.notifier).forgotPin(
-        Validators.normalizePhone(_phoneController.text),
-      );
-      setState(() => _currentStep = 1);
+      await ref
+          .read(authProvider.notifier)
+          .forgotPin(Validators.normalizePhone(_phoneController.text));
+      if (mounted) {
+        setState(() {
+          _currentStep = 1;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() => _error = e.toString());
+      if (mounted) {
+        setState(() {
+          _error = _getErrorMessage(e);
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -58,32 +92,40 @@ class _ForgotPinScreenState extends ConsumerState<ForgotPinScreen> {
     // Validate OTP
     final otpError = Validators.otp(_otpController.text);
     if (otpError != null) {
-      setState(() => _error = otpError);
+      if (mounted) setState(() => _error = otpError);
       return;
     }
 
     // Validate PIN match
     if (_newPinController.text != _confirmPinController.text) {
-      setState(() => _error = 'PINs do not match');
+      if (mounted) setState(() => _error = 'PINs do not match');
       return;
     }
 
     final pinError = Validators.pin(_newPinController.text);
     if (pinError != null) {
-      setState(() => _error = pinError);
+      if (mounted) setState(() => _error = pinError);
       return;
     }
 
-    setState(() => _error = null);
+    if (mounted) {
+      setState(() {
+        _error = null;
+        _isLoading = true;
+      });
+    }
 
     try {
-      await ref.read(authProvider.notifier).resetPin(
-        phone: Validators.normalizePhone(_phoneController.text),
-        otp: _otpController.text,
-        newPin: _newPinController.text,
-      );
+      await ref
+          .read(authProvider.notifier)
+          .resetPin(
+            phone: Validators.normalizePhone(_phoneController.text),
+            otp: _otpController.text,
+            newPin: _newPinController.text,
+          );
 
       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('PIN reset successfully! Please login.'),
@@ -93,14 +135,19 @@ class _ForgotPinScreenState extends ConsumerState<ForgotPinScreen> {
         context.go(AppRoutes.login);
       }
     } catch (e) {
-      setState(() => _error = e.toString());
+      if (mounted) {
+        setState(() {
+          _error = _getErrorMessage(e);
+          _isLoading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
-    final isLoading = authState.isLoading;
+    // Use local loading state to avoid disposed widget issues
+    final isLoading = _isLoading;
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackground,
@@ -121,9 +168,10 @@ class _ForgotPinScreenState extends ConsumerState<ForgotPinScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
-          child: _currentStep == 0
-              ? _buildPhoneStep(isLoading)
-              : _buildResetStep(isLoading),
+          child:
+              _currentStep == 0
+                  ? _buildPhoneStep(isLoading)
+                  : _buildResetStep(isLoading),
         ),
       ),
     );
@@ -155,17 +203,17 @@ class _ForgotPinScreenState extends ConsumerState<ForgotPinScreen> {
 
         Text(
           'Reset your PIN',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         Text(
           'Enter your phone number to receive a verification code',
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: AppTheme.neutral500,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 48),
@@ -186,11 +234,13 @@ class _ForgotPinScreenState extends ConsumerState<ForgotPinScreen> {
         ),
 
         if (_error != null) ...[
-          const SizedBox(height: 16),
-          Text(
-            _error!,
-            style: const TextStyle(color: AppTheme.error, fontSize: 14),
-            textAlign: TextAlign.center,
+          const SizedBox(height: 20),
+          ErrorBanner(
+            key: ValueKey(_error),
+            message: _error!,
+            onDismiss: () {
+              if (mounted) setState(() => _error = null);
+            },
           ),
         ],
 
@@ -200,16 +250,17 @@ class _ForgotPinScreenState extends ConsumerState<ForgotPinScreen> {
           height: 56,
           child: ElevatedButton(
             onPressed: isLoading ? null : _sendOtp,
-            child: isLoading
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Text('Send Code'),
+            child:
+                isLoading
+                    ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
+                    : const Text('Send Code'),
           ),
         ),
       ],
@@ -224,16 +275,16 @@ class _ForgotPinScreenState extends ConsumerState<ForgotPinScreen> {
 
         Text(
           'Enter verification code',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Text(
           'Code sent to ${Validators.formatPhone(_phoneController.text)}',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppTheme.neutral500,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral500),
         ),
         const SizedBox(height: 24),
 
@@ -266,17 +317,14 @@ class _ForgotPinScreenState extends ConsumerState<ForgotPinScreen> {
 
         Text(
           'Create new PIN',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
 
         // New PIN
-        Text(
-          'Enter new PIN',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
+        Text('Enter new PIN', style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 8),
         PinCodeTextField(
           appContext: context,
@@ -306,10 +354,7 @@ class _ForgotPinScreenState extends ConsumerState<ForgotPinScreen> {
         const SizedBox(height: 16),
 
         // Confirm PIN
-        Text(
-          'Confirm new PIN',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
+        Text('Confirm new PIN', style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 8),
         PinCodeTextField(
           appContext: context,
@@ -338,11 +383,17 @@ class _ForgotPinScreenState extends ConsumerState<ForgotPinScreen> {
         ),
 
         if (_error != null) ...[
-          const SizedBox(height: 16),
-          Text(
-            _error!,
-            style: const TextStyle(color: AppTheme.error, fontSize: 14),
-            textAlign: TextAlign.center,
+          const SizedBox(height: 20),
+          ErrorBanner(
+            key: ValueKey(_error),
+            message: _error!,
+            title: 'Reset Failed',
+            onDismiss: () {
+              if (mounted) setState(() => _error = null);
+            },
+            onRetry: () {
+              if (mounted) setState(() => _error = null);
+            },
           ),
         ],
 
@@ -352,20 +403,20 @@ class _ForgotPinScreenState extends ConsumerState<ForgotPinScreen> {
           height: 56,
           child: ElevatedButton(
             onPressed: isLoading ? null : _verifyAndReset,
-            child: isLoading
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Text('Reset PIN'),
+            child:
+                isLoading
+                    ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
+                    : const Text('Reset PIN'),
           ),
         ),
       ],
     );
   }
 }
-
