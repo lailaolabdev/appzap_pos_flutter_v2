@@ -9,7 +9,6 @@ import '../../../core/models/payment.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/app_sidebar.dart';
-import '../../auth/providers/auth_provider.dart';
 import '../../customers/widgets/customer_lookup_dialog.dart';
 import '../../customers/widgets/redeem_points_dialog.dart';
 import '../../payment/providers/payment_provider.dart';
@@ -150,7 +149,6 @@ class _POSScreenState extends ConsumerState<POSScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(currentUserProvider);
     final productsState = ref.watch(productsProvider);
     final cart = ref.watch(cartProvider);
     final cartItemCount = ref.watch(cartItemCountProvider);
@@ -163,40 +161,100 @@ class _POSScreenState extends ConsumerState<POSScreen> {
         drawer: isMobile ? const Drawer(
           child: AppSidebar(isInDrawer: true),
         ) : null,
-        appBar: AppBar(
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('AppZap POS'),
-              if (user?.branch?.name != null)
-                Text(
-                  user!.branch!.name!,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.neutral500,
-                    fontWeight: FontWeight.normal,
+        appBar: isMobile
+            ? AppBar(
+                toolbarHeight: 70,
+                title: Row(
+                  children: [
+                    // Search bar
+                    Expanded(
+                      child: Container(
+                        height: 45,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.neutral200),
+                        ),
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: _handleSearch,
+                          decoration: InputDecoration(
+                            hintText: 'Search products or scan barc...',
+                            hintStyle: TextStyle(
+                              color: AppTheme.neutral400,
+                              fontSize: 14,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.search,
+                              color: AppTheme.neutral500,
+                              size: 22,
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                          ),
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Barcode scanner button
+                    Container(
+                      width: 45,
+                      height: 45,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryOrange.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppTheme.primaryOrange.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.qr_code_scanner,
+                          color: AppTheme.primaryOrange,
+                          size: 22,
+                        ),
+                        tooltip: 'Scan Barcode',
+                        padding: EdgeInsets.zero,
+                        onPressed: () {
+                          // TODO: Implement barcode scanner
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Barcode scanner coming soon'),
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : AppBar(
+                // Tablet/Desktop - keep simple
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.qr_code_scanner),
+                    tooltip: 'Scan Barcode',
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Barcode scanner coming soon')),
+                      );
+                    },
                   ),
-                ),
-            ],
-          ),
-          actions: [
-            // Cart icon (mobile only - shows cart modal)
-            if (isMobile)
-              IconButton(
-                icon: Badge(
-                  label: Text('$cartItemCount'),
-                  isLabelVisible: cartItemCount > 0,
-                  child: const Icon(Icons.shopping_cart_outlined),
-                ),
-                tooltip: 'Cart',
-                onPressed: () => _showMobileCart(context, cart),
+                  const SizedBox(width: 8),
+                ],
               ),
-            const SizedBox(width: 8),
-          ],
-        ),
         body: isMobile 
             ? _buildMobileLayout(productsState, cart) 
             : _buildTabletLayout(productsState, cart),
+        // Bottom bar for mobile only
+        bottomNavigationBar: isMobile
+            ? _buildBottomBar(cart, cartItemCount)
+            : null,
       ),
     );
   }
@@ -205,13 +263,6 @@ class _POSScreenState extends ConsumerState<POSScreen> {
   Widget _buildMobileLayout(dynamic productsState, Cart cart) {
     return Column(
       children: [
-        // Search Bar
-        POSSearchBar(
-          controller: _searchController,
-          onSearch: _handleSearch,
-          onBarcodeScan: _handleBarcodeScan,
-        ),
-
         // Category Bar
         CategoryBar(
           categories: productsState.categories,
@@ -290,6 +341,91 @@ class _POSScreenState extends ConsumerState<POSScreen> {
     );
   }
 
+  /// Bottom bar with SAVE and checkout buttons (mobile only - 2 buttons, single line)
+  Widget _buildBottomBar(Cart cart, int cartItemCount) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              // SAVE button (no icon, single line)
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: cart.items.isEmpty
+                      ? null
+                      : () {
+                          // TODO: Implement save/on hold functionality
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Save feature coming soon'),
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: BorderSide(
+                      color: cart.items.isEmpty
+                          ? AppTheme.neutral300
+                          : AppTheme.neutral600,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Text(
+                    'SAVE',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: cart.items.isEmpty
+                          ? AppTheme.neutral400
+                          : AppTheme.neutral800,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Checkout button - orange, price only with count
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  onPressed: cart.items.isEmpty 
+                      ? null 
+                      : () => _showMobileCart(context), // Show cart first
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryOrange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    disabledBackgroundColor: AppTheme.neutral300,
+                  ),
+                  child: Text(
+                    cart.items.isEmpty
+                        ? '0 ₭ (0)'
+                        : '${CurrencyFormatter.formatLAKWithSymbol(cart.total)} ($cartItemCount)',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Products grid (shared by mobile and tablet)
   Widget _buildProductsGrid(dynamic productsState) {
     if (productsState.isLoading) {
@@ -333,8 +469,8 @@ class _POSScreenState extends ConsumerState<POSScreen> {
     );
   }
 
-  /// Show cart modal on mobile
-  void _showMobileCart(BuildContext context, Cart cart) {
+  /// Show cart modal on mobile (reactive with Consumer)
+  void _showMobileCart(BuildContext context) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -363,23 +499,29 @@ class _POSScreenState extends ConsumerState<POSScreen> {
                   ),
                 ),
                 
-                // Cart panel
+                // Cart panel - Using Consumer to watch cart changes
                 Expanded(
-                  child: CartPanel(
-                    cart: cart,
-                    onUpdateQuantity: (productId, quantity) {
-                      ref.read(cartProvider.notifier).updateQuantity(productId, quantity);
-                    },
-                    onRemoveItem: (productId) {
-                      ref.read(cartProvider.notifier).removeItem(productId);
-                    },
-                    onClearCart: () {
-                      ref.read(cartProvider.notifier).clear();
-                    },
-                    onApplyLoyalty: _handleApplyLoyalty,
-                    onCheckout: () {
-                      Navigator.pop(context); // Close modal first
-                      _handleCheckout();
+                  child: Consumer(
+                    builder: (context, ref, child) {
+                      final cart = ref.watch(cartProvider);
+                      
+                      return CartPanel(
+                        cart: cart,
+                        onUpdateQuantity: (productId, quantity) {
+                          ref.read(cartProvider.notifier).updateQuantity(productId, quantity);
+                        },
+                        onRemoveItem: (productId) {
+                          ref.read(cartProvider.notifier).removeItem(productId);
+                        },
+                        onClearCart: () {
+                          ref.read(cartProvider.notifier).clear();
+                        },
+                        onApplyLoyalty: _handleApplyLoyalty,
+                        onCheckout: () {
+                          Navigator.pop(context); // Close modal first
+                          _handleCheckout();
+                        },
+                      );
                     },
                   ),
                 ),

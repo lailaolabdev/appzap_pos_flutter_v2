@@ -40,20 +40,43 @@ class ProductGrid extends StatelessWidget {
       );
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 180,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 0.75,
-      ),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
-        return _ProductCard(
-          product: product,
-          onTap: () => onProductTap(product),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Determine cross axis count based on screen width
+        final width = constraints.maxWidth;
+        int crossAxisCount;
+        double childAspectRatio;
+        
+        if (width < 600) {
+          // Mobile: 3 columns
+          crossAxisCount = 3;
+          childAspectRatio = 0.68; // Slightly taller for 3 columns
+        } else if (width < 900) {
+          // Tablet: 4 columns
+          crossAxisCount = 4;
+          childAspectRatio = 0.75;
+        } else {
+          // Desktop: 5 columns
+          crossAxisCount = 5;
+          childAspectRatio = 0.8;
+        }
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(12),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: childAspectRatio,
+          ),
+          itemCount: products.length,
+          itemBuilder: (context, index) {
+            final product = products[index];
+            return _ProductCard(
+              product: product,
+              onTap: () => onProductTap(product),
+            );
+          },
         );
       },
     );
@@ -171,15 +194,17 @@ class _ProductCard extends StatelessWidget {
 
               // Info
               Padding(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     // Name
                     Text(
                       product.name,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.w600,
+                        fontSize: 12,
                         color: isOutOfStock
                             ? AppTheme.neutral400
                             : AppTheme.neutral900,
@@ -187,15 +212,16 @@ class _ProductCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
 
                     // Price
                     Text(
                       CurrencyFormatter.formatLAKWithSymbol(
                         product.pricing.basePrice,
                       ),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.bold,
+                        fontSize: 13,
                         color: isOutOfStock
                             ? AppTheme.neutral400
                             : AppTheme.primaryOrange,
