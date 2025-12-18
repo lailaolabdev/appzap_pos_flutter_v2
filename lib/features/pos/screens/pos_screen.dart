@@ -727,14 +727,17 @@ Future<void> _handleCashPayment(
   WidgetRef ref,
   Cart cart,
 ) async {
-  final result = await showDialog<Map<String, dynamic>>(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) => CashPaymentDialog(
-      totalAmount: cart.total,
-      onPaymentComplete: () {
-        // This will be called from the dialog
-      },
+  // Navigate to full-screen cash payment page
+  final result = await Navigator.push<Map<String, dynamic>>(
+    context,
+    MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (context) => CashPaymentDialog(
+        totalAmount: cart.total,
+        onPaymentComplete: () {
+          // This will be called from the dialog
+        },
+      ),
     ),
   );
 
@@ -767,14 +770,17 @@ Future<void> _handlePhayPayPayment(
   WidgetRef ref,
   Cart cart,
 ) async {
-  // Show bank selection
-  final bankMethod = await showDialog<PhayPayBankMethod>(
-    context: context,
-    builder: (context) => PhayPayBankSelectionDialog(
-      amount: cart.total,
-      onBankSelected: (bank) {
-        Navigator.pop(context, bank);
-      },
+  // Navigate to full-screen bank selection page
+  final bankMethod = await Navigator.push<PhayPayBankMethod>(
+    context,
+    MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (context) => PhayPayBankSelectionDialog(
+        amount: cart.total,
+        onBankSelected: (bank) {
+          Navigator.pop(context, bank);
+        },
+      ),
     ),
   );
 
@@ -797,11 +803,13 @@ Future<void> _handlePhayPayPayment(
     return;
   }
 
-  // Show QR dialog
-  final result = await showDialog<bool>(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) => const PhayPayQRDialog(),
+  // Navigate to full-screen QR page
+  final result = await Navigator.push<bool>(
+    context,
+    MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (context) => const PhayPayQRDialog(),
+    ),
   );
 
   if (result == true && context.mounted) {

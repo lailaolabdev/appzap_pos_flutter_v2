@@ -22,70 +22,58 @@ class PhayPayBankSelectionDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      child: Container(
-        width: 360,
-        padding: const EdgeInsets.all(24),
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('PhayPay'),
+            Text(
+              CurrencyFormatter.formatLAKWithSymbol(amount),
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppTheme.primaryOrange,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: SafeArea(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryOrangeBackground,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.qr_code_2,
-                    color: AppTheme.primaryOrange,
-                  ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                'Select Bank',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'PhayPay',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        CurrencyFormatter.formatLAKWithSymbol(amount),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.primaryOrange,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
+              ),
             ),
-            const SizedBox(height: 24),
-
-            Text('Select Bank', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 16),
-
-            // Bank options
-            ...PhayPayBankMethod.values.map((bank) {
-              return _BankOption(
-                bank: bank,
-                onTap: () {
-                  Navigator.pop(context);
-                  onBankSelected(bank);
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: PhayPayBankMethod.values.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final bank = PhayPayBankMethod.values[index];
+                  return _BankOption(
+                    bank: bank,
+                    onTap: () {
+                      Navigator.pop(context);
+                      onBankSelected(bank);
+                    },
+                  );
                 },
-              );
-            }),
+              ),
+            ),
           ],
         ),
       ),
@@ -158,131 +146,152 @@ class PhayPayQRDialog extends ConsumerWidget {
     final phayPayPayment = paymentState.phayPayPayment;
 
     if (phayPayPayment == null) {
-      return const Dialog(
-        child: Padding(
-          padding: EdgeInsets.all(48),
+      return const Scaffold(
+        body: Center(
           child: CircularProgressIndicator(),
         ),
       );
     }
 
-    return Dialog(
-      child: Container(
-        width: 400,
-        padding: const EdgeInsets.all(24),
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () {
+            ref.read(paymentProvider.notifier).cancelPayment();
+            Navigator.pop(context, false);
+          },
+        ),
+        title: const Text('Scan to Pay'),
+      ),
+      body: SafeArea(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            // Header
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Scan to Pay',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () {
-                    ref.read(paymentProvider.notifier).cancelPayment();
-                    Navigator.pop(context, false);
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
             // Bank info
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppTheme.neutral100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                phayPayPayment.bankMethod.displayName,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // QR Code
-            if (paymentState.isCompleted)
-              _buildSuccessState(context)
-            else if (paymentState.isFailed)
-              _buildFailedState(context, paymentState.error ?? 'Payment failed')
-            else
-              _buildQRState(context, phayPayPayment, paymentState),
-
-            const SizedBox(height: 24),
-
-            // Amount
-            Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryOrangeBackground,
-                borderRadius: BorderRadius.circular(12),
-              ),
+              color: AppTheme.neutral50,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  const Icon(Icons.account_balance, size: 20, color: AppTheme.neutral600),
+                  const SizedBox(width: 8),
                   Text(
-                    'Amount: ',
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  Text(
-                    CurrencyFormatter.formatLAKWithSymbol(
-                      phayPayPayment.amount,
-                    ),
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.primaryOrange,
+                    phayPayPayment.bankMethod.displayName,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
             ),
 
-            if (paymentState.isCompleted) ...[
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Done'),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    // QR Code or Status
+                    if (paymentState.isCompleted)
+                      _buildSuccessState(context)
+                    else if (paymentState.isFailed)
+                      _buildFailedState(context, paymentState.error ?? 'Payment failed')
+                    else
+                      _buildQRState(context, phayPayPayment, paymentState),
+
+                    const SizedBox(height: 32),
+
+                    // Amount
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryOrangeBackground,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            'Amount',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppTheme.neutral600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            CurrencyFormatter.formatLAKWithSymbol(phayPayPayment.amount),
+                            style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.primaryOrange,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
 
-            if (paymentState.isFailed) ...[
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancel'),
+            // Bottom action buttons
+            if (paymentState.isCompleted || paymentState.isFailed)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        // Retry
-                        ref.read(paymentProvider.notifier).reset();
-                        Navigator.pop(context, false);
-                      },
-                      child: const Text('Try Again'),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
+                child: paymentState.isCompleted
+                    ? SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            backgroundColor: AppTheme.success,
+                          ),
+                          child: const Text(
+                            'Done',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                              ),
+                              child: const Text('Cancel'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                ref.read(paymentProvider.notifier).reset();
+                                Navigator.pop(context, false);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                              ),
+                              child: const Text('Try Again'),
+                            ),
+                          ),
+                        ],
+                      ),
               ),
-            ],
           ],
         ),
       ),
