@@ -244,37 +244,63 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
           ),
         ),
 
-        // Category filter chips
+        // Category filter chips with visible scrollbar
         if (menuState.categories.isNotEmpty)
-          Container(
+          SizedBox(
             height: 60,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: const Text('All'),
-                    selected: menuState.categoryFilter == null,
-                    onSelected: (_) {
-                      ref.read(menuProvider.notifier).filterByCategory(null);
-                    },
-                  ),
-                ),
-                ...menuState.categories.map((category) {
-                  return Padding(
+            child: Scrollbar(
+              thumbVisibility: true,  // ✅ Always show scrollbar
+              thickness: 4,  // ✅ Make it more visible
+              radius: const Radius.circular(2),
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      label: Text(category.name),
-                      selected: menuState.categoryFilter == category.id,
-                      onSelected: (_) {
-                        ref.read(menuProvider.notifier).filterByCategory(category.id);
+                    child: GestureDetector(
+                      onTap: () {
+                        ref.read(menuProvider.notifier).filterByCategory(null);
                       },
+                      child: FilterChip(
+                        label: const Text('All'),
+                        selected: menuState.categoryFilter == null,
+                        onSelected: null,  // ✅ Disable built-in handler, use GestureDetector
+                        backgroundColor: AppTheme.neutral100,
+                        selectedColor: AppTheme.primaryOrange,
+                        labelStyle: TextStyle(
+                          color: menuState.categoryFilter == null ? Colors.white : AppTheme.neutral700,
+                          fontWeight: menuState.categoryFilter == null ? FontWeight.w600 : FontWeight.w500,
+                        ),
+                        showCheckmark: false,
+                      ),
                     ),
-                  );
-                }),
-              ],
+                  ),
+                  ...menuState.categories.map((category) {
+                    final isSelected = menuState.categoryFilter == category.id;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: () {
+                          ref.read(menuProvider.notifier).filterByCategory(category.id);
+                        },
+                        child: FilterChip(
+                          label: Text(category.name),
+                          selected: isSelected,
+                          onSelected: null,  // ✅ Disable built-in handler, use GestureDetector
+                          backgroundColor: AppTheme.neutral100,
+                          selectedColor: AppTheme.primaryOrange,
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.white : AppTheme.neutral700,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                          ),
+                          showCheckmark: false,
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
           ),
 

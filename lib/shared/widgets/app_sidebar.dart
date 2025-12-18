@@ -123,6 +123,19 @@ class AppSidebar extends ConsumerWidget {
                         if (isInDrawer) Navigator.of(context).pop();
                       },
                     ),
+                  // Transactions - Show to admins OR users who can manage sales/view reports
+                  if (user?.isAdmin == true || user?.canManageSales == true || user?.canViewReports == true)
+                    _SidebarItem(
+                      icon: Icons.receipt_long,
+                      label: 'Transactions',
+                      route: AppRoutes.transactions,
+                      isActive: currentRoute == AppRoutes.transactions,
+                      isInDrawer: isInDrawer,
+                      onTap: () {
+                        context.go(AppRoutes.transactions);
+                        if (isInDrawer) Navigator.of(context).pop();
+                      },
+                    ),
                   // Show to admins OR users with permission
                   if (user?.isAdmin == true || user?.canViewReports == true)
                     _SidebarItem(

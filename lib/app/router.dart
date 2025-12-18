@@ -15,6 +15,8 @@ import '../features/orders/screens/orders_screen.dart';
 import '../features/inventory/screens/inventory_screen.dart';
 import '../features/customers/screens/customers_screen.dart';
 import '../features/reports/screens/reports_screen.dart';
+import '../features/transactions/screens/transaction_screen.dart';
+import '../features/transactions/screens/transaction_detail_screen.dart';
 import '../shared/widgets/splash_screen.dart';
 
 /// Route names
@@ -32,6 +34,7 @@ class AppRoutes {
   static const String orders = '/orders';
   static const String inventory = '/inventory';
   static const String customers = '/customers';
+  static const String transactions = '/transactions';
   static const String reports = '/reports';
   static const String settings = '/settings';
 }
@@ -148,6 +151,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.customers,
         builder: (context, state) => const CustomersScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.transactions,
+        builder: (context, state) => const TransactionScreen(),
+        routes: [
+          GoRoute(
+            path: ':transactionId',
+            builder: (context, state) {
+              final transactionId = state.pathParameters['transactionId'] ?? '';
+              return TransactionDetailScreen(transactionId: transactionId);
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.reports,

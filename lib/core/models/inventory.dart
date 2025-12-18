@@ -157,7 +157,7 @@ class StockAdjustmentResult extends Equatable {
 class InventoryAlert extends Equatable {
   final String id;
   final String inventoryItemId;
-  final String itemName;
+  final String? itemName;  // Made nullable since API might not always provide it
   final String alertType;
   final int currentStock;
   final int? threshold;
@@ -167,7 +167,7 @@ class InventoryAlert extends Equatable {
   const InventoryAlert({
     required this.id,
     required this.inventoryItemId,
-    required this.itemName,
+    this.itemName,  // Now optional
     required this.alertType,
     required this.currentStock,
     this.threshold,
@@ -179,7 +179,7 @@ class InventoryAlert extends Equatable {
     return InventoryAlert(
       id: json['_id'] as String? ?? '',
       inventoryItemId: json['inventoryItemId'] as String? ?? '',
-      itemName: json['itemName'] as String? ?? '',
+      itemName: json['itemName'] as String?,  // Keep as null if not provided
       alertType: json['alertType'] as String? ?? 'low_stock',
       currentStock: json['currentStock'] as int? ?? 0,
       threshold: json['threshold'] as int?,
@@ -190,6 +190,9 @@ class InventoryAlert extends Equatable {
               : DateTime.now(),
     );
   }
+  
+  // Helper getter for display name
+  String get displayName => itemName ?? 'Item ${inventoryItemId.substring(0, 8)}...';
 
   bool get isLowStock => alertType == 'low_stock';
   bool get isOutOfStock => alertType == 'out_of_stock';

@@ -14,6 +14,10 @@
 3. [Product Management](#3-product-management)
 4. [Sales & Checkout](#4-sales--checkout)
 5. [Payment Processing](#5-payment-processing-usp)
+   - 5.1 [Calculate Pricing](#51-calculate-pricing-before-payment)
+   - 5.2 [Process Cash Payment](#52-process-cash-payment)
+   - 5.3 [PhayPay Payment](#53-phaypay-payment--killer-feature)
+   - 5.4 [Transaction Management](#54-transaction-management-)
 6. [Inventory Management](#6-inventory-management-usp)
 7. [Customer & Loyalty](#7-customer--loyalty-usp)
 8. [Reports](#8-reports)
@@ -1695,6 +1699,989 @@ void _showPhayPayDialog(Order order) async {
   });
 }
 ```
+
+---
+
+### 5.4 Transaction Management 📊
+
+> **View and manage all payment transactions with advanced filtering and reporting**
+
+Transaction endpoints allow you to view payment history, generate reports, process refunds, and manage transaction records.
+
+#### 5.4.1 Get Transaction History
+
+Get a paginated list of transactions with powerful filtering options.
+
+```http
+GET /transactions/
+Authorization: Bearer {token}
+
+Query Parameters:
+  startDate (optional) - Start date (YYYY-MM-DD or ISO 8601)
+  startTime (optional) - Start time (HH:MM)
+  endDate (optional) - End date (YYYY-MM-DD or ISO 8601)
+  endTime (optional) - End time (HH:MM)
+  timezone (optional) - Timezone (e.g., "Asia/Vientiane")
+  
+  // Alternative date parameters
+  dateFrom (optional) - Alias for startDate
+  dateTo (optional) - Alias for endDate
+  
+  // Filters
+  branchId (optional) - Filter by branch
+  status (optional) - Filter by status (completed, pending, voided, refunded)
+  method (optional) - Filter by payment method (cash, card, bank_qr_jdb, etc.)
+  staffId (optional) - Filter by staff member
+  
+  // Pagination
+  page (optional) - Page number (default: 1)
+  limit (optional) - Results per page (default: 20, max: 100)
+  sort (optional) - Sort field (default: "-timing.initiatedAt")
+  
+  // Options
+  includeSummary (optional) - Include payment statistics (default: true)
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "transactions": [
+      {
+        "_id": "676...",
+        "transactionId": "TXN-20251218-001",
+        "transactionType": "sale",
+        "transactionStatus": "completed",
+        "consolidatedTotals": {
+          "grandTotal": {
+            "amount": 50000,
+            "currency": "LAK"
+          }
+        },
+        "paymentSummary": {
+          "totalPaid": 50000,
+          "paymentMethodBreakdown": [
+            {
+              "method": "cash",
+              "amount": 50000,
+              "currency": "LAK"
+            }
+          ]
+        },
+        "timing": {
+          "initiatedAt": "2025-12-18T10:00:00Z",
+          "completedAt": "2025-12-18T10:01:00Z"
+        },
+        "staff": {
+          "processedBy": {
+            "_id": "676...",
+            "name": "John Cashier",
+            "role": "cashier"
+          }
+        },
+        "tableInfo": {
+          "tableNumber": "A-101",
+          "zoneName": "Main Floor"
+        },
+        "countInTotals": true
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "totalCount": 150,
+      "totalPages": 8,
+      "hasNext": true,
+      "hasPrev": false
+    },
+    "summary": {
+      "totalTxnCount": 150,
+      "salesCount": 145,
+      "voidCount": 5,
+      "salesAmount": 7250000,
+      "voidAmount": 125000,
+      "paymentMethodBreakdown": [
+        {
+          "method": "cash",
+          "count": 80,
+          "totalAmount": 4000000
+        },
+        {
+          "method": "bank_qr_jdb",
+          "count": 65,
+          "totalAmount": 3250000
+        }
+      ]
+    }
+  },
+  "timestamp": "2025-12-18T12:00:00Z"
+}
+```
+
+**⚠️ Important Notes:**
+- Transactions are nested under `data.transactions`, not directly in `data`
+- `summary` includes sales statistics (only included if `includeSummary=true`)
+- Voided transactions are excluded from `salesAmount` but included in `voidAmount`
+- Supports timezone-aware date filtering
+
+**Flutter Parsing Example:**
+```dart
+final response = await dio.get('/api/v1/transactions/', queryParameters: {
+  'startDate': '2025-12-01',
+  'endDate': '2025-12-31',
+  'branchId': currentBranchId,
+  'includeSummary': true,
+  'page': 1,
+  'limit': 50,
+});
+
+// Access nested structure
+final data = response.data['data'];
+final transactions = (data['transactions'] as List)
+    .map((json) => Transaction.fromJson(json))
+    .toList();
+final pagination = data['pagination'];
+final summary = data['summary'];
+
+// Display summary stats
+print('Total sales: ${summary['salesAmount']}');
+print('Total transactions: ${summary['totalTxnCount']}');
+print('Voided: ${summary['voidCount']}');
+
+// Display payment method breakdown
+for (var method in summary['paymentMethodBreakdown']) {
+  print('${method['method']}: ${method['totalAmount']}');
+}
+```
+
+**Example Queries:**
+
+```http
+# Get today's transactions
+GET /transactions/?startDate=2025-12-18&endDate=2025-12-18&includeSummary=true
+
+# Get cash transactions only
+GET /transactions/?method=cash&startDate=2025-12-01
+
+# Get transactions for last 7 days
+GET /transactions/?startDate=2025-12-11&endDate=2025-12-18
+
+# Get completed transactions only
+GET /transactions/?status=completed
+
+# Get transactions by specific staff
+GET /transactions/?staffId=676...
+
+# Paginated results
+GET /transactions/?page=2&limit=50
+
+# Without summary (faster)
+GET /transactions/?includeSummary=false
+
+# With timezone (e.g., for businesses in Laos)
+GET /transactions/?startDate=2025-12-18&timezone=Asia/Vientiane
+```
+
+---
+
+#### 5.4.2 Get Transaction Summary
+
+Get aggregate statistics for transactions in a date range.
+
+```http
+GET /transactions/summary
+Authorization: Bearer {token}
+
+Query Parameters:
+  startDate (optional) - Start date (YYYY-MM-DD or ISO 8601)
+  endDate (optional) - End date (YYYY-MM-DD or ISO 8601)
+  branchId (optional) - Filter by branch
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "totalTransactions": 150,
+    "totalRevenue": 7250000,
+    "averageTransactionValue": 48333,
+    "paymentMethodBreakdown": [
+      {
+        "method": "cash",
+        "count": 80,
+        "totalAmount": 4000000,
+        "percentage": 55.17
+      },
+      {
+        "method": "bank_qr_jdb",
+        "count": 65,
+        "totalAmount": 3250000,
+        "percentage": 44.83
+      }
+    ],
+    "statusBreakdown": [
+      {
+        "status": "completed",
+        "count": 145
+      },
+      {
+        "status": "voided",
+        "count": 5
+      }
+    ],
+    "dailyTransactions": [
+      {
+        "date": "2025-12-01",
+        "count": 45,
+        "totalAmount": 2175000
+      },
+      {
+        "date": "2025-12-02",
+        "count": 52,
+        "totalAmount": 2510000
+      }
+    ],
+    "hourlyTransactions": [
+      {
+        "hour": 9,
+        "count": 12,
+        "totalAmount": 580000
+      },
+      {
+        "hour": 12,
+        "count": 28,
+        "totalAmount": 1350000
+      },
+      {
+        "hour": 18,
+        "count": 22,
+        "totalAmount": 1060000
+      }
+    ]
+  }
+}
+```
+
+**Use Cases:**
+- Dashboard summary cards
+- Payment method pie charts
+- Daily sales line charts
+- Peak hours heat map
+
+---
+
+#### 5.4.3 Get Single Transaction
+
+Get detailed information about a specific transaction.
+
+```http
+GET /transactions/:transactionId
+Authorization: Bearer {token}
+```
+
+**Response (200 OK):**
+```json
+{
+  "_id": "676...",
+  "transactionId": "TXN-20251218-001",
+  "receiptId": "RCP-20251218-001",
+  "transactionType": "sale",
+  "transactionStatus": "completed",
+  "restaurantId": "676...",
+  "branchId": "676...",
+  "consolidatedTotals": {
+    "subtotal": {
+      "amount": 45000,
+      "currency": "LAK"
+    },
+    "tax": {
+      "amount": 4500,
+      "currency": "LAK"
+    },
+    "discounts": {
+      "amount": 0,
+      "currency": "LAK"
+    },
+    "serviceCharge": {
+      "amount": 0,
+      "currency": "LAK"
+    },
+    "grandTotal": {
+      "amount": 49500,
+      "currency": "LAK"
+    }
+  },
+  "payments": [
+    {
+      "method": "cash",
+      "grossAmount": {
+        "amount": 50000,
+        "currency": "LAK"
+      },
+      "changeAmount": {
+        "amount": 500,
+        "currency": "LAK"
+      },
+      "processedAt": "2025-12-18T10:01:00Z",
+      "processedBy": "676..."
+    }
+  ],
+  "lineItems": [
+    {
+      "itemType": "menu_item",
+      "menuItemId": "676...",
+      "name": "Iced Latte",
+      "quantity": 2,
+      "unitPrice": 22500,
+      "subtotal": 45000,
+      "tax": 4500,
+      "total": 49500
+    }
+  ],
+  "staff": {
+    "processedBy": {
+      "_id": "676...",
+      "name": "John Cashier",
+      "role": "cashier"
+    }
+  },
+  "customer": {
+    "customerId": "676...",
+    "name": "Jane Customer",
+    "phone": "+85620..."
+  },
+  "tableInfo": {
+    "tableNumber": "A-101",
+    "zoneName": "Main Floor",
+    "tableSessionId": "676..."
+  },
+  "timing": {
+    "initiatedAt": "2025-12-18T10:00:00Z",
+    "completedAt": "2025-12-18T10:01:00Z"
+  },
+  "countInTotals": true,
+  "createdAt": "2025-12-18T10:00:00Z",
+  "updatedAt": "2025-12-18T10:01:00Z"
+}
+```
+
+**⚠️ Important:** Response is the **direct transaction object**, not wrapped in `{ success, data }` format!
+
+---
+
+#### 5.4.4 Process Refund
+
+Process a full or partial refund for a transaction.
+
+```http
+POST /transactions/:transactionId/refund
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "reason": "Customer dissatisfied with product quality",
+  "refundAmount": 49500,
+  "refundMethod": "cash",
+  "notes": "Full refund issued",
+  "managerApproval": {
+    "managerId": "676...",
+    "approvalCode": "1234"
+  }
+}
+```
+
+**Required Permissions:** `MANAGE_TRANSACTIONS`
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "transactionId": "TXN-20251218-001",
+    "refundTransactionId": "TXN-20251218-REF-001",
+    "refundAmount": 49500,
+    "refundMethod": "cash",
+    "status": "refunded",
+    "refundedAt": "2025-12-18T14:30:00Z",
+    "refundedBy": {
+      "_id": "676...",
+      "name": "Manager John"
+    },
+    "reason": "Customer dissatisfied with product quality"
+  }
+}
+```
+
+**Refund Rules:**
+- ✅ Can refund completed transactions
+- ✅ Supports partial refunds
+- ✅ Requires manager approval
+- ❌ Cannot refund already voided transactions
+- ❌ Cannot refund more than original amount
+
+---
+
+#### 5.4.5 Void Transaction
+
+Void (cancel) a transaction. Use this for order mistakes or cancellations.
+
+```http
+POST /transactions/:transactionId/void
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "reason": "Order entered incorrectly",
+  "notes": "Wrong table number entered",
+  "managerApproval": {
+    "managerId": "676...",
+    "approvalCode": "1234"
+  }
+}
+```
+
+**Required Permissions:** `MANAGE_TRANSACTIONS`
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "transactionId": "TXN-20251218-001",
+    "status": "voided",
+    "voidedAt": "2025-12-18T10:05:00Z",
+    "voidedBy": {
+      "_id": "676...",
+      "name": "Manager John"
+    },
+    "reason": "Order entered incorrectly"
+  }
+}
+```
+
+**Void vs Refund:**
+- **Void:** Cancel before payment/completion (doesn't count in sales)
+- **Refund:** Return money after payment (counts as negative sale)
+
+---
+
+#### 5.4.6 Get Transaction Receipt
+
+Generate a receipt for a transaction.
+
+```http
+GET /transactions/:transactionId/receipt
+Authorization: Bearer {token}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "receiptId": "RCP-20251218-001",
+    "transactionId": "TXN-20251218-001",
+    "restaurant": {
+      "name": "My Coffee Shop",
+      "address": "123 Main St, Vientiane",
+      "phone": "020 12345678",
+      "taxId": "LAO123456789"
+    },
+    "branch": {
+      "name": "Main Branch",
+      "address": "123 Main St"
+    },
+    "items": [
+      {
+        "name": "Iced Latte",
+        "quantity": 2,
+        "unitPrice": 22500,
+        "total": 45000
+      }
+    ],
+    "totals": {
+      "subtotal": 45000,
+      "tax": 4500,
+      "total": 49500
+    },
+    "payment": {
+      "method": "cash",
+      "tendered": 50000,
+      "change": 500
+    },
+    "staff": "John Cashier",
+    "date": "2025-12-18T10:01:00Z",
+    "receiptHtml": "<html>...</html>",
+    "receiptText": "--- Receipt Text ---"
+  }
+}
+```
+
+---
+
+#### 5.4.7 Get Adjustment Report
+
+Get a report of all adjusted transactions.
+
+```http
+GET /transactions/reports/adjustments
+Authorization: Bearer {token}
+
+Query Parameters:
+  startDate (optional) - Start date
+  endDate (optional) - End date
+  branchId (optional) - Filter by branch
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "adjustmentStats": {
+      "count": 15,
+      "totalAdjustmentAmount": 75000,
+      "avgAdjustmentAmount": 5000
+    },
+    "adjustmentsByReason": [
+      {
+        "reason": "Price correction",
+        "count": 8,
+        "totalAmount": 40000
+      },
+      {
+        "reason": "Discount applied late",
+        "count": 7,
+        "totalAmount": 35000
+      }
+    ],
+    "adjustmentsByStaff": [
+      {
+        "staffId": "676...",
+        "staffName": "Manager John",
+        "count": 12,
+        "totalAmount": 60000
+      }
+    ]
+  }
+}
+```
+
+---
+
+#### 5.4.8 Get Refunds & Voids Report
+
+Get a report of all refunds and voids.
+
+```http
+GET /transactions/reports/refunds-voids
+Authorization: Bearer {token}
+
+Query Parameters:
+  startDate (optional) - Start date
+  endDate (optional) - End date
+  branchId (optional) - Filter by branch
+  type (optional) - Filter by type (refunded, voided, or both)
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "stats": [
+      {
+        "status": "refunded",
+        "count": 8,
+        "totalAmount": 240000
+      },
+      {
+        "status": "voided",
+        "count": 5,
+        "totalAmount": 125000
+      }
+    ],
+    "byReason": [
+      {
+        "reason": "Customer dissatisfied",
+        "count": 6,
+        "totalAmount": 180000
+      },
+      {
+        "reason": "Order mistake",
+        "count": 7,
+        "totalAmount": 185000
+      }
+    ],
+    "byStaff": [
+      {
+        "staffId": "676...",
+        "staffName": "Manager John",
+        "refundCount": 8,
+        "refundAmount": 240000,
+        "voidCount": 5,
+        "voidAmount": 125000
+      }
+    ],
+    "transactions": [
+      {
+        "_id": "676...",
+        "transactionId": "TXN-20251218-001",
+        "originalAmount": 49500,
+        "refundAmount": 49500,
+        "status": "refunded",
+        "reason": "Customer dissatisfied",
+        "processedAt": "2025-12-18T14:30:00Z",
+        "processedBy": "Manager John"
+      }
+    ]
+  }
+}
+```
+
+---
+
+#### 5.4.9 Flutter Transaction Service Example
+
+Complete implementation example for Flutter:
+
+```dart
+import 'package:dio/dio.dart';
+
+class TransactionService {
+  final Dio _dio;
+  
+  TransactionService(this._dio);
+  
+  /// Get transaction history with filtering
+  Future<TransactionHistoryResponse> getTransactions({
+    DateTime? startDate,
+    DateTime? endDate,
+    String? branchId,
+    String? status,
+    String? method,
+    String? staffId,
+    int page = 1,
+    int limit = 20,
+    bool includeSummary = true,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{
+        'page': page,
+        'limit': limit,
+        'includeSummary': includeSummary.toString(),
+      };
+      
+      if (startDate != null) {
+        queryParams['startDate'] = startDate.toIso8601String().split('T')[0];
+      }
+      if (endDate != null) {
+        queryParams['endDate'] = endDate.toIso8601String().split('T')[0];
+      }
+      if (branchId != null) queryParams['branchId'] = branchId;
+      if (status != null) queryParams['status'] = status;
+      if (method != null) queryParams['method'] = method;
+      if (staffId != null) queryParams['staffId'] = staffId;
+      
+      final response = await _dio.get(
+        '/api/v1/transactions/',
+        queryParameters: queryParams,
+      );
+      
+      // ✅ FIX: Access nested data structure
+      final data = response.data['data'];
+      
+      return TransactionHistoryResponse(
+        transactions: (data['transactions'] as List)
+            .map((json) => Transaction.fromJson(json))
+            .toList(),
+        pagination: Pagination.fromJson(data['pagination']),
+        summary: data['summary'] != null
+            ? TransactionSummary.fromJson(data['summary'])
+            : null,
+      );
+      
+    } catch (e) {
+      print('❌ Get transactions error: $e');
+      rethrow;
+    }
+  }
+  
+  /// Get transaction summary
+  Future<TransactionSummaryReport> getSummary({
+    DateTime? startDate,
+    DateTime? endDate,
+    String? branchId,
+  }) async {
+    final queryParams = <String, dynamic>{};
+    
+    if (startDate != null) {
+      queryParams['startDate'] = startDate.toIso8601String().split('T')[0];
+    }
+    if (endDate != null) {
+      queryParams['endDate'] = endDate.toIso8601String().split('T')[0];
+    }
+    if (branchId != null) queryParams['branchId'] = branchId;
+    
+    final response = await _dio.get(
+      '/api/v1/transactions/summary',
+      queryParameters: queryParams,
+    );
+    
+    return TransactionSummaryReport.fromJson(response.data['data']);
+  }
+  
+  /// Get single transaction
+  Future<Transaction> getTransaction(String transactionId) async {
+    final response = await _dio.get('/api/v1/transactions/$transactionId');
+    
+    // ⚠️ Direct response (not wrapped)
+    return Transaction.fromJson(response.data);
+  }
+  
+  /// Process refund
+  Future<RefundResult> processRefund({
+    required String transactionId,
+    required double refundAmount,
+    required String refundMethod,
+    required String reason,
+    String? notes,
+    required ManagerApproval managerApproval,
+  }) async {
+    final response = await _dio.post(
+      '/api/v1/transactions/$transactionId/refund',
+      data: {
+        'refundAmount': refundAmount,
+        'refundMethod': refundMethod,
+        'reason': reason,
+        if (notes != null) 'notes': notes,
+        'managerApproval': {
+          'managerId': managerApproval.managerId,
+          'approvalCode': managerApproval.approvalCode,
+        },
+      },
+    );
+    
+    return RefundResult.fromJson(response.data['data']);
+  }
+  
+  /// Void transaction
+  Future<VoidResult> voidTransaction({
+    required String transactionId,
+    required String reason,
+    String? notes,
+    required ManagerApproval managerApproval,
+  }) async {
+    final response = await _dio.post(
+      '/api/v1/transactions/$transactionId/void',
+      data: {
+        'reason': reason,
+        if (notes != null) 'notes': notes,
+        'managerApproval': {
+          'managerId': managerApproval.managerId,
+          'approvalCode': managerApproval.approvalCode,
+        },
+      },
+    );
+    
+    return VoidResult.fromJson(response.data['data']);
+  }
+}
+
+// Response models
+class TransactionHistoryResponse {
+  final List<Transaction> transactions;
+  final Pagination pagination;
+  final TransactionSummary? summary;
+  
+  TransactionHistoryResponse({
+    required this.transactions,
+    required this.pagination,
+    this.summary,
+  });
+}
+
+class Transaction {
+  final String id;
+  final String transactionId;
+  final String transactionType;
+  final String transactionStatus;
+  final ConsolidatedTotals consolidatedTotals;
+  final PaymentSummary paymentSummary;
+  final Timing timing;
+  final Staff? staff;
+  final TableInfo? tableInfo;
+  final bool countInTotals;
+  
+  Transaction({
+    required this.id,
+    required this.transactionId,
+    required this.transactionType,
+    required this.transactionStatus,
+    required this.consolidatedTotals,
+    required this.paymentSummary,
+    required this.timing,
+    this.staff,
+    this.tableInfo,
+    required this.countInTotals,
+  });
+  
+  factory Transaction.fromJson(Map<String, dynamic> json) {
+    return Transaction(
+      id: json['_id'],
+      transactionId: json['transactionId'] ?? '',
+      transactionType: json['transactionType'] ?? 'sale',
+      transactionStatus: json['transactionStatus'] ?? 'pending',
+      consolidatedTotals: ConsolidatedTotals.fromJson(
+        json['consolidatedTotals'] ?? {},
+      ),
+      paymentSummary: PaymentSummary.fromJson(
+        json['paymentSummary'] ?? {},
+      ),
+      timing: Timing.fromJson(json['timing'] ?? {}),
+      staff: json['staff'] != null ? Staff.fromJson(json['staff']) : null,
+      tableInfo: json['tableInfo'] != null
+          ? TableInfo.fromJson(json['tableInfo'])
+          : null,
+      countInTotals: json['countInTotals'] ?? true,
+    );
+  }
+}
+
+class TransactionSummary {
+  final int totalTxnCount;
+  final int salesCount;
+  final int voidCount;
+  final double salesAmount;
+  final double voidAmount;
+  final List<PaymentMethodBreakdown> paymentMethodBreakdown;
+  
+  TransactionSummary({
+    required this.totalTxnCount,
+    required this.salesCount,
+    required this.voidCount,
+    required this.salesAmount,
+    required this.voidAmount,
+    required this.paymentMethodBreakdown,
+  });
+  
+  factory TransactionSummary.fromJson(Map<String, dynamic> json) {
+    return TransactionSummary(
+      totalTxnCount: json['totalTxnCount'] ?? 0,
+      salesCount: json['salesCount'] ?? 0,
+      voidCount: json['voidCount'] ?? 0,
+      salesAmount: (json['salesAmount'] ?? 0).toDouble(),
+      voidAmount: (json['voidAmount'] ?? 0).toDouble(),
+      paymentMethodBreakdown: (json['paymentMethodBreakdown'] as List?)
+              ?.map((item) => PaymentMethodBreakdown.fromJson(item))
+              .toList() ??
+          [],
+    );
+  }
+}
+
+// Usage in UI
+class TransactionHistoryScreen extends StatefulWidget {
+  @override
+  _TransactionHistoryScreenState createState() =>
+      _TransactionHistoryScreenState();
+}
+
+class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
+  final TransactionService _service = TransactionService(dio);
+  DateTime? startDate = DateTime.now().subtract(Duration(days: 7));
+  DateTime? endDate = DateTime.now();
+  
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<TransactionHistoryResponse>(
+      future: _service.getTransactions(
+        startDate: startDate,
+        endDate: endDate,
+        includeSummary: true,
+      ),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return CircularProgressIndicator();
+        }
+        
+        final data = snapshot.data!;
+        
+        return Column(
+          children: [
+            // Summary cards
+            if (data.summary != null)
+              SummaryCards(summary: data.summary!),
+            
+            // Transaction list
+            Expanded(
+              child: ListView.builder(
+                itemCount: data.transactions.length,
+                itemBuilder: (context, index) {
+                  final txn = data.transactions[index];
+                  return TransactionTile(transaction: txn);
+                },
+              ),
+            ),
+            
+            // Pagination
+            PaginationWidget(pagination: data.pagination),
+          ],
+        );
+      },
+    );
+  }
+}
+```
+
+---
+
+#### 5.4.10 Transaction Status Flow
+
+```
+Order Created
+     ↓
+[pending] → Transaction initiated
+     ↓
+[completed] → Payment successful
+     ↓
+     ├─→ [refunded] → Money returned to customer
+     └─→ [voided] → Order cancelled (no money movement)
+```
+
+**Status Meanings:**
+- `pending` - Transaction initiated, awaiting payment
+- `completed` - Payment successful, counted in sales
+- `refunded` - Full or partial refund issued
+- `partially_refunded` - Some items refunded
+- `voided` - Transaction cancelled, not counted in sales
+
+---
+
+#### 5.4.11 Best Practices
+
+**For Transaction History:**
+1. ✅ Always include date range for better performance
+2. ✅ Use `includeSummary=false` when summary not needed
+3. ✅ Implement pagination for large result sets
+4. ✅ Cache transaction data with proper invalidation
+5. ✅ Use timezone parameter for accurate local time filtering
+
+**For Refunds & Voids:**
+1. ✅ Always require manager approval
+2. ✅ Provide clear reason for audit trail
+3. ✅ Show confirmation dialog before processing
+4. ✅ Update inventory if tracking stock
+5. ✅ Print refund receipt for customer
+
+**For Reports:**
+1. ✅ Export to CSV/PDF for offline analysis
+2. ✅ Use daily summaries for dashboard
+3. ✅ Monitor refund/void rates for fraud detection
+4. ✅ Track payment method performance
+5. ✅ Analyze peak hours for staffing decisions
 
 ---
 

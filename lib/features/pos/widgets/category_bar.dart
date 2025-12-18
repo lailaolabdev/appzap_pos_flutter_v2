@@ -64,46 +64,49 @@ class _CategoryChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(label),
-            if (itemCount != null) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? Colors.white.withValues(alpha: 0.2)
-                      : AppTheme.neutral200,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  itemCount.toString(),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: isSelected ? Colors.white : AppTheme.neutral600,
+      child: GestureDetector(
+        onTap: onTap,  // ✅ Always fire the callback, even if already selected
+        child: FilterChip(
+          label: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label),
+              if (itemCount != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.white.withValues(alpha: 0.2)
+                        : AppTheme.neutral200,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    itemCount.toString(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isSelected ? Colors.white : AppTheme.neutral600,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
+          selected: isSelected,
+          onSelected: null,  // ✅ Disable FilterChip's built-in handler, use GestureDetector instead
+          backgroundColor: AppTheme.neutral100,
+          selectedColor: AppTheme.primaryOrange,
+          labelStyle: TextStyle(
+            color: isSelected ? Colors.white : AppTheme.neutral700,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          side: BorderSide.none,
+          showCheckmark: false,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         ),
-        selected: isSelected,
-        onSelected: (_) => onTap(),
-        backgroundColor: AppTheme.neutral100,
-        selectedColor: AppTheme.primaryOrange,
-        labelStyle: TextStyle(
-          color: isSelected ? Colors.white : AppTheme.neutral700,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        side: BorderSide.none,
-        showCheckmark: false,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
     );
   }

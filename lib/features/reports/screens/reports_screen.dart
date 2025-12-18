@@ -72,7 +72,7 @@ class ReportsScreen extends ConsumerWidget {
                 crossAxisCount: isMobile ? 2 : 3,
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
-                childAspectRatio: 1.2,
+                childAspectRatio: isMobile ? 1.0 : 1.2,  // Square cards on mobile, wider on tablet
                 children: [
                   _ReportCard(
                     icon: Icons.assessment,
@@ -178,19 +178,20 @@ class _ReportCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),  // Reduced from 16 to 12
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,  // Don't expand unnecessarily
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(10),  // Reduced from 12 to 10
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   icon,
-                  size: 32,
+                  size: 28,  // Reduced from 32 to 28
                   color: color,
                 ),
               ),
@@ -204,7 +205,7 @@ class _ReportCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),  // Increased from 2 to 4 for better spacing
               Text(
                 description,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(

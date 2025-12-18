@@ -83,6 +83,18 @@ class ApiConstants {
   static const String redeemPoints =
       '/crm/loyalty-programs/{programId}/redeem-points'; // Fixed path
 
+  // ============ TRANSACTION ENDPOINTS ============
+  static const String transactions = '/transactions/';
+  static const String transactionSummary = '/transactions/summary';
+  static const String transactionReceipt =
+      '/transactions/{transactionId}/receipt';
+  static const String transactionRefund =
+      '/transactions/{transactionId}/refund';
+  static const String transactionVoid = '/transactions/{transactionId}/void';
+  static const String adjustmentsReport = '/transactions/reports/adjustments';
+  static const String refundsVoidsReport =
+      '/transactions/reports/refunds-voids';
+
   // ============ REPORT ENDPOINTS ============
   static const String dailySummary =
       '/daily-summary'; // Fixed: removed /reports prefix
