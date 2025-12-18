@@ -71,9 +71,12 @@ class Order extends Equatable {
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
+    // Handle both 'items' (Create response) and 'lineItems' (Get response)
+    final itemsList = (json['lineItems'] ?? json['items']) as List<dynamic>?;
+    
     return Order(
       id: json['_id'] as String? ?? '',
-      orderId: json['orderId'] as String? ?? '',
+      orderId: json['orderId'] as String? ?? json['orderCode'] as String? ?? '',
       qNumber: json['qNumber'] as int? ?? 0,
       orderType: OrderType.fromString(
         json['orderType'] as String? ?? 'takeaway',
@@ -82,7 +85,7 @@ class Order extends Equatable {
         json['orderStatus'] as String? ?? 'pending',
       ),
       items:
-          (json['items'] as List<dynamic>?)
+          itemsList
               ?.map((e) => OrderItem.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],

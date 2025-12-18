@@ -1293,12 +1293,130 @@ Authorization: Bearer {token}
 
 Query Parameters:
   branchId (optional) - Filter by branch
-  orderType (optional) - Filter by type (table, takeaway, delivery)
-  status (optional) - Filter by status
-  startDate (optional) - Filter from date
-  endDate (optional) - Filter to date
-  page (optional) - Page number
-  limit (optional) - Results per page
+  orderType (optional) - Filter by type (table, takeaway, delivery), supports comma-separated values
+  orderStatus (optional) - Filter by status, supports comma-separated values
+  startDate (optional) - Filter from date (ISO 8601)
+  endDate (optional) - Filter to date (ISO 8601)
+  page (optional) - Page number (default: 1)
+  limit (optional) - Results per page (default: 20)
+  includeStatistics (optional) - Include order counts by status (default: true)
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "orders": [
+      {
+        "_id": "676...",
+        "orderCode": "ORD-20251218-001",
+        "restaurantId": "676...",
+        "branchId": "676...",
+        "orderType": "table",
+        "orderStatus": "pending",
+        "lineItems": [
+          {
+            "menuItemId": "676...",
+            "name": "Iced Latte",
+            "quantity": 2,
+            "unitPrice": 25000,
+            "subtotal": 50000,
+            "notes": ""
+          }
+        ],
+        "pricing": {
+          "subtotal": 50000,
+          "tax": 5000,
+          "discountTotal": 0,
+          "total": 55000,
+          "currency": "LAK"
+        },
+        "customer": {
+          "customerId": "676...",
+          "name": "John Doe",
+          "phone": "+85620..."
+        },
+        "tableSession": {
+          "sessionId": "676...",
+          "tableNumber": "A-101"
+        },
+        "paymentStatus": "pending",
+        "createdAt": "2025-12-18T05:00:00Z",
+        "updatedAt": "2025-12-18T05:00:00Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "totalCount": 45,
+      "totalPages": 3,
+      "hasNext": true,
+      "hasPrev": false
+    },
+    "statistics": {
+      "total": 45,
+      "byStatus": {
+        "pending": 12,
+        "confirmed": 8,
+        "preparing": 10,
+        "ready": 5,
+        "out_for_delivery": 0,
+        "served": 3,
+        "completed": 7,
+        "cancelled": 0
+      }
+    },
+    "message": "Retrieved 20 orders successfully"
+  },
+  "timestamp": "2025-12-18T05:16:48.000Z"
+}
+```
+
+**⚠️ Important Notes:**
+- Orders are nested under `data.orders`, not directly in `data`
+- Response includes `pagination` for navigating results
+- Response includes `statistics` with order counts by status (unless `includeStatistics=false`)
+- Use `orderType` and `orderStatus` with comma-separated values for multiple filters (e.g., `orderStatus=pending,confirmed`)
+
+**Flutter Parsing Example:**
+```dart
+final response = await dio.get('/api/v1/orders/', queryParameters: {...});
+
+// Access nested structure
+final data = response.data['data'];
+final orders = (data['orders'] as List)
+    .map((json) => Order.fromJson(json))
+    .toList();
+final pagination = data['pagination'];
+final statistics = data['statistics']; // optional
+
+print('Loaded ${orders.length} of ${pagination['totalCount']} orders');
+print('Pending: ${statistics['byStatus']['pending']}');
+```
+
+**Example Queries:**
+```http
+# Get all orders
+GET /orders/
+
+# Get pending orders only
+GET /orders/?orderStatus=pending
+
+# Get table and takeaway orders
+GET /orders/?orderType=table,takeaway
+
+# Get multiple statuses
+GET /orders/?orderStatus=pending,confirmed,preparing
+
+# Get orders for today
+GET /orders/?startDate=2025-12-18T00:00:00Z&endDate=2025-12-18T23:59:59Z
+
+# Pagination
+GET /orders/?page=2&limit=50
+
+# Without statistics (faster)
+GET /orders/?includeStatistics=false
 ```
 
 **Note:** To get a specific order, use `GET /orders/?orderId={orderId}` or filter the results.

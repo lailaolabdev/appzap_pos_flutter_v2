@@ -63,14 +63,18 @@ class OrderService {
         'branchId': branchId,
         'page': page,
         'limit': limit,
-        if (status != null) 'status': status.name,
+        if (status != null) 'orderStatus': status.name,  // Use 'orderStatus' per API doc
         if (startDate != null) 'startDate': startDate.toIso8601String(),
         if (endDate != null) 'endDate': endDate.toIso8601String(),
       },
     );
 
-    final data = response['data'] as List<dynamic>? ?? [];
-    return data
+    // ⚠️ Orders are NESTED under data.orders, NOT directly in data
+    // Response format: { success, data: { orders: [...], pagination: {...}, statistics: {...} } }
+    final data = response['data'] as Map<String, dynamic>? ?? {};
+    final orders = data['orders'] as List<dynamic>? ?? [];
+    
+    return orders
         .map((json) => Order.fromJson(json as Map<String, dynamic>))
         .toList();
   }
