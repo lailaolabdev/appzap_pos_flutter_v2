@@ -75,11 +75,16 @@ class _POSScreenState extends ConsumerState<POSScreen> {
     }
 
     // Show payment method selection
+    // ✅ Capture parent context before showing modal
+    final parentContext = context;
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _PaymentBottomSheet(cart: cart),
+      builder: (context) => _PaymentBottomSheet(
+        cart: cart,
+        parentContext: parentContext, // Pass parent context
+      ),
     );
 
     if (result == true) {
@@ -537,8 +542,12 @@ class _POSScreenState extends ConsumerState<POSScreen> {
 /// Payment bottom sheet with payment method selection
 class _PaymentBottomSheet extends ConsumerWidget {
   final Cart cart;
+  final BuildContext parentContext; // ✅ Parent context from POSScreen
   
-  const _PaymentBottomSheet({required this.cart});
+  const _PaymentBottomSheet({
+    required this.cart,
+    required this.parentContext,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -627,15 +636,15 @@ class _PaymentBottomSheet extends ConsumerWidget {
                   _PaymentMethodButton(
                     icon: Icons.payments_outlined,
                     label: 'Cash',
-                    onTap: () {
+                    onTap: () async {
                       // ✅ Get cart notifier BEFORE closing bottom sheet
                       final cartNotifier = ref.read(cartProvider.notifier);
                       
-                      // ✅ Close bottom sheet
+                      // ✅ Close bottom sheet (using modal's context)
                       Navigator.pop(context);
                       
-                      // ✅ Handle payment (payment processing happens inside dialog with its own ref!)
-                      _handleCashPayment(context, cartNotifier, cart);
+                      // ✅ Handle payment using PARENT context (POSScreen context, still mounted!)
+                      await _handleCashPayment(parentContext, cartNotifier, cart);
                     },
                   ),
                   const SizedBox(height: 12),
@@ -646,11 +655,11 @@ class _PaymentBottomSheet extends ConsumerWidget {
                     label: 'PhayPay (QR)',
                     subtitle: 'JDB, BCEL, LDB, IB',
                     onTap: () {
-                      // ✅ PRODUCTION UX: Close bottom sheet immediately
+                      // ✅ Close bottom sheet (using modal's context)
                       Navigator.pop(context);
                       
-                      // ✅ Then handle payment on main screen (no layering!)
-                      _handlePhayPayPayment(context, ref, cart);
+                      // ✅ Handle payment using PARENT context (POSScreen context, still mounted!)
+                      _handlePhayPayPayment(parentContext, ref, cart);
                     },
                   ),
                 ],
@@ -753,61 +762,94 @@ Future<void> _handleCashPayment(
   );
 
   print('📥 CashPaymentDialog returned with result: $result');
+  print('   context.mounted (after dialog): ${context.mounted}');
 
   // If dialog was cancelled (null) or failed
   if (result == null || result['success'] != true) {
     print('❌ Payment cancelled or failed');
+    print('   result == null: ${result == null}');
+    print('   result[success]: ${result?['success']}');
     return;
   }
 
+  print('✅ Payment result is success, proceeding...');
+  
   // ✅ Success! Dialog is already closed, show success on main screen
-  if (!context.mounted) return;
+  if (!context.mounted) {
+    print('⚠️  Context not mounted, aborting success dialog');
+    return;
+  }
+
+  print('✅ Context is mounted, proceeding with success flow...');
 
   final tendered = result['tendered'] as double? ?? cart.total;
   final change = result['change'] as double? ?? 0;
 
-  print('✅ Payment successful, showing success dialog...');
-  await showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) => AlertDialog(
-      icon: const Icon(
-        Icons.check_circle,
-        color: AppTheme.success,
-        size: 64,
-      ),
-      title: const Text('Payment Successful!'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Total: ${CurrencyFormatter.formatLAKWithSymbol(cart.total)}',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text('Tendered: ${CurrencyFormatter.formatLAKWithSymbol(tendered)}'),
-          Text('Change: ${CurrencyFormatter.formatLAKWithSymbol(change)}'),
-          const SizedBox(height: 12),
-          const Text(
-            '✓ Order created successfully',
-            style: TextStyle(color: AppTheme.success),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () {
-            print('✅ Clearing cart...');
-            cartNotifier.clear();
-            Navigator.pop(context); // Close success dialog
-            print('✅ Done');
-          },
-          child: const Text('Done'),
+  print('💰 Payment amounts:');
+  print('   Total: ${cart.total}');
+  print('   Tendered: $tendered');
+  print('   Change: $change');
+
+  // ✅ Clear cart immediately after successful payment (using global Riverpod state)
+  print('🔄 Clearing cart (Riverpod global state)...');
+  try {
+    cartNotifier.clear();
+    print('✅ Cart cleared successfully');
+  } catch (e) {
+    print('❌ Error clearing cart: $e');
+  }
+
+  print('🎉 Showing success dialog for 2 seconds...');
+  
+  try {
+    // Show success dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        icon: const Icon(
+          Icons.check_circle,
+          color: AppTheme.success,
+          size: 64,
         ),
-      ],
-    ),
-  );
+        title: const Text('Payment Successful!'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Total: ${CurrencyFormatter.formatLAKWithSymbol(cart.total)}',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text('Tendered: ${CurrencyFormatter.formatLAKWithSymbol(tendered)}'),
+            Text('Change: ${CurrencyFormatter.formatLAKWithSymbol(change)}'),
+            const SizedBox(height: 12),
+            const Text(
+              '✓ Order created successfully',
+              style: TextStyle(color: AppTheme.success),
+            ),
+          ],
+        ),
+      ),
+    );
+    print('✅ Success dialog shown');
+
+    // ✅ Auto-dismiss after 2 seconds
+    print('⏱️  Waiting 2 seconds...');
+    await Future.delayed(const Duration(seconds: 2));
+    print('⏱️  2 seconds elapsed');
+    
+    if (context.mounted) {
+      Navigator.pop(context); // Close success dialog
+      print('✅ Success dialog auto-closed');
+    } else {
+      print('⚠️  Context not mounted, cannot close dialog');
+    }
+  } catch (e, stackTrace) {
+    print('❌ Error showing/closing success dialog: $e');
+    print('📍 Stack trace: $stackTrace');
+  }
 }
 
 /// Handle PhayPay payment (free function)
