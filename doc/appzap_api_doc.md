@@ -1451,62 +1451,45 @@ Content-Type: application/json
 
 ### 5.1 Calculate Pricing (Before Payment)
 
+Calculate the total price including taxes, discounts, and fees before processing payment.
+
+#### For Takeaway/Quick Sale Orders:
+
 ```http
 POST /checkout/calculate-pricing
 Authorization: Bearer {token}
 Content-Type: application/json
 
 {
-  "orderId": "60d5ecc04b24c72d88c4e128"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "pricing": {
-      "subtotal": 31000,
-      "discounts": [...],
-      "discountTotal": 3100,
-      "subtotalAfterDiscount": 27900,
-      "tax": 2790,
-      "total": 30690,
-      "currency": "LAK"
+  "lineItems": [
+    {
+      "menuItemId": "676...",
+      "name": "Iced Latte",
+      "quantity": 2,
+      "unitPrice": 10000,
+      "subtotal": 20000
     }
+  ],
+  "orderType": "takeaway",
+  "promotions": [],
+  "customer": {
+    "customerId": "676..."
   }
 }
 ```
 
-### 5.2 Process Cash Payment
+#### For Table Checkout:
 
 ```http
-POST /checkout/process-payment
+POST /checkout/calculate-pricing
 Authorization: Bearer {token}
 Content-Type: application/json
 
 {
-  "orderId": "60d5ecc04b24c72d88c4e128",
-  "branchId": "60d5ec954b24c72d88c4e121",
-  "paymentMethod": "cash",
-  "amount": {
-    "total": 30690,
-    "tendered": 50000,
-    "change": 19310,
-    "currency": "LAK"
-  },
-  "paymentDetails": {
-    "cash": {
-      "denominationBreakdown": [
-        {
-          "denomination": 50000,
-          "count": 1,
-          "total": 50000
-        }
-      ]
-    }
-  }
+  "tableSessionId": "676...",
+  "orderType": "dine_in",
+  "discounts": [],
+  "promotions": []
 }
 ```
 
@@ -1515,19 +1498,660 @@ Content-Type: application/json
 {
   "success": true,
   "data": {
-    "transactionId": "TXN-20250115-00123",
-    "paymentId": "PAY-20250115-00456",
-    "orderId": "ORD-20250115-00045",
-    "status": "completed",
-    "paymentMethod": "cash",
-    "amount": {
-      "total": 30690,
-      "tendered": 50000,
-      "change": 19310,
+    "pricing": {
+      "subtotal": {
+        "amount": 20000,
+        "currency": "LAK"
+      },
+      "totalTax": {
+        "amount": 2000,
+        "currency": "LAK"
+      },
+      "totalDiscount": {
+        "amount": 0,
+        "currency": "LAK"
+      },
+      "totalFees": {
+        "amount": 0,
+        "currency": "LAK"
+      },
+      "totalTip": {
+        "amount": 0,
+        "currency": "LAK"
+      },
+      "totalDue": {
+        "amount": 22000,
+        "currency": "LAK"
+      },
       "currency": "LAK"
     },
-    "completedAt": "2025-01-15T10:35:00Z"
+    "breakdown": {
+      "taxBreakdown": [...],
+      "discountBreakdown": [...]
+    }
   }
+}
+```
+
+---
+
+### 5.2 Process Payment (Unified Checkout) 🎯
+
+> **Universal endpoint for all payment types:** Cash, Card, Bank QR, Split Payments
+
+This endpoint handles **both** Takeaway/Quick Sale and Table checkout in one unified endpoint.
+
+#### 5.2.1 Takeaway/Quick Sale Payment (Create Order + Payment)
+
+Creates a new order and processes payment in one transaction.
+
+```http
+POST /checkout/process-payment
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "lineItems": [
+    {
+      "menuItemId": "676...",
+      "name": "Iced Latte",
+      "quantity": 2,
+      "unitPrice": 10000,
+      "subtotal": 20000,
+      "notes": "",
+      "options": []
+    }
+  ],
+  "payments": [
+    {
+      "method": "cash",
+      "customerAmount": {
+        "amount": 22000,
+        "currency": "LAK"
+      },
+      "tenderedAmount": {
+        "amount": 25000,
+        "currency": "LAK"
+      }
+    }
+  ],
+  "expectedTotal": 22000,
+  "customer": {
+    "customerId": "676...",
+    "name": "John Doe",
+    "phone": "+85620..."
+  },
+  "promotions": [],
+  "notes": "No sugar",
+  "idempotencyKey": "unique-key-123"
+}
+```
+
+**Required Fields:**
+- `lineItems` - Array of items to order
+- `payments` - Array of payment methods (supports split payments!)
+- `expectedTotal` - Expected total amount
+
+**Optional Fields:**
+- `customer` - Customer information
+- `promotions` - Promotion codes/IDs
+- `notes` - Order notes
+- `idempotencyKey` - Prevents duplicate orders
+
+**Response (201 Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "order": {
+      "_id": "676...",
+      "orderId": "ORD-20251221-001",
+      "orderNumber": "Q-001",
+      "qNumber": "Q-001",
+      "orderType": "takeaway",
+      "orderStatus": "completed",
+      "lineItems": [
+        {
+          "menuItemId": "676...",
+          "name": "Iced Latte",
+          "quantity": 2,
+          "unitPrice": 10000,
+          "subtotal": 20000,
+          "totalTax": 2000,
+          "totalPrice": 22000
+        }
+      ],
+      "pricing": {
+        "subtotal": {
+          "amount": 20000,
+          "currency": "LAK"
+        },
+        "totalTax": {
+          "amount": 2000,
+          "currency": "LAK"
+        },
+        "totalDue": {
+          "amount": 22000,
+          "currency": "LAK"
+        }
+      },
+      "customer": {
+        "name": "John Doe",
+        "phone": "+85620..."
+      },
+      "createdAt": "2025-12-21T08:27:23.000Z"
+    },
+    "transaction": {
+      "transactionId": "TXN-20251221-001",
+      "transactionStatus": "completed",
+      "paymentSummary": {
+        "totalPaid": {
+          "amount": 22000,
+          "currency": "LAK"
+        },
+        "totalChange": {
+          "amount": 3000,
+          "currency": "LAK"
+        },
+        "paymentMethodBreakdown": [
+          {
+            "method": "cash",
+            "customerAmount": {
+              "amount": 22000,
+              "currency": "LAK"
+            },
+            "tenderedAmount": {
+              "amount": 25000,
+              "currency": "LAK"
+            },
+            "changeGiven": {
+              "amount": 3000,
+              "currency": "LAK"
+            }
+          }
+        ]
+      }
+    },
+    "pricing": {
+      "subtotal": {
+        "amount": 20000,
+        "currency": "LAK"
+      },
+      "totalTax": {
+        "amount": 2000,
+        "currency": "LAK"
+      },
+      "totalDue": {
+        "amount": 22000,
+        "currency": "LAK"
+      }
+    },
+    "message": "Takeaway order created and payment processed successfully"
+  },
+  "timestamp": "2025-12-21T08:27:23.000Z"
+}
+```
+
+---
+
+#### 5.2.2 Table Checkout (Pay Existing Table Orders)
+
+Process payment for existing table orders.
+
+```http
+POST /checkout/process-payment
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "tableSessionId": "676...",
+  "payments": [
+    {
+      "method": "cash",
+      "customerAmount": {
+        "amount": 50000,
+        "currency": "LAK"
+      },
+      "tenderedAmount": {
+        "amount": 50000,
+        "currency": "LAK"
+      }
+    }
+  ],
+  "expectedTotal": 50000,
+  "promotions": [],
+  "discounts": []
+}
+```
+
+**Required Fields:**
+- `tableSessionId` - The table session to checkout
+- `payments` - Array of payment methods
+- `expectedTotal` - Expected total amount
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "transaction": {
+      "transactionId": "TXN-20251221-002",
+      "receiptNumber": "RCP-20251221-002",
+      "orderCount": 3,
+      "isMultiOrderCheckout": true,
+      "tableSession": {
+        "sessionId": "676...",
+        "tableName": "Table A-101",
+        "tableNumber": "A-101",
+        "duration": "01:30:45",
+        "openedAt": "2025-12-21T07:00:00.000Z",
+        "closedAt": "2025-12-21T08:30:45.000Z"
+      },
+      "paymentSummary": {
+        "totalPaid": {
+          "amount": 50000,
+          "currency": "LAK"
+        },
+        "totalChange": {
+          "amount": 0,
+          "currency": "LAK"
+        },
+        "paymentMethodBreakdown": [
+          {
+            "method": "cash",
+            "customerAmount": {
+              "amount": 50000,
+              "currency": "LAK"
+            },
+            "tenderedAmount": {
+              "amount": 50000,
+              "currency": "LAK"
+            },
+            "changeGiven": {
+              "amount": 0,
+              "currency": "LAK"
+            }
+          }
+        ]
+      },
+      "financialSummary": {
+        "subtotal": 45000,
+        "discounts": 0,
+        "tax": 4500,
+        "fees": 0,
+        "tip": 0,
+        "total": 49500,
+        "currency": "LAK"
+      },
+      "orders": [
+        {
+          "orderId": "676...",
+          "orderNumber": "ORD-001",
+          "status": "completed"
+        }
+      ],
+      "completedAt": "2025-12-21T08:30:45.000Z",
+      "completedBy": {
+        "userId": "676...",
+        "name": "Staff Name"
+      }
+    },
+    "receiptData": {
+      "printReady": true,
+      "receiptUrl": "/receipts/RCP-20251221-002.pdf"
+    },
+    "message": "Table checkout completed successfully"
+  }
+}
+```
+
+---
+
+#### 5.2.3 Split Payment Example
+
+Supports multiple payment methods in one transaction!
+
+```http
+POST /checkout/process-payment
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "lineItems": [
+    {
+      "menuItemId": "676...",
+      "name": "Expensive Item",
+      "quantity": 1,
+      "unitPrice": 100000,
+      "subtotal": 100000
+    }
+  ],
+  "payments": [
+    {
+      "method": "cash",
+      "customerAmount": {
+        "amount": 50000,
+        "currency": "LAK"
+      },
+      "tenderedAmount": {
+        "amount": 50000,
+        "currency": "LAK"
+      }
+    },
+    {
+      "method": "bank_qr_jdb",
+      "customerAmount": {
+        "amount": 52000,
+        "currency": "LAK"
+      },
+      "paymentDetails": {
+        "qrPaymentId": "PHAJAY-123",
+        "bankReference": "JDB-REF-456"
+      }
+    }
+  ],
+  "expectedTotal": 102000,
+  "idempotencyKey": "split-payment-123"
+}
+```
+
+**Payment Methods Available:**
+- `cash` - Cash payment
+- `card` - Credit/debit card
+- `bank_qr_jdb` - Joint Development Bank QR
+- `bank_qr_bcel` - BCEL QR
+- `bank_qr_ldb` - Lao Development Bank QR
+- `bank_qr_ib` - Indochina Bank QR
+- `payment_link` - PhayPay payment link
+
+---
+
+#### 5.2.4 Flutter Implementation Example
+
+Complete Dart implementation for Flutter:
+
+```dart
+import 'package:dio/dio.dart';
+
+class CheckoutService {
+  final Dio _dio;
+  
+  CheckoutService(this._dio);
+  
+  /// Process takeaway/quick sale payment
+  Future<CheckoutResponse> processPayment({
+    required List<LineItem> lineItems,
+    required List<Payment> payments,
+    required double expectedTotal,
+    Customer? customer,
+    String? notes,
+    String? idempotencyKey,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/api/v1/checkout/process-payment',
+        data: {
+          'lineItems': lineItems.map((item) => item.toJson()).toList(),
+          'payments': payments.map((p) => p.toJson()).toList(),
+          'expectedTotal': expectedTotal,
+          if (customer != null) 'customer': customer.toJson(),
+          if (notes != null) 'notes': notes,
+          'idempotencyKey': idempotencyKey ?? 
+              '${DateTime.now().millisecondsSinceEpoch}',
+        },
+      );
+      
+      return CheckoutResponse.fromJson(response.data['data']);
+      
+    } catch (e) {
+      print('❌ Payment error: $e');
+      if (e is DioError && e.response != null) {
+        // Show API error message
+        throw Exception(e.response!.data['message'] ?? 'Payment failed');
+      }
+      rethrow;
+    }
+  }
+  
+  /// Process table checkout
+  Future<CheckoutResponse> processTableCheckout({
+    required String tableSessionId,
+    required List<Payment> payments,
+    required double expectedTotal,
+  }) async {
+    final response = await _dio.post(
+      '/api/v1/checkout/process-payment',
+      data: {
+        'tableSessionId': tableSessionId,
+        'payments': payments.map((p) => p.toJson()).toList(),
+        'expectedTotal': expectedTotal,
+      },
+    );
+    
+    return CheckoutResponse.fromJson(response.data['data']);
+  }
+}
+
+// Models
+class LineItem {
+  final String menuItemId;
+  final String name;
+  final int quantity;
+  final double unitPrice;
+  final double subtotal;
+  final String? notes;
+  final List<Option>? options;
+  
+  LineItem({
+    required this.menuItemId,
+    required this.name,
+    required this.quantity,
+    required this.unitPrice,
+    required this.subtotal,
+    this.notes,
+    this.options,
+  });
+  
+  Map<String, dynamic> toJson() => {
+    'menuItemId': menuItemId,
+    'name': name,
+    'quantity': quantity,
+    'unitPrice': unitPrice,
+    'subtotal': subtotal,
+    if (notes != null) 'notes': notes,
+    if (options != null) 'options': options!.map((o) => o.toJson()).toList(),
+  };
+}
+
+class Payment {
+  final String method;  // cash, card, bank_qr_jdb, etc.
+  final MoneyAmount customerAmount;
+  final MoneyAmount? tenderedAmount;  // Only for cash
+  final Map<String, dynamic>? paymentDetails;
+  
+  Payment({
+    required this.method,
+    required this.customerAmount,
+    this.tenderedAmount,  // Required for cash, optional for others
+    this.paymentDetails,
+  });
+  
+  Map<String, dynamic> toJson() {
+    final json = {
+      'method': method,
+      'customerAmount': customerAmount.toJson(),
+    };
+    
+    if (tenderedAmount != null) {
+      json['tenderedAmount'] = tenderedAmount!.toJson();
+    }
+    
+    if (paymentDetails != null) {
+      json['paymentDetails'] = paymentDetails;
+    }
+    
+    return json;
+  }
+}
+
+class MoneyAmount {
+  final double amount;
+  final String currency;
+  
+  MoneyAmount({required this.amount, this.currency = 'LAK'});
+  
+  Map<String, dynamic> toJson() => {
+    'amount': amount,
+    'currency': currency,
+  };
+  
+  factory MoneyAmount.fromJson(Map<String, dynamic> json) => MoneyAmount(
+    amount: (json['amount'] as num).toDouble(),
+    currency: json['currency'] ?? 'LAK',
+  );
+}
+
+class Customer {
+  final String? customerId;
+  final String name;
+  final String phone;
+  
+  Customer({this.customerId, required this.name, required this.phone});
+  
+  Map<String, dynamic> toJson() => {
+    if (customerId != null) 'customerId': customerId,
+    'name': name,
+    'phone': phone,
+  };
+}
+
+// Usage Example - Cash Payment
+void _onCompletePayment() async {
+  try {
+    // Calculate total
+    final totalAmount = cart.items.fold(
+      0.0,
+      (sum, item) => sum + (item.unitPrice * item.quantity),
+    );
+    
+    final result = await checkoutService.processPayment(
+      lineItems: cart.items.map((item) => LineItem(
+        menuItemId: item.menuItemId,
+        name: item.name,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        subtotal: item.unitPrice * item.quantity,
+      )).toList(),
+      payments: [
+        Payment(
+          method: 'cash',
+          customerAmount: MoneyAmount(
+            amount: totalAmount,
+            currency: 'LAK',
+          ),
+          tenderedAmount: MoneyAmount(
+            amount: tenderedAmount,  // Amount customer gave
+            currency: 'LAK',
+          ),
+        ),
+      ],
+      expectedTotal: totalAmount,
+      customer: selectedCustomer != null
+          ? Customer(
+              customerId: selectedCustomer.id,
+              name: selectedCustomer.name,
+              phone: selectedCustomer.phone,
+            )
+          : null,
+    );
+    
+    // Success!
+    print('✅ Payment completed!');
+    print('Order: ${result.order.orderId}');
+    print('Transaction: ${result.transaction.transactionId}');
+    
+    // Show change amount
+    final change = result.transaction.paymentSummary.totalChange;
+    print('Change: ${change.amount} ${change.currency}');
+    
+    // Show success screen or print receipt
+    _showSuccessScreen(result);
+    
+  } catch (e) {
+    // Show error dialog
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Payment Failed'),
+        content: Text(e.toString()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+---
+
+#### 5.2.5 Key Points
+
+**Request Format:**
+- ✅ Use `lineItems` for takeaway/quick sale (creates new order)
+- ✅ Use `tableSessionId` for table checkout (existing orders)
+- ✅ Use `payments` array (supports multiple payment methods!)
+- ✅ Include `expectedTotal` for validation
+- ✅ Use `idempotencyKey` to prevent duplicate orders
+
+**Payment Array Structure:**
+
+For **Cash Payments:**
+```javascript
+{
+  "method": "cash",
+  "customerAmount": {      // Required: Order total
+    "amount": 22000,
+    "currency": "LAK"
+  },
+  "tenderedAmount": {      // Required: Cash received
+    "amount": 25000,
+    "currency": "LAK"
+  }
+  // Change calculated automatically by API!
+}
+```
+
+For **Card/QR Payments:**
+```javascript
+{
+  "method": "bank_qr_jdb", // or card, mobile_wallet, etc.
+  "customerAmount": {      // Required: Payment amount
+    "amount": 22000,
+    "currency": "LAK"
+  },
+  "paymentDetails": {      // Optional: Payment-specific details
+    "qrPaymentId": "...",
+    "bankReference": "..."
+  }
+}
+```
+
+**Common Errors:**
+- `400 Bad Request` - Missing `lineItems` or `tableSessionId`
+- `400 Bad Request` - Payment amount doesn't match expected total
+- `404 Not Found` - Invalid `menuItemId` or `tableSessionId`
+- `409 Conflict` - Duplicate `idempotencyKey` (order already processed)
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "message": "Either tableSessionId (for table checkout) or lineItems (for takeaway checkout) is required.",
+  "statusCode": 400
 }
 ```
 

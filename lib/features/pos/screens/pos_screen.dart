@@ -156,7 +156,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
 
     return AppShell(
       child: Scaffold(
-        backgroundColor: AppTheme.scaffoldBackground,
+      backgroundColor: AppTheme.scaffoldBackground,
         // Add drawer for mobile
         drawer: isMobile ? const Drawer(
           child: AppSidebar(isInDrawer: true),
@@ -165,7 +165,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
             ? AppBar(
                 toolbarHeight: 70,
                 title: Row(
-                  children: [
+          children: [
                     // Search bar
                     Expanded(
                       child: Container(
@@ -244,10 +244,10 @@ class _POSScreenState extends ConsumerState<POSScreen> {
                         const SnackBar(content: Text('Barcode scanner coming soon')),
                       );
                     },
-                  ),
-                  const SizedBox(width: 8),
-                ],
-              ),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
         body: isMobile 
             ? _buildMobileLayout(productsState, cart) 
             : _buildTabletLayout(productsState, cart),
@@ -283,30 +283,30 @@ class _POSScreenState extends ConsumerState<POSScreen> {
   /// Tablet layout: Products + Cart side by side
   Widget _buildTabletLayout(dynamic productsState, Cart cart) {
     return Row(
-      children: [
-        // Left: Products Panel
-        Expanded(
-          flex: 2,
-          child: Column(
-            children: [
-              // Search Bar
-              POSSearchBar(
-                controller: _searchController,
-                onSearch: _handleSearch,
-                onBarcodeScan: _handleBarcodeScan,
-              ),
+        children: [
+          // Left: Products Panel
+          Expanded(
+            flex: 2,
+            child: Column(
+              children: [
+                // Search Bar
+                POSSearchBar(
+                  controller: _searchController,
+                  onSearch: _handleSearch,
+                  onBarcodeScan: _handleBarcodeScan,
+                ),
 
-              // Category Bar
-              CategoryBar(
-                categories: productsState.categories,
-                selectedCategoryId: productsState.selectedCategoryId,
-                onCategorySelected: (categoryId) {
-                  ref.read(productsProvider.notifier).selectCategory(categoryId);
-                },
-              ),
+                // Category Bar
+                CategoryBar(
+                  categories: productsState.categories,
+                  selectedCategoryId: productsState.selectedCategoryId,
+                  onCategorySelected: (categoryId) {
+                    ref.read(productsProvider.notifier).selectCategory(categoryId);
+                  },
+                ),
 
-              // Products Grid
-              Expanded(
+                // Products Grid
+                Expanded(
                 child: _buildProductsGrid(productsState),
               ),
             ],
@@ -434,38 +434,38 @@ class _POSScreenState extends ConsumerState<POSScreen> {
 
     if (productsState.error != null) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
             const Icon(
-              Icons.error_outline,
-              size: 48,
-              color: AppTheme.error,
-            ),
-            const SizedBox(height: 16),
-            Text(productsState.error!),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                ref.read(productsProvider.notifier).refresh();
-              },
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
+                                    Icons.error_outline,
+                                    size: 48,
+                                    color: AppTheme.error,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(productsState.error!),
+                                  const SizedBox(height: 16),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      ref.read(productsProvider.notifier).refresh();
+                                    },
+                                    child: const Text('Retry'),
+                                  ),
+                                ],
+                              ),
       );
     }
 
     return RefreshIndicator(
-      onRefresh: () async {
-        await ref.read(productsProvider.notifier).refresh();
-      },
-      child: ProductGrid(
-        products: productsState.filteredProducts,
-        onProductTap: (product) {
-          ref.read(cartProvider.notifier).addProduct(product);
-        },
-      ),
+                              onRefresh: () async {
+                                await ref.read(productsProvider.notifier).refresh();
+                              },
+                              child: ProductGrid(
+                                products: productsState.filteredProducts,
+                                onProductTap: (product) {
+                                  ref.read(cartProvider.notifier).addProduct(product);
+                                },
+                              ),
     );
   }
 
@@ -506,16 +506,16 @@ class _POSScreenState extends ConsumerState<POSScreen> {
                       final cart = ref.watch(cartProvider);
                       
                       return CartPanel(
-                        cart: cart,
-                        onUpdateQuantity: (productId, quantity) {
-                          ref.read(cartProvider.notifier).updateQuantity(productId, quantity);
-                        },
-                        onRemoveItem: (productId) {
-                          ref.read(cartProvider.notifier).removeItem(productId);
-                        },
-                        onClearCart: () {
-                          ref.read(cartProvider.notifier).clear();
-                        },
+              cart: cart,
+              onUpdateQuantity: (productId, quantity) {
+                ref.read(cartProvider.notifier).updateQuantity(productId, quantity);
+              },
+              onRemoveItem: (productId) {
+                ref.read(cartProvider.notifier).removeItem(productId);
+              },
+              onClearCart: () {
+                ref.read(cartProvider.notifier).clear();
+              },
                         onApplyLoyalty: _handleApplyLoyalty,
                         onCheckout: () {
                           Navigator.pop(context); // Close modal first
@@ -523,10 +523,10 @@ class _POSScreenState extends ConsumerState<POSScreen> {
                         },
                       );
                     },
-                  ),
-                ),
-              ],
             ),
+          ),
+        ],
+      ),
           );
         },
       ),
@@ -627,9 +627,15 @@ class _PaymentBottomSheet extends ConsumerWidget {
                   _PaymentMethodButton(
                     icon: Icons.payments_outlined,
                     label: 'Cash',
-                    onTap: () async {
-                      Navigator.pop(context); // Close payment selection
-                      await _handleCashPayment(context, ref, cart);
+                    onTap: () {
+                      // ✅ Get cart notifier BEFORE closing bottom sheet
+                      final cartNotifier = ref.read(cartProvider.notifier);
+                      
+                      // ✅ Close bottom sheet
+                      Navigator.pop(context);
+                      
+                      // ✅ Handle payment (payment processing happens inside dialog with its own ref!)
+                      _handleCashPayment(context, cartNotifier, cart);
                     },
                   ),
                   const SizedBox(height: 12),
@@ -639,9 +645,12 @@ class _PaymentBottomSheet extends ConsumerWidget {
                     icon: Icons.qr_code_2,
                     label: 'PhayPay (QR)',
                     subtitle: 'JDB, BCEL, LDB, IB',
-                    onTap: () async {
-                      Navigator.pop(context); // Close payment selection
-                      await _handlePhayPayPayment(context, ref, cart);
+                    onTap: () {
+                      // ✅ PRODUCTION UX: Close bottom sheet immediately
+                      Navigator.pop(context);
+                      
+                      // ✅ Then handle payment on main screen (no layering!)
+                      _handlePhayPayPayment(context, ref, cart);
                     },
                   ),
                 ],
@@ -722,49 +731,87 @@ class _PaymentMethodButton extends StatelessWidget {
 }
 
 /// Handle cash payment (free function)
+/// Opens cash dialog which handles payment processing internally with its own ref
 Future<void> _handleCashPayment(
   BuildContext context,
-  WidgetRef ref,
+  CartNotifier cartNotifier,
   Cart cart,
 ) async {
   // Navigate to full-screen cash payment page
+  print('📱 Opening CashPaymentDialog...');
+  
+  // ✅ Dialog handles payment internally (no disposal issues!)
   final result = await Navigator.push<Map<String, dynamic>>(
     context,
     MaterialPageRoute(
       fullscreenDialog: true,
       builder: (context) => CashPaymentDialog(
         totalAmount: cart.total,
-        onPaymentComplete: () {
-          // This will be called from the dialog
-        },
+        cart: cart,
       ),
     ),
   );
 
-  if (result == null || !context.mounted) return;
+  print('📥 CashPaymentDialog returned with result: $result');
 
-  // Process the payment with actual tendered amount
-  final tendered = result['tendered'] as double? ?? cart.total;
-  
-  final success = await ref.read(paymentProvider.notifier).processCashPayment(
-    total: cart.total,
-    tendered: tendered,
-    cart: cart,
-  );
-
-  if (success && context.mounted) {
-    Navigator.pop(context, true); // Close checkout sheet
-  } else if (context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Payment failed. Please try again.'),
-        backgroundColor: AppTheme.error,
-      ),
-    );
+  // If dialog was cancelled (null) or failed
+  if (result == null || result['success'] != true) {
+    print('❌ Payment cancelled or failed');
+    return;
   }
+
+  // ✅ Success! Dialog is already closed, show success on main screen
+  if (!context.mounted) return;
+
+  final tendered = result['tendered'] as double? ?? cart.total;
+  final change = result['change'] as double? ?? 0;
+
+  print('✅ Payment successful, showing success dialog...');
+  await showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => AlertDialog(
+      icon: const Icon(
+        Icons.check_circle,
+        color: AppTheme.success,
+        size: 64,
+      ),
+      title: const Text('Payment Successful!'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Total: ${CurrencyFormatter.formatLAKWithSymbol(cart.total)}',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Text('Tendered: ${CurrencyFormatter.formatLAKWithSymbol(tendered)}'),
+          Text('Change: ${CurrencyFormatter.formatLAKWithSymbol(change)}'),
+          const SizedBox(height: 12),
+          const Text(
+            '✓ Order created successfully',
+            style: TextStyle(color: AppTheme.success),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            print('✅ Clearing cart...');
+            cartNotifier.clear();
+            Navigator.pop(context); // Close success dialog
+            print('✅ Done');
+          },
+          child: const Text('Done'),
+        ),
+      ],
+    ),
+  );
 }
 
 /// Handle PhayPay payment (free function)
+/// Shows loading on main screen (no layering issues!)
 Future<void> _handlePhayPayPayment(
   BuildContext context,
   WidgetRef ref,
@@ -784,7 +831,15 @@ Future<void> _handlePhayPayPayment(
     ),
   );
 
-  if (bankMethod == null || !context.mounted) return;
+  if (bankMethod == null) {
+    print('❌ PhayPay payment cancelled - no bank selected');
+    return;
+  }
+  
+  if (!context.mounted) {
+    print('⚠️ Context not mounted after bank selection, aborting...');
+    return;
+  }
 
   // Create payment
   final success = await ref.read(paymentProvider.notifier).processPhayPayPayment(
@@ -793,27 +848,30 @@ Future<void> _handlePhayPayPayment(
     cart: cart,
   );
 
-  if (!success || !context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Failed to create payment. Please try again.'),
-        backgroundColor: AppTheme.error,
-      ),
-    );
+  if (!success) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to create payment. Please try again.'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
+    return;
+  }
+
+  if (!context.mounted) {
+    print('⚠️ Context not mounted after payment creation, aborting...');
     return;
   }
 
   // Navigate to full-screen QR page
-  final result = await Navigator.push<bool>(
+  await Navigator.push<bool>(
     context,
     MaterialPageRoute(
       fullscreenDialog: true,
       builder: (context) => const PhayPayQRDialog(),
     ),
   );
-
-  if (result == true && context.mounted) {
-    Navigator.pop(context, true); // Close checkout sheet
-  }
 }
 

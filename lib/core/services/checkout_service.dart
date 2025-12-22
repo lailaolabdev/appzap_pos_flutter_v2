@@ -1,0 +1,452 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../api/api_client.dart';
+import '../constants/api_constants.dart';
+import '../models/cart.dart';
+
+final checkoutServiceProvider = Provider<CheckoutService>((ref) {
+  final apiClient = ref.watch(apiClientProvider);
+  return CheckoutService(apiClient);
+});
+
+/// Checkout request models
+class LineItem {
+  final String menuItemId;
+  final String name;
+  final int quantity;
+  final double unitPrice;
+  final double subtotal;
+  final String? notes;
+  final List<dynamic>? options;
+
+  LineItem({
+    required this.menuItemId,
+    required this.name,
+    required this.quantity,
+    required this.unitPrice,
+    required this.subtotal,
+    this.notes,
+    this.options,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'menuItemId': menuItemId,
+    'name': name,
+    'quantity': quantity,
+    'unitPrice': unitPrice,
+    'subtotal': subtotal,
+    if (notes != null && notes!.isNotEmpty) 'notes': notes,
+    if (options != null && options!.isNotEmpty) 'options': options,
+  };
+}
+
+/// Money amount object (matches API format)
+class MoneyAmount {
+  final double amount;
+  final String currency;
+
+  MoneyAmount({
+    required this.amount,
+    this.currency = 'LAK',
+  });
+
+  Map<String, dynamic> toJson() => {
+    'amount': amount,
+    'currency': currency,
+  };
+
+  factory MoneyAmount.fromJson(Map<String, dynamic> json) => MoneyAmount(
+    amount: (json['amount'] as num?)?.toDouble() ?? 0,
+    currency: json['currency'] as String? ?? 'LAK',
+  );
+}
+
+class PaymentMethod {
+  final String method; // cash, card, bank_qr_jdb, etc.
+  final MoneyAmount customerAmount;  // ✅ Object: the amount being paid
+  final MoneyAmount? tenderedAmount;  // ✅ Object: for cash - amount customer gave
+  final Map<String, dynamic>? paymentDetails;
+
+  PaymentMethod({
+    required this.method,
+    required this.customerAmount,
+    this.tenderedAmount,  // Required for cash, optional for others
+    this.paymentDetails,
+  });
+
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{
+      'method': method,
+      'customerAmount': customerAmount.toJson(),
+    };
+    
+    // Only include tenderedAmount if provided (required for cash)
+    if (tenderedAmount != null) {
+      json['tenderedAmount'] = tenderedAmount!.toJson();
+    }
+    
+    // Include payment details if provided (for QR payments, etc.)
+    if (paymentDetails != null && paymentDetails!.isNotEmpty) {
+      json['paymentDetails'] = paymentDetails;
+    }
+    
+    return json;
+  }
+}
+
+class CustomerInfo {
+  final String? customerId;
+  final String? name;
+  final String? phone;
+
+  CustomerInfo({
+    this.customerId,
+    this.name,
+    this.phone,
+  });
+
+  Map<String, dynamic> toJson() => {
+    if (customerId != null) 'customerId': customerId,
+    if (name != null) 'name': name,
+    if (phone != null) 'phone': phone,
+  };
+}
+
+/// Checkout response models
+class CheckoutPricing {
+  final Map<String, dynamic> subtotal;
+  final Map<String, dynamic> totalTax;
+  final Map<String, dynamic> totalDiscount;
+  final Map<String, dynamic> totalFees;
+  final Map<String, dynamic> totalTip;
+  final Map<String, dynamic> totalDue;
+  final String currency;
+
+  CheckoutPricing({
+    required this.subtotal,
+    required this.totalTax,
+    required this.totalDiscount,
+    required this.totalFees,
+    required this.totalTip,
+    required this.totalDue,
+    required this.currency,
+  });
+
+  factory CheckoutPricing.fromJson(Map<String, dynamic> json) {
+    return CheckoutPricing(
+      subtotal: json['subtotal'] as Map<String, dynamic>? ?? {},
+      totalTax: json['totalTax'] as Map<String, dynamic>? ?? {},
+      totalDiscount: json['totalDiscount'] as Map<String, dynamic>? ?? {},
+      totalFees: json['totalFees'] as Map<String, dynamic>? ?? {},
+      totalTip: json['totalTip'] as Map<String, dynamic>? ?? {},
+      totalDue: json['totalDue'] as Map<String, dynamic>? ?? {},
+      currency: json['currency'] as String? ?? 'LAK',
+    );
+  }
+
+  double get totalAmount => (totalDue['amount'] as num?)?.toDouble() ?? 0.0;
+}
+
+class CheckoutOrder {
+  final String id;
+  final String orderId;
+  final String orderNumber;
+  final String qNumber;
+  final String orderType;
+  final String orderStatus;
+  final List<dynamic> lineItems;
+  final Map<String, dynamic> pricing;
+  final Map<String, dynamic>? customer;
+  final String createdAt;
+
+  CheckoutOrder({
+    required this.id,
+    required this.orderId,
+    required this.orderNumber,
+    required this.qNumber,
+    required this.orderType,
+    required this.orderStatus,
+    required this.lineItems,
+    required this.pricing,
+    this.customer,
+    required this.createdAt,
+  });
+
+  factory CheckoutOrder.fromJson(Map<String, dynamic> json) {
+    // ✅ Handle qNumber being int or String from API
+    String qNumberValue = '';
+    if (json['qNumber'] != null) {
+      if (json['qNumber'] is int) {
+        qNumberValue = json['qNumber'].toString();
+      } else if (json['qNumber'] is String) {
+        qNumberValue = json['qNumber'] as String;
+      }
+    }
+    
+    return CheckoutOrder(
+      id: json['_id'] as String? ?? '',
+      orderId: json['orderId'] as String? ?? '',
+      orderNumber: json['orderNumber'] as String? ?? '',
+      qNumber: qNumberValue,
+      orderType: json['orderType'] as String? ?? 'takeaway',
+      orderStatus: json['orderStatus'] as String? ?? 'completed',
+      lineItems: json['lineItems'] as List<dynamic>? ?? [],
+      pricing: json['pricing'] as Map<String, dynamic>? ?? {},
+      customer: json['customer'] as Map<String, dynamic>?,
+      createdAt: json['createdAt'] as String? ?? '',
+    );
+  }
+}
+
+class CheckoutTransaction {
+  final String transactionId;
+  final String transactionStatus;
+  final Map<String, dynamic> paymentSummary;
+
+  CheckoutTransaction({
+    required this.transactionId,
+    required this.transactionStatus,
+    required this.paymentSummary,
+  });
+
+  factory CheckoutTransaction.fromJson(Map<String, dynamic> json) {
+    return CheckoutTransaction(
+      transactionId: json['transactionId'] as String? ?? '',
+      transactionStatus: json['transactionStatus'] as String? ?? '',
+      paymentSummary: json['paymentSummary'] as Map<String, dynamic>? ?? {},
+    );
+  }
+}
+
+class CheckoutResponse {
+  final CheckoutOrder order;
+  final CheckoutTransaction transaction;
+  final CheckoutPricing pricing;
+  final String message;
+
+  CheckoutResponse({
+    required this.order,
+    required this.transaction,
+    required this.pricing,
+    required this.message,
+  });
+
+  factory CheckoutResponse.fromJson(Map<String, dynamic> json) {
+    return CheckoutResponse(
+      order: CheckoutOrder.fromJson(json['order'] as Map<String, dynamic>),
+      transaction:
+          CheckoutTransaction.fromJson(json['transaction'] as Map<String, dynamic>),
+      pricing: CheckoutPricing.fromJson(json['pricing'] as Map<String, dynamic>),
+      message: json['message'] as String? ?? '',
+    );
+  }
+}
+
+/// Service for unified checkout operations
+class CheckoutService {
+  final ApiClient _apiClient;
+
+  CheckoutService(this._apiClient);
+
+  /// Step 1: Calculate pricing (optional but recommended)
+  Future<CheckoutPricing> calculatePricing({
+    required List<LineItem> lineItems,
+    String orderType = 'takeaway',
+    List<dynamic>? promotions,
+    CustomerInfo? customer,
+  }) async {
+    final response = await _apiClient.post(
+      ApiConstants.calculatePricing,
+      data: {
+        'lineItems': lineItems.map((item) => item.toJson()).toList(),
+        'orderType': orderType,
+        if (promotions != null && promotions.isNotEmpty)
+          'promotions': promotions,
+        if (customer != null) 'customer': customer.toJson(),
+      },
+    );
+
+    return CheckoutPricing.fromJson(
+      response['data']['pricing'] as Map<String, dynamic>,
+    );
+  }
+
+  /// Step 2: Process payment (UNIFIED ENDPOINT - Creates Order + Processes Payment)
+  Future<CheckoutResponse> processPayment({
+    required List<LineItem> lineItems,
+    required List<PaymentMethod> payments,
+    required double expectedTotal,
+    CustomerInfo? customer,
+    List<dynamic>? promotions,
+    String? notes,
+    String? idempotencyKey,
+  }) async {
+    print('🏪 CheckoutService.processPayment called');
+    print('   Line items: ${lineItems.length}');
+    print('   Payments: ${payments.length}');
+    print('   Expected total: $expectedTotal');
+    
+    // Generate idempotency key if not provided
+    final key = idempotencyKey ?? 
+        'checkout-${DateTime.now().millisecondsSinceEpoch}';
+
+    print('📤 Making API call to ${ApiConstants.processPayment}');
+    final response = await _apiClient.post(
+      ApiConstants.processPayment,
+      data: {
+        'lineItems': lineItems.map((item) => item.toJson()).toList(),
+        'payments': payments.map((p) => p.toJson()).toList(),
+        'expectedTotal': expectedTotal,
+        if (customer != null) 'customer': customer.toJson(),
+        if (promotions != null && promotions.isNotEmpty)
+          'promotions': promotions,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+        'idempotencyKey': key,
+      },
+    );
+
+    print('📥 API response received');
+    print('   Response keys: ${response.keys.toList()}');
+    print('   Has data key: ${response.containsKey('data')}');
+    
+    if (response['data'] != null) {
+      print('   Data type: ${response['data'].runtimeType}');
+      if (response['data'] is Map) {
+        print('   Data keys: ${(response['data'] as Map).keys.toList()}');
+      }
+    }
+    
+    print('🔄 Parsing CheckoutResponse...');
+    final checkoutResponse = CheckoutResponse.fromJson(response['data'] as Map<String, dynamic>);
+    print('✅ CheckoutResponse parsed successfully');
+    print('   Order ID: ${checkoutResponse.order.orderId}');
+    print('   Transaction ID: ${checkoutResponse.transaction.transactionId}');
+    
+    return checkoutResponse;
+  }
+
+  /// Helper: Process cash payment from Cart
+  Future<CheckoutResponse> processCashPaymentFromCart({
+    required Cart cart,
+    required double tenderedAmount,
+    String? notes,
+  }) async {
+    print('💳 CheckoutService.processCashPaymentFromCart called');
+    print('   Cart total: ${cart.total}');
+    print('   Tendered amount: $tenderedAmount');
+    print('   Cart items: ${cart.items.length}');
+    
+    // Transform cart items to LineItems
+    final lineItems = cart.items.map((item) => 
+      LineItem(
+        menuItemId: item.productId,
+        name: item.productName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        subtotal: item.subtotal,
+        notes: item.notes,
+        options: [],
+      ),
+    ).toList();
+
+    print('✅ Line items created: ${lineItems.length}');
+
+    // ✅ Create payment method with correct API format
+    final payment = PaymentMethod(
+      method: 'cash',
+      customerAmount: MoneyAmount(
+        amount: cart.total,
+        currency: 'LAK',
+      ),
+      tenderedAmount: MoneyAmount(
+        amount: tenderedAmount,
+        currency: 'LAK',
+      ),
+    );
+
+    print('✅ Payment method created: cash');
+    print('   Customer amount: ${cart.total} LAK');
+    print('   Tendered amount: $tenderedAmount LAK');
+
+    // Create customer info if available
+    CustomerInfo? customerInfo;
+    if (cart.customer != null) {
+      customerInfo = CustomerInfo(
+        customerId: cart.customer!.id,
+        name: cart.customer!.name,
+        phone: cart.customer!.phone,
+      );
+      print('✅ Customer info created: ${cart.customer!.name}');
+    } else {
+      print('ℹ️  No customer info in cart');
+    }
+
+    print('🔄 Calling processPayment...');
+    // Process payment
+    final result = await processPayment(
+      lineItems: lineItems,
+      payments: [payment],
+      expectedTotal: cart.total,
+      customer: customerInfo,
+      promotions: [],
+      notes: notes ?? cart.notes,
+    );
+    
+    print('✅ processCashPaymentFromCart completed successfully');
+    return result;
+  }
+
+  /// Helper: Process PhayPay payment from Cart
+  Future<CheckoutResponse> processPhayPayPaymentFromCart({
+    required Cart cart,
+    required String bankMethod,
+    Map<String, dynamic>? paymentDetails,
+    String? notes,
+  }) async {
+    // Transform cart items to LineItems
+    final lineItems = cart.items.map((item) => 
+      LineItem(
+        menuItemId: item.productId,
+        name: item.productName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        subtotal: item.subtotal,
+        notes: item.notes,
+        options: [],
+      ),
+    ).toList();
+
+    // ✅ Create payment method with correct API format
+    // For QR payments: only customerAmount is required (no tenderedAmount)
+    final payment = PaymentMethod(
+      method: bankMethod,
+      customerAmount: MoneyAmount(
+        amount: cart.total,
+        currency: 'LAK',
+      ),
+      // No tenderedAmount for QR payments (customer pays exact amount)
+      paymentDetails: paymentDetails,
+    );
+
+    // Create customer info if available
+    CustomerInfo? customerInfo;
+    if (cart.customer != null) {
+      customerInfo = CustomerInfo(
+        customerId: cart.customer!.id,
+        name: cart.customer!.name,
+        phone: cart.customer!.phone,
+      );
+    }
+
+    // Process payment
+    return await processPayment(
+      lineItems: lineItems,
+      payments: [payment],
+      expectedTotal: cart.total,
+      customer: customerInfo,
+      promotions: [],
+      notes: notes ?? cart.notes,
+    );
+  }
+}
+
