@@ -1,13 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/models/order.dart' as order_model;
 import '../../../core/services/order_service.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../screens/orders_screen.dart';
 
 /// Orders state
 class OrdersState {
-  final List<Order> orders;
-  final List<Order> filteredOrders;
+  final List<order_model.Order> orders;
+  final List<order_model.Order> filteredOrders;
   final bool isLoading;
   final String? error;
   final String? statusFilter;
@@ -21,8 +21,8 @@ class OrdersState {
   });
 
   OrdersState copyWith({
-    List<Order>? orders,
-    List<Order>? filteredOrders,
+    List<order_model.Order>? orders,
+    List<order_model.Order>? filteredOrders,
     bool? isLoading,
     String? error,
     String? statusFilter,
@@ -57,37 +57,34 @@ class OrdersNotifier extends StateNotifier<OrdersState> {
         return;
       }
 
-      final response = await _orderService.getOrders(branchId: _branchId);
+      print('🔄 Loading orders for branch: $_branchId');
       
-      // Extract data array from response
-      final List<dynamic> ordersData;
-      if (response is Map) {
-        final map = response as Map<String, dynamic>;
-        ordersData = map['data'] as List<dynamic>? ?? [];
-      } else {
-        ordersData = response as List<dynamic>? ?? [];
+      // ✅ OrderService.getOrders() already returns List<Order> (parsed objects)!
+      final ordersList = await _orderService.getOrders(branchId: _branchId);
+      
+      print('📦 Response type: ${ordersList.runtimeType}');
+      print('📦 Orders count: ${ordersList.length}');
+      
+      if (ordersList.isNotEmpty) {
+        print('📋 Sample order:');
+        final first = ordersList.first;
+        print('   ID: ${first.id}');
+        print('   Order Number: ${first.orderId}');
+        print('   Status: ${first.status.name}');
+        print('   Items: ${first.items.length}');
+        print('   Total: ${first.pricing.total}');
       }
       
-      // Convert to Order model (placeholder)
-      final ordersList = ordersData.map((orderData) {
-        final data = orderData as Map<String, dynamic>;
-        return Order(
-          id: data['_id'] as String? ?? '',
-          orderNumber: data['orderId'] as String? ?? 'N/A',
-          status: data['orderStatus'] as String? ?? 'pending',
-          customerName: (data['customer'] as Map<String, dynamic>?)?['name'] as String?,
-          createdAt: DateTime.tryParse(data['createdAt'] as String? ?? '') ?? DateTime.now(),
-          itemCount: (data['items'] as List?)?.length ?? 0,
-          total: ((data['pricing'] as Map<String, dynamic>?)?['total'] as num?)?.toDouble() ?? 0.0,
-        );
-      }).toList();
+      print('✅ Successfully loaded ${ordersList.length} orders');
 
       state = state.copyWith(
         orders: ordersList,
         filteredOrders: ordersList,
         isLoading: false,
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ Error loading orders: $e');
+      print('Stack trace: $stackTrace');
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
@@ -104,7 +101,7 @@ class OrdersNotifier extends StateNotifier<OrdersState> {
       );
     } else {
       final filtered = state.orders
-          .where((order) => order.status.toLowerCase() == status.toLowerCase())
+          .where((order) => order.status.name.toLowerCase() == status.toLowerCase())
           .toList();
       state = state.copyWith(
         filteredOrders: filtered,

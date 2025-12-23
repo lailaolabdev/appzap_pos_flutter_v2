@@ -57,6 +57,10 @@ class OrderService {
     int page = 1,
     int limit = 50,
   }) async {
+    print('\n🔄 OrderService.getOrders called');
+    print('   branchId: $branchId');
+    print('   status: ${status?.name}');
+    
     final response = await _apiClient.get(
       ApiConstants.orders,
       queryParameters: {
@@ -69,14 +73,66 @@ class OrderService {
       },
     );
 
+    print('📦 OrderService: Response received');
+    print('   Response type: ${response.runtimeType}');
+    print('   Response keys: ${response.keys.toList()}');
+    
     // ⚠️ Orders are NESTED under data.orders, NOT directly in data
     // Response format: { success, data: { orders: [...], pagination: {...}, statistics: {...} } }
     final data = response['data'] as Map<String, dynamic>? ?? {};
-    final orders = data['orders'] as List<dynamic>? ?? [];
+    print('   Data keys: ${data.keys.toList()}');
     
-    return orders
+    final orders = data['orders'] as List<dynamic>? ?? [];
+    print('   Orders count: ${orders.length}');
+    
+    if (orders.isNotEmpty) {
+      print('   First order sample (truncated):');
+      final firstOrder = orders.first as Map<String, dynamic>;
+      print('      Keys: ${firstOrder.keys.toList()}');
+      
+      // Show pricing structure
+      if (firstOrder.containsKey('pricing')) {
+        final pricing = firstOrder['pricing'];
+        print('      pricing type: ${pricing.runtimeType}');
+        if (pricing is Map<String, dynamic>) {
+          print('      pricing keys: ${pricing.keys.toList()}');
+          
+          // Check total format
+          if (pricing.containsKey('total')) {
+            final total = pricing['total'];
+            print('      pricing.total type: ${total.runtimeType}');
+            print('      pricing.total value: $total');
+          }
+        }
+      }
+      
+      // Show lineItems structure
+      final itemsKey = firstOrder.containsKey('lineItems') ? 'lineItems' : 'items';
+      if (firstOrder.containsKey(itemsKey)) {
+        final items = firstOrder[itemsKey];
+        print('      $itemsKey type: ${items.runtimeType}');
+        if (items is List && items.isNotEmpty) {
+          final firstItem = items.first as Map<String, dynamic>;
+          print('      First item keys: ${firstItem.keys.toList()}');
+          
+          // Check unitPrice format
+          if (firstItem.containsKey('unitPrice')) {
+            final unitPrice = firstItem['unitPrice'];
+            print('      unitPrice type: ${unitPrice.runtimeType}');
+            print('      unitPrice value: $unitPrice');
+          }
+        }
+      }
+    }
+    
+    print('🔄 Parsing orders...');
+    final parsedOrders = orders
         .map((json) => Order.fromJson(json as Map<String, dynamic>))
         .toList();
+    
+    print('✅ OrderService: Successfully parsed ${parsedOrders.length} orders\n');
+    
+    return parsedOrders;
   }
 
   /// Cancel an order

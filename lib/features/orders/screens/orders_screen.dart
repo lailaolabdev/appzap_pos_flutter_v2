@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
+import '../../../core/models/order.dart' as order_model;
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/utils/responsive.dart';
@@ -186,7 +187,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
 }
 
 class _OrderCard extends StatelessWidget {
-  final Order order;
+  final order_model.Order order;
 
   const _OrderCard({required this.order});
 
@@ -198,7 +199,7 @@ class _OrderCard extends StatelessWidget {
         onTap: () {
           // TODO: Navigate to order details
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Order ${order.orderNumber} details - Coming Soon')),
+            SnackBar(content: Text('Order ${order.orderId} details - Coming Soon')),
           );
         },
         borderRadius: BorderRadius.circular(12),
@@ -212,26 +213,26 @@ class _OrderCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    order.orderNumber,
+                    order.orderId,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  _OrderStatusChip(status: order.status),
+                  _OrderStatusChip(status: order.status.name),
                 ],
               ),
               const SizedBox(height: 8),
 
               // Customer info (if available)
-              if (order.customerName != null) ...[
+              if (order.customer != null) ...[
                 Row(
                   children: [
                     const Icon(Icons.person, size: 16, color: AppTheme.neutral600),
                     const SizedBox(width: 4),
                     Text(
-                      order.customerName!,
-                      style: TextStyle(
+                      order.customer?.name ?? 'Guest',
+                      style: const TextStyle(
                         color: AppTheme.neutral600,
                         fontSize: 14,
                       ),
@@ -265,13 +266,13 @@ class _OrderCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${order.itemCount} ${order.itemCount == 1 ? 'item' : 'items'}',
+                    '${order.items.length} ${order.items.length == 1 ? 'item' : 'items'}',
                     style: TextStyle(
                       color: AppTheme.neutral700,
                     ),
                   ),
                   Text(
-                    CurrencyFormatter.formatLAKWithSymbol(order.total),
+                    CurrencyFormatter.formatLAKWithSymbol(order.pricing.total),
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -353,25 +354,3 @@ class _OrderStatusChip extends StatelessWidget {
     );
   }
 }
-
-// Placeholder Order model (create proper model file later)
-class Order {
-  final String id;
-  final String orderNumber;
-  final String status;
-  final String? customerName;
-  final DateTime createdAt;
-  final int itemCount;
-  final double total;
-
-  Order({
-    required this.id,
-    required this.orderNumber,
-    required this.status,
-    this.customerName,
-    required this.createdAt,
-    required this.itemCount,
-    required this.total,
-  });
-}
-

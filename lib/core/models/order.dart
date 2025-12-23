@@ -71,12 +71,21 @@ class Order extends Equatable {
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
+    print('\n📦 Parsing Order:');
+    print('   Order keys: ${json.keys.toList()}');
+    
+    final id = json['_id'] as String? ?? '';
+    final orderId = json['orderId'] as String? ?? json['orderCode'] as String? ?? '';
+    print('   id: $id');
+    print('   orderId: $orderId');
+    
     // Handle both 'items' (Create response) and 'lineItems' (Get response)
     final itemsList = (json['lineItems'] ?? json['items']) as List<dynamic>?;
+    print('   Items list length: ${itemsList?.length ?? 0}');
     
     return Order(
-      id: json['_id'] as String? ?? '',
-      orderId: json['orderId'] as String? ?? json['orderCode'] as String? ?? '',
+      id: id,
+      orderId: orderId,
       qNumber: json['qNumber'] as int? ?? 0,
       orderType: OrderType.fromString(
         json['orderType'] as String? ?? 'takeaway',
@@ -219,16 +228,69 @@ class OrderItem extends Equatable {
   });
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
+    print('  🛒 Parsing OrderItem:');
+    print('     Keys: ${json.keys.toList()}');
+    
+    // Helper function to parse amount (handles both num and MoneyAmount object)
+    double parseAmount(dynamic value, String fieldName) {
+      print('     $fieldName type: ${value.runtimeType}');
+      print('     $fieldName value: $value');
+      
+      if (value == null) {
+        print('     → $fieldName is null, using 0.0');
+        return 0.0;
+      } else if (value is num) {
+        print('     → $fieldName is num: ${value.toDouble()}');
+        return value.toDouble();
+      } else if (value is Map<String, dynamic>) {
+        // MoneyAmount format: { amount: 10000, currency: "LAK" }
+        final amount = value['amount'];
+        print('     → $fieldName is MoneyAmount, amount: $amount');
+        if (amount is num) {
+          return amount.toDouble();
+        }
+        print('     → ⚠️ MoneyAmount.amount is not num!');
+        return 0.0;
+      } else {
+        print('     → ⚠️ $fieldName is unexpected type: ${value.runtimeType}');
+        return 0.0;
+      }
+    }
+    
+    final id = json['_id'] as String? ?? '';
+    final menuItemId = json['menuItemId'] as String? ?? '';
+    final name = json['name'] as String? ?? '';
+    final quantity = json['quantity'] as int? ?? 0;
+    final notes = json['notes'] as String?;
+    
+    print('     id: $id');
+    print('     menuItemId: $menuItemId');
+    print('     name: $name');
+    print('     quantity: $quantity');
+    
+    final unitPrice = parseAmount(json['unitPrice'], 'unitPrice');
+    final subtotal = parseAmount(json['subtotal'], 'subtotal');
+    
+    // Handle both 'tax' and 'totalTax' field names
+    final taxValue = json['tax'] ?? json['totalTax'];
+    final tax = parseAmount(taxValue, 'tax');
+    
+    // Handle both 'total' and 'totalPrice' field names
+    final totalValue = json['total'] ?? json['totalPrice'];
+    final total = parseAmount(totalValue, 'total');
+    
+    print('     ✅ OrderItem parsed successfully');
+    
     return OrderItem(
-      id: json['_id'] as String? ?? '',
-      menuItemId: json['menuItemId'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      quantity: json['quantity'] as int? ?? 0,
-      unitPrice: (json['unitPrice'] as num?)?.toDouble() ?? 0,
-      notes: json['notes'] as String?,
-      subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0,
-      tax: (json['tax'] as num?)?.toDouble() ?? 0,
-      total: (json['total'] as num?)?.toDouble() ?? 0,
+      id: id,
+      menuItemId: menuItemId,
+      name: name,
+      quantity: quantity,
+      unitPrice: unitPrice,
+      notes: notes,
+      subtotal: subtotal,
+      tax: tax,
+      total: total,
     );
   }
 
@@ -281,19 +343,53 @@ class OrderPricing extends Equatable {
   });
 
   factory OrderPricing.fromJson(Map<String, dynamic> json) {
+    print('  💰 Parsing OrderPricing:');
+    print('     Keys: ${json.keys.toList()}');
+    
+    // Helper function to parse amount (handles both num and MoneyAmount object)
+    double parseAmount(dynamic value, String fieldName) {
+      print('     $fieldName type: ${value.runtimeType}');
+      
+      if (value == null) {
+        return 0.0;
+      } else if (value is num) {
+        print('     → $fieldName: ${value.toDouble()}');
+        return value.toDouble();
+      } else if (value is Map<String, dynamic>) {
+        // MoneyAmount format: { amount: 10000, currency: "LAK" }
+        final amount = value['amount'];
+        if (amount is num) {
+          print('     → $fieldName (MoneyAmount): ${amount.toDouble()}');
+          return amount.toDouble();
+        }
+        return 0.0;
+      } else {
+        print('     → ⚠️ $fieldName unexpected type: ${value.runtimeType}');
+        return 0.0;
+      }
+    }
+    
+    final subtotal = parseAmount(json['subtotal'], 'subtotal');
+    final discountTotal = parseAmount(json['discountTotal'], 'discountTotal');
+    final subtotalAfterDiscount = parseAmount(json['subtotalAfterDiscount'], 'subtotalAfterDiscount');
+    final tax = parseAmount(json['tax'], 'tax');
+    final total = parseAmount(json['total'], 'total');
+    final currency = json['currency'] as String? ?? 'LAK';
+    
+    print('     ✅ OrderPricing parsed successfully (total: $total)');
+    
     return OrderPricing(
-      subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0,
+      subtotal: subtotal,
       discounts:
           (json['discounts'] as List<dynamic>?)
               ?.map((e) => OrderDiscount.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
-      discountTotal: (json['discountTotal'] as num?)?.toDouble() ?? 0,
-      subtotalAfterDiscount:
-          (json['subtotalAfterDiscount'] as num?)?.toDouble() ?? 0,
-      tax: (json['tax'] as num?)?.toDouble() ?? 0,
-      total: (json['total'] as num?)?.toDouble() ?? 0,
-      currency: json['currency'] as String? ?? 'LAK',
+      discountTotal: discountTotal,
+      subtotalAfterDiscount: subtotalAfterDiscount,
+      tax: tax,
+      total: total,
+      currency: currency,
     );
   }
 
