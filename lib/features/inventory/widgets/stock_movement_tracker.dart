@@ -180,18 +180,16 @@ class _StockMovementTrackerState extends ConsumerState<StockMovementTracker> {
                           const SizedBox(height: 16),
                           Text(
                             'No Stock Movements Available',
-                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              color: Colors.grey[600],
-                            ),
+                            style: Theme.of(context).textTheme.headlineSmall
+                                ?.copyWith(color: Colors.grey[600]),
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Stock transaction history will appear here when available.\\n'\
+                            'Stock transaction history will appear here when available.\n'
                             'This feature may require backend API support.',
                             textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.grey[600],
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: Colors.grey[600]),
                           ),
                           const SizedBox(height: 24),
                           ElevatedButton.icon(
