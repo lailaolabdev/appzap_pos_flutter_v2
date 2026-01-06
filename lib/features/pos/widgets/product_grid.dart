@@ -31,9 +31,9 @@ class ProductGrid extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               'No products found',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppTheme.neutral500,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: AppTheme.neutral500),
             ),
           ],
         ),
@@ -46,7 +46,7 @@ class ProductGrid extends StatelessWidget {
         final width = constraints.maxWidth;
         int crossAxisCount;
         double childAspectRatio;
-        
+
         if (width < 600) {
           // Mobile: 3 columns
           crossAxisCount = 3;
@@ -87,10 +87,7 @@ class _ProductCard extends StatelessWidget {
   final Product product;
   final VoidCallback onTap;
 
-  const _ProductCard({
-    required this.product,
-    required this.onTap,
-  });
+  const _ProductCard({required this.product, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -107,9 +104,10 @@ class _ProductCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isOutOfStock
-                  ? AppTheme.error.withValues(alpha: 0.3)
-                  : AppTheme.neutral200,
+              color:
+                  isOutOfStock
+                      ? AppTheme.error.withValues(alpha: 0.3)
+                      : AppTheme.neutral200,
             ),
           ),
           child: Column(
@@ -123,24 +121,27 @@ class _ProductCard extends StatelessWidget {
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(11),
                       ),
-                      child: product.primaryImageUrl != null
-                          ? CachedNetworkImage(
-                              imageUrl: product.primaryImageUrl!,
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                              height: double.infinity,
-                              placeholder: (context, url) => Container(
-                                color: AppTheme.neutral100,
-                                child: const Center(
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              ),
-                              errorWidget: (context, url, error) =>
-                                  _buildPlaceholder(),
-                            )
-                          : _buildPlaceholder(),
+                      child:
+                          product.primaryImageUrl != null
+                              ? CachedNetworkImage(
+                                imageUrl: product.primaryImageUrl!,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity,
+                                placeholder:
+                                    (context, url) => Container(
+                                      color: AppTheme.neutral100,
+                                      child: const Center(
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    ),
+                                errorWidget:
+                                    (context, url, error) =>
+                                        _buildPlaceholder(),
+                              )
+                              : _buildPlaceholder(),
                     ),
 
                     // Out of stock overlay
@@ -205,9 +206,10 @@ class _ProductCard extends StatelessWidget {
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.w600,
                         fontSize: 12,
-                        color: isOutOfStock
-                            ? AppTheme.neutral400
-                            : AppTheme.neutral900,
+                        color:
+                            isOutOfStock
+                                ? AppTheme.neutral400
+                                : AppTheme.neutral900,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -222,9 +224,10 @@ class _ProductCard extends StatelessWidget {
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
-                        color: isOutOfStock
-                            ? AppTheme.neutral400
-                            : AppTheme.primaryOrange,
+                        color:
+                            isOutOfStock
+                                ? AppTheme.neutral400
+                                : AppTheme.primaryOrange,
                       ),
                     ),
                   ],
@@ -241,13 +244,8 @@ class _ProductCard extends StatelessWidget {
     return Container(
       color: AppTheme.neutral100,
       child: const Center(
-        child: Icon(
-          Icons.image_outlined,
-          size: 40,
-          color: AppTheme.neutral300,
-        ),
+        child: Icon(Icons.image_outlined, size: 40, color: AppTheme.neutral300),
       ),
     );
   }
 }
-

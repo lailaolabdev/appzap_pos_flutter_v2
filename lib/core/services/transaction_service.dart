@@ -9,6 +9,34 @@ class TransactionService {
 
   TransactionService(this._dio);
 
+  /// Create a new transaction
+  Future<Transaction> createTransaction({
+    required String transactionType,
+    required String branchId,
+    required List<Map<String, dynamic>> orderReferences,
+    required List<Map<String, dynamic>> payments,
+    Map<String, dynamic>? customer,
+  }) async {
+    try {
+      final response = await _dio.post(
+        ApiConstants.transactions,
+        data: {
+          'transactionType': transactionType,
+          'branchId': branchId,
+          'orderReferences': orderReferences,
+          'payments': payments,
+          if (customer != null) 'customer': customer,
+        },
+      );
+
+      final data = response.data['data'] as Map<String, dynamic>? ?? {};
+      return Transaction.fromJson(data);
+    } catch (e) {
+      print('❌ Create transaction error: $e');
+      rethrow;
+    }
+  }
+
   /// Get transaction history with filtering and pagination
   Future<TransactionHistoryResponse> getTransactions({
     DateTime? startDate,
@@ -48,18 +76,23 @@ class TransactionService {
       final data = response.data['data'] as Map<String, dynamic>? ?? {};
 
       return TransactionHistoryResponse(
-        transactions: (data['transactions'] as List<dynamic>?)
-                ?.map((json) => Transaction.fromJson(json as Map<String, dynamic>))
-                .toList() ??
+        transactions:
+            (data['transactions'] as List<dynamic>?)?.map((json) {
+              final transformedData = _transformApiResponse(
+                json as Map<String, dynamic>,
+              );
+              return Transaction.fromJson(transformedData);
+            }).toList() ??
             [],
         pagination: PaginationInfo.fromJson(
           data['pagination'] as Map<String, dynamic>? ?? {},
         ),
-        summary: data['summary'] != null
-            ? TransactionSummary.fromJson(
-                data['summary'] as Map<String, dynamic>,
-              )
-            : null,
+        summary:
+            data['summary'] != null
+                ? TransactionSummary.fromJson(
+                  data['summary'] as Map<String, dynamic>,
+                )
+                : null,
       );
     } catch (e) {
       print('❌ Get transactions error: $e');
@@ -70,12 +103,87 @@ class TransactionService {
   /// Get single transaction details
   Future<Transaction> getTransaction(String transactionId) async {
     try {
-      final response = await _dio.get(
-        '${ApiConstants.transactions}$transactionId',
+      Response? response;
+
+      // Primary endpoint: /transactions/{transactionId} as per documentation
+      try {
+        final endpoint = ApiConstants.transactionById.replaceAll(
+          '{transactionId}',
+          transactionId,
+        );
+        response = await _dio.get(endpoint);
+        print(' response: $response');
+        print('✅ Successfully retrieved transaction via primary endpoint');
+      } catch (e) {
+        print('❌ Primary endpoint failed: ${e.toString()}');
+
+        // Fallback: Search in transaction list with filter
+        try {
+          print('🔄 Trying fallback: search in transaction list');
+          response = await _dio.get(
+            ApiConstants.transactions,
+            queryParameters: {'transactionId': transactionId, 'limit': 1},
+          );
+          print('✅ Retrieved transaction via list filter');
+        } catch (e2) {
+          print('❌ Fallback endpoint failed: ${e2.toString()}');
+          throw Exception(
+            'Unable to retrieve transaction $transactionId. Please check if the transaction exists.',
+          );
+        }
+      }
+
+      if (response == null) throw Exception('No valid response received');
+
+      // ✅ Handle wrapped response format like the list endpoint
+      final data = response.data;
+
+      print('📊 Raw API Response: ${data.runtimeType}');
+      print(
+        '📊 Response Keys: ${data is Map ? (data as Map).keys.toList() : 'Not a map'}',
       );
 
-      // ⚠️ Direct response (not wrapped in {success, data})
-      return Transaction.fromJson(response.data as Map<String, dynamic>);
+      try {
+        Map<String, dynamic> transactionData;
+
+        // Handle API response structure as per documentation
+        if (data is Map<String, dynamic> && data.containsKey('_id')) {
+          // Direct transaction object (when fetching by ID)
+          transactionData = data;
+          print('📊 Using direct transaction format');
+        } else if (data is Map<String, dynamic> && data.containsKey('data')) {
+          final wrappedData = data['data'] as Map<String, dynamic>;
+
+          // Check if this is a transaction list response (fallback endpoint)
+          if (wrappedData.containsKey('transactions')) {
+            final transactions = wrappedData['transactions'] as List<dynamic>;
+            if (transactions.isEmpty) {
+              throw Exception('Transaction $transactionId not found');
+            }
+            // Extract the single transaction from the filtered list
+            transactionData = transactions.first as Map<String, dynamic>;
+            print('📊 Extracted transaction from list response');
+          } else {
+            // Direct transaction in wrapped format
+            transactionData = wrappedData;
+            print('📊 Using wrapped transaction format');
+          }
+        } else {
+          // Fallback to direct format
+          transactionData = data as Map<String, dynamic>;
+          print('📊 Using fallback direct format');
+        }
+
+        print('📊 Transaction Data Keys: ${transactionData.keys.toList()}');
+
+        // Transform API response to match Transaction model expectations
+        final transformedData = _transformApiResponse(transactionData);
+        return Transaction.fromJson(transformedData);
+      } catch (parseError) {
+        print('❌ JSON Parsing Error: $parseError');
+        print('📊 Problem Data: $data');
+        throw Exception('Failed to parse transaction data: $parseError');
+      }
     } catch (e) {
       print('❌ Get transaction error: $e');
       rethrow;
@@ -124,8 +232,10 @@ class TransactionService {
     required String approvalCode,
   }) async {
     try {
-      final endpoint = ApiConstants.transactionRefund
-          .replaceAll('{transactionId}', transactionId);
+      final endpoint = ApiConstants.transactionRefund.replaceAll(
+        '{transactionId}',
+        transactionId,
+      );
 
       final response = await _dio.post(
         endpoint,
@@ -159,18 +269,20 @@ class TransactionService {
     required String approvalCode,
   }) async {
     try {
-      final endpoint = ApiConstants.transactionVoid
-          .replaceAll('{transactionId}', transactionId);
+      final endpoint = ApiConstants.transactionVoid.replaceAll(
+        '{transactionId}',
+        transactionId,
+      );
 
       final response = await _dio.post(
         endpoint,
         data: {
-          'reason': reason,
-          if (notes != null) 'notes': notes,
+          'voidReason': reason, // Match documented field name
           'managerApproval': {
             'managerId': managerId,
-            'approvalCode': approvalCode,
+            'managerPin': approvalCode, // Match documented field name
           },
+          if (notes != null) 'notes': notes,
         },
       );
 
@@ -186,8 +298,10 @@ class TransactionService {
   /// Get transaction receipt
   Future<TransactionReceipt> getReceipt(String transactionId) async {
     try {
-      final endpoint = ApiConstants.transactionReceipt
-          .replaceAll('{transactionId}', transactionId);
+      final endpoint = ApiConstants.transactionReceipt.replaceAll(
+        '{transactionId}',
+        transactionId,
+      );
 
       final response = await _dio.get(endpoint);
 
@@ -198,6 +312,129 @@ class TransactionService {
       print('❌ Get receipt error: $e');
       rethrow;
     }
+  }
+
+  /// Transform API response to match Transaction model expectations
+  Map<String, dynamic> _transformApiResponse(Map<String, dynamic> apiData) {
+    final transformed = <String, dynamic>{};
+
+    // Copy basic fields
+    transformed['_id'] = apiData['_id'];
+    transformed['transactionId'] = apiData['transactionId'];
+    transformed['transactionType'] = apiData['transactionType'] ?? 'sale';
+    transformed['transactionStatus'] =
+        apiData['transactionStatus'] ?? 'completed';
+
+    // Transform amount structure to consolidatedTotals
+    final amount = _extractAmountValue(apiData['amount']);
+    final paidAmount = _extractAmountValue(apiData['paidAmount']);
+
+    transformed['consolidatedTotals'] = {
+      'subtotal': {'amount': amount, 'currency': 'LAK'},
+      'tax': {'amount': 0.0, 'currency': 'LAK'},
+      'discounts': {'amount': 0.0, 'currency': 'LAK'},
+      'serviceCharge': {'amount': 0.0, 'currency': 'LAK'},
+      'grandTotal': {'amount': amount, 'currency': 'LAK'},
+    };
+
+    // Transform payment methods to payments array
+    final paymentMethods = apiData['paymentMethods'] as List<dynamic>? ?? [];
+
+    transformed['payments'] =
+        paymentMethods.isNotEmpty
+            ? paymentMethods
+                .map(
+                  (method) => {
+                    'paymentId': 'pay_${DateTime.now().millisecondsSinceEpoch}',
+                    'method': method.toString(),
+                    'status': 'completed',
+                    'customerAmount': {'amount': paidAmount, 'currency': 'LAK'},
+                    'tenderedAmount': {'amount': paidAmount, 'currency': 'LAK'},
+                    'changeAmount': {'amount': 0.0, 'currency': 'LAK'},
+                  },
+                )
+                .toList()
+            : [
+              {
+                'paymentId': 'pay_${DateTime.now().millisecondsSinceEpoch}',
+                'method': 'cash',
+                'status': 'completed',
+                'customerAmount': {'amount': paidAmount, 'currency': 'LAK'},
+                'tenderedAmount': {'amount': paidAmount, 'currency': 'LAK'},
+                'changeAmount': {'amount': 0.0, 'currency': 'LAK'},
+              },
+            ];
+
+    // Create payment summary
+    transformed['paymentSummary'] = {
+      'totalPaid': {'amount': paidAmount, 'currency': 'LAK'},
+      'changeGiven': {'amount': 0.0, 'currency': 'LAK'},
+      'paymentMethodBreakdown':
+          paymentMethods.isNotEmpty
+              ? paymentMethods
+                  .map(
+                    (method) => {
+                      'method': method.toString(),
+                      'amount': {'amount': paidAmount, 'currency': 'LAK'},
+                    },
+                  )
+                  .toList()
+              : [
+                {
+                  'method': 'cash',
+                  'amount': {'amount': paidAmount, 'currency': 'LAK'},
+                },
+              ],
+    };
+
+    // Create empty line items if not present
+    transformed['lineItems'] = apiData['lineItems'] ?? [];
+
+    // Copy timing
+    transformed['timing'] =
+        apiData['timing'] ??
+        {
+          'createdAt': DateTime.now().toIso8601String(),
+          'completedAt': DateTime.now().toIso8601String(),
+        };
+
+    // Create staff structure
+    if (apiData['processedBy'] != null) {
+      transformed['staff'] = {
+        'processedBy': apiData['processedBy'],
+        'cashier': apiData['processedBy'],
+      };
+    }
+
+    // Copy other fields
+    transformed['tableInfo'] = apiData['tableInfo'];
+    transformed['tableSessionId'] = apiData['tableSessionId'];
+    transformed['countInTotals'] = apiData['countInTotals'] ?? true;
+
+    print('✅ API response transformed successfully');
+    return transformed;
+  }
+
+  /// Helper method to extract amount value from API response
+  /// Handles both direct numbers and {amount: number, currency: string} objects
+  double _extractAmountValue(dynamic value) {
+    if (value == null) return 0.0;
+
+    // If it's already a number, return it
+    if (value is num) return value.toDouble();
+
+    // If it's a Map with 'amount' field, extract the amount
+    if (value is Map<String, dynamic> && value.containsKey('amount')) {
+      final amount = value['amount'];
+      if (amount is num) return amount.toDouble();
+    }
+
+    // Fallback: try to parse as string or return 0
+    if (value is String) {
+      return double.tryParse(value) ?? 0.0;
+    }
+
+    return 0.0;
   }
 }
 
@@ -212,6 +449,28 @@ class TransactionHistoryResponse {
     required this.pagination,
     this.summary,
   });
+
+  /// Static helper method to extract amount value from API response
+  /// Handles both direct numbers and {amount: number, currency: string} objects
+  static double extractAmountValue(dynamic value) {
+    if (value == null) return 0.0;
+
+    // If it's already a number, return it
+    if (value is num) return value.toDouble();
+
+    // If it's a Map with 'amount' field, extract the amount
+    if (value is Map<String, dynamic> && value.containsKey('amount')) {
+      final amount = value['amount'];
+      if (amount is num) return amount.toDouble();
+    }
+
+    // Fallback: try to parse as string or return 0
+    if (value is String) {
+      return double.tryParse(value) ?? 0.0;
+    }
+
+    return 0.0;
+  }
 }
 
 /// Transaction Summary Report (aggregate statistics)
@@ -237,22 +496,31 @@ class TransactionSummaryReport {
   factory TransactionSummaryReport.fromJson(Map<String, dynamic> json) {
     return TransactionSummaryReport(
       totalTransactions: json['totalTransactions'] as int? ?? 0,
-      totalRevenue: (json['totalRevenue'] as num?)?.toDouble() ?? 0.0,
-      averageTransactionValue:
-          (json['averageTransactionValue'] as num?)?.toDouble() ?? 0.0,
-      paymentMethodBreakdown: (json['paymentMethodBreakdown'] as List<dynamic>?)
-              ?.map((e) => PaymentMethodStat.fromJson(e as Map<String, dynamic>))
+      totalRevenue: TransactionHistoryResponse.extractAmountValue(
+        json['totalRevenue'],
+      ),
+      averageTransactionValue: TransactionHistoryResponse.extractAmountValue(
+        json['averageTransactionValue'],
+      ),
+      paymentMethodBreakdown:
+          (json['paymentMethodBreakdown'] as List<dynamic>?)
+              ?.map(
+                (e) => PaymentMethodStat.fromJson(e as Map<String, dynamic>),
+              )
               .toList() ??
           [],
-      statusBreakdown: (json['statusBreakdown'] as List<dynamic>?)
+      statusBreakdown:
+          (json['statusBreakdown'] as List<dynamic>?)
               ?.map((e) => StatusStat.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
-      dailyTransactions: (json['dailyTransactions'] as List<dynamic>?)
+      dailyTransactions:
+          (json['dailyTransactions'] as List<dynamic>?)
               ?.map((e) => DailyStat.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
-      hourlyTransactions: (json['hourlyTransactions'] as List<dynamic>?)
+      hourlyTransactions:
+          (json['hourlyTransactions'] as List<dynamic>?)
               ?.map((e) => HourlyStat.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
@@ -278,8 +546,12 @@ class PaymentMethodStat {
     return PaymentMethodStat(
       method: json['method'] as String? ?? '',
       count: json['count'] as int? ?? 0,
-      totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0.0,
-      percentage: (json['percentage'] as num?)?.toDouble() ?? 0.0,
+      totalAmount: TransactionHistoryResponse.extractAmountValue(
+        json['totalAmount'],
+      ),
+      percentage: TransactionHistoryResponse.extractAmountValue(
+        json['percentage'],
+      ),
     );
   }
 }
@@ -289,10 +561,7 @@ class StatusStat {
   final String status;
   final int count;
 
-  StatusStat({
-    required this.status,
-    required this.count,
-  });
+  StatusStat({required this.status, required this.count});
 
   factory StatusStat.fromJson(Map<String, dynamic> json) {
     return StatusStat(
@@ -318,7 +587,9 @@ class DailyStat {
     return DailyStat(
       date: json['date'] as String? ?? '',
       count: json['count'] as int? ?? 0,
-      totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0.0,
+      totalAmount: TransactionHistoryResponse.extractAmountValue(
+        json['totalAmount'],
+      ),
     );
   }
 }
@@ -339,7 +610,9 @@ class HourlyStat {
     return HourlyStat(
       hour: json['hour'] as int? ?? 0,
       count: json['count'] as int? ?? 0,
-      totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0.0,
+      totalAmount: TransactionHistoryResponse.extractAmountValue(
+        json['totalAmount'],
+      ),
     );
   }
 }
@@ -378,19 +651,20 @@ class TransactionReceipt {
       transactionId: json['transactionId'] as String? ?? '',
       restaurant: json['restaurant'] as Map<String, dynamic>? ?? {},
       branch: json['branch'] as Map<String, dynamic>? ?? {},
-      items: (json['items'] as List<dynamic>?)
+      items:
+          (json['items'] as List<dynamic>?)
               ?.map((e) => e as Map<String, dynamic>)
               .toList() ??
           [],
       totals: json['totals'] as Map<String, dynamic>? ?? {},
       payment: json['payment'] as Map<String, dynamic>? ?? {},
       staff: json['staff'] as String? ?? '',
-      date: json['date'] != null
-          ? DateTime.parse(json['date'] as String)
-          : DateTime.now(),
+      date:
+          json['date'] != null
+              ? DateTime.parse(json['date'] as String)
+              : DateTime.now(),
       receiptHtml: json['receiptHtml'] as String?,
       receiptText: json['receiptText'] as String?,
     );
   }
 }
-

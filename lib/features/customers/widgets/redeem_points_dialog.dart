@@ -5,6 +5,7 @@ import '../../../app/theme.dart';
 import '../../../core/models/customer.dart';
 import '../../../core/services/customer_service.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../auth/providers/auth_provider.dart';
 
 /// Dialog for redeeming customer loyalty points
 class RedeemPointsDialog extends ConsumerStatefulWidget {
@@ -20,8 +21,7 @@ class RedeemPointsDialog extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<RedeemPointsDialog> createState() =>
-      _RedeemPointsDialogState();
+  ConsumerState<RedeemPointsDialog> createState() => _RedeemPointsDialogState();
 }
 
 class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
@@ -49,9 +49,10 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
     });
 
     try {
+      final restaurantId = ref.read(currentRestaurantIdProvider);
       final points = await ref
           .read(customerServiceProvider)
-          .getCustomerPoints(widget.customer.id);
+          .getCustomerPoints(widget.customer.id, restaurantId: restaurantId);
 
       setState(() {
         _customerPoints = points;
@@ -87,7 +88,9 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
     });
 
     try {
-      await ref.read(customerServiceProvider).redeemPoints(
+      await ref
+          .read(customerServiceProvider)
+          .redeemPoints(
             customerId: widget.customer.id,
             points: _pointsToRedeem,
             orderId: widget.orderId,
@@ -251,10 +254,7 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
               // Points to redeem
               const Text(
                 'Points to Redeem',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 12),
 
@@ -264,8 +264,10 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
                     onPressed: () {
                       if (_pointsToRedeem > 0) {
                         setState(() {
-                          _pointsToRedeem =
-                              (_pointsToRedeem - 10).clamp(0, _customerPoints!.currentPoints);
+                          _pointsToRedeem = (_pointsToRedeem - 10).clamp(
+                            0,
+                            _customerPoints!.currentPoints,
+                          );
                         });
                       }
                     },
@@ -290,10 +292,13 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
                   ),
                   IconButton(
                     onPressed: () {
-                      if (_pointsToRedeem < (_customerPoints?.currentPoints ?? 0)) {
+                      if (_pointsToRedeem <
+                          (_customerPoints?.currentPoints ?? 0)) {
                         setState(() {
-                          _pointsToRedeem =
-                              (_pointsToRedeem + 10).clamp(0, _customerPoints!.currentPoints);
+                          _pointsToRedeem = (_pointsToRedeem + 10).clamp(
+                            0,
+                            _customerPoints!.currentPoints,
+                          );
                         });
                       }
                     },
@@ -394,7 +399,10 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
                         ),
                         Text(
                           CurrencyFormatter.format(
-                            (widget.orderTotal - _discountAmount).clamp(0, widget.orderTotal),
+                            (widget.orderTotal - _discountAmount).clamp(
+                              0,
+                              widget.orderTotal,
+                            ),
                           ),
                           style: const TextStyle(
                             fontSize: 18,
@@ -418,14 +426,19 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline,
-                          color: AppTheme.error, size: 20),
+                      const Icon(
+                        Icons.error_outline,
+                        color: AppTheme.error,
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _redeemError!,
                           style: const TextStyle(
-                              color: AppTheme.error, fontSize: 13),
+                            color: AppTheme.error,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                     ],
@@ -440,7 +453,8 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: _isRedeeming ? null : () => Navigator.pop(context),
+                      onPressed:
+                          _isRedeeming ? null : () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
@@ -451,22 +465,24 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
                   Expanded(
                     flex: 2,
                     child: ElevatedButton(
-                      onPressed: _isRedeeming || _pointsToRedeem <= 0
-                          ? null
-                          : _redeemPoints,
+                      onPressed:
+                          _isRedeeming || _pointsToRedeem <= 0
+                              ? null
+                              : _redeemPoints,
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
-                      child: _isRedeeming
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text('Redeem Points'),
+                      child:
+                          _isRedeeming
+                              ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                              : const Text('Redeem Points'),
                     ),
                   ),
                 ],
@@ -478,4 +494,3 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
     );
   }
 }
-

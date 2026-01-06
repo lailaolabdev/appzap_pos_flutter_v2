@@ -13,7 +13,8 @@ class CustomerDetailDialog extends ConsumerStatefulWidget {
   const CustomerDetailDialog({super.key, required this.customer});
 
   @override
-  ConsumerState<CustomerDetailDialog> createState() => _CustomerDetailDialogState();
+  ConsumerState<CustomerDetailDialog> createState() =>
+      _CustomerDetailDialogState();
 }
 
 class _CustomerDetailDialogState extends ConsumerState<CustomerDetailDialog> {
@@ -31,7 +32,7 @@ class _CustomerDetailDialogState extends ConsumerState<CustomerDetailDialog> {
       final points = await ref
           .read(customerServiceProvider)
           .getCustomerPoints(widget.customer.id);
-      
+
       if (mounted) {
         setState(() {
           _points = points;
@@ -75,7 +76,9 @@ class _CustomerDetailDialogState extends ConsumerState<CustomerDetailDialog> {
                   radius: 32,
                   backgroundColor: AppTheme.primaryOrangeBackground,
                   child: Text(
-                    widget.customer.name[0].toUpperCase(),
+                    widget.customer.name.isNotEmpty
+                        ? widget.customer.name[0].toUpperCase()
+                        : '?',
                     style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
@@ -98,9 +101,7 @@ class _CustomerDetailDialogState extends ConsumerState<CustomerDetailDialog> {
                       if (widget.customer.phone != null)
                         Text(
                           widget.customer.phone!,
-                          style: const TextStyle(
-                            color: AppTheme.neutral600,
-                          ),
+                          style: const TextStyle(color: AppTheme.neutral600),
                         ),
                     ],
                   ),
@@ -119,17 +120,12 @@ class _CustomerDetailDialogState extends ConsumerState<CustomerDetailDialog> {
               decoration: BoxDecoration(
                 color: _getTierColor(widget.customer.tier).withOpacity(0.2),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: _getTierColor(widget.customer.tier),
-                ),
+                border: Border.all(color: _getTierColor(widget.customer.tier)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.stars,
-                    color: _getTierColor(widget.customer.tier),
-                  ),
+                  Icon(Icons.stars, color: _getTierColor(widget.customer.tier)),
                   const SizedBox(width: 8),
                   Text(
                     '${widget.customer.tier.displayName} Member',
@@ -153,9 +149,10 @@ class _CustomerDetailDialogState extends ConsumerState<CustomerDetailDialog> {
                 iconColor: AppTheme.primaryOrange,
                 title: 'Loyalty Points',
                 value: '${_points!.currentPoints}',
-                subtitle: _points!.nextTier != null
-                    ? '${_points!.pointsToNextTier} more to ${_points!.nextTier!.displayName}'
-                    : 'Top tier achieved!',
+                subtitle:
+                    _points!.nextTier != null
+                        ? '${_points!.pointsToNextTier} more to ${_points!.nextTier!.displayName}'
+                        : 'Top tier achieved!',
               ),
               const SizedBox(height: 12),
             ],
@@ -259,19 +256,13 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 4),
             Text(
               subtitle!,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppTheme.neutral500,
-              ),
+              style: const TextStyle(fontSize: 11, color: AppTheme.neutral500),
             ),
           ],
         ],
@@ -279,4 +270,3 @@ class _StatCard extends StatelessWidget {
     );
   }
 }
-

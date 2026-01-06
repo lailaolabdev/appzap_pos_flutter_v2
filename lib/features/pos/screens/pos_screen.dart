@@ -19,6 +19,7 @@ import '../widgets/category_bar.dart';
 import '../widgets/product_grid.dart';
 import '../widgets/cart_panel.dart';
 import '../widgets/pos_search_bar.dart';
+import '../widgets/barcode_scanner_widget.dart';
 
 /// Main POS Screen with product grid and cart
 class POSScreen extends ConsumerStatefulWidget {
@@ -41,24 +42,120 @@ class _POSScreenState extends ConsumerState<POSScreen> {
     ref.read(productsProvider.notifier).search(query);
   }
 
-  void _handleBarcodeScan(String barcode) {
-    final product = ref.read(productsProvider.notifier).findByBarcode(barcode);
-    if (product != null) {
-      ref.read(cartProvider.notifier).addProduct(product);
+  Future<void> _handleBarcodeScan(String barcode) async {
+    // First try local search (synchronous)
+    final localProduct = ref
+        .read(productsProvider.notifier)
+        .findByBarcode(barcode);
+
+    if (localProduct != null) {
+      // Found locally - add to cart immediately
+      ref.read(cartProvider.notifier).addProduct(localProduct);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Added ${product.name}'),
+          content: Text('Added ${localProduct.name}'),
           duration: const Duration(seconds: 1),
           backgroundColor: AppTheme.success,
         ),
       );
-    } else {
+      return;
+    }
+
+    // Not found locally - show loading and search via API
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('Searching product...'),
+          ],
+        ),
+        duration: Duration(seconds: 2),
+        backgroundColor: AppTheme.neutral600,
+      ),
+    );
+
+    try {
+      final apiProduct = await ref
+          .read(productsProvider.notifier)
+          .findByBarcodeAsync(barcode);
+
+      if (!mounted) return;
+
+      if (apiProduct != null) {
+        // Found via API - add to cart
+        ref.read(cartProvider.notifier).addProduct(apiProduct);
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Added ${apiProduct.name} (found online)'),
+            duration: const Duration(seconds: 20),
+            backgroundColor: AppTheme.success,
+          ),
+        );
+      } else {
+        // Not found anywhere
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Product not found: $barcode'),
+            backgroundColor: AppTheme.error,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Product not found: $barcode'),
+          content: Text('Search failed: ${e.toString()}'),
           backgroundColor: AppTheme.error,
         ),
       );
+    }
+  }
+
+  /// Open barcode scanner camera
+  Future<void> _openBarcodeScanner() async {
+    try {
+      // Navigate to barcode scanner
+      final String? scannedCode = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(
+          builder:
+              (context) => BarcodeScannerWidget(
+                onBarcodeScanned: (barcode) {
+                  // This will be called when a barcode is detected
+                  _handleBarcodeScan(barcode);
+                },
+              ),
+        ),
+      );
+
+      // Handle the scanned barcode if returned
+      if (scannedCode != null && scannedCode.isNotEmpty) {
+        _handleBarcodeScan(scannedCode);
+      }
+    } catch (e) {
+      // Handle any errors (like camera permissions)
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to open scanner: $e'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
     }
   }
 
@@ -81,16 +178,17 @@ class _POSScreenState extends ConsumerState<POSScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _PaymentBottomSheet(
-        cart: cart,
-        parentContext: parentContext, // Pass parent context
-      ),
+      builder:
+          (context) => _PaymentBottomSheet(
+            cart: cart,
+            parentContext: parentContext, // Pass parent context
+          ),
     );
 
     if (result == true) {
       // Payment successful - clear cart
       ref.read(cartProvider.notifier).clear();
-      
+
       // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -117,11 +215,13 @@ class _POSScreenState extends ConsumerState<POSScreen> {
     final cart = ref.read(cartProvider);
     final int? pointsRedeemed = await showDialog<int>(
       context: context,
-      builder: (context) => RedeemPointsDialog(
-        customer: customer,
-        orderTotal: cart.total,
-        orderId: 'TEMP-${DateTime.now().millisecondsSinceEpoch}', // Temporary ID
-      ),
+      builder:
+          (context) => RedeemPointsDialog(
+            customer: customer,
+            orderTotal: cart.total,
+            orderId:
+                'TEMP-${DateTime.now().millisecondsSinceEpoch}', // Temporary ID
+          ),
     );
 
     if (pointsRedeemed != null && pointsRedeemed > 0 && mounted) {
@@ -132,7 +232,9 @@ class _POSScreenState extends ConsumerState<POSScreen> {
       ref.read(cartProvider.notifier).setCustomer(customer);
 
       // Add loyalty discount to cart
-      ref.read(cartProvider.notifier).addDiscount(
+      ref
+          .read(cartProvider.notifier)
+          .addDiscount(
             CartDiscount(
               type: DiscountType.fixed,
               value: discountAmount,
@@ -161,105 +263,95 @@ class _POSScreenState extends ConsumerState<POSScreen> {
 
     return AppShell(
       child: Scaffold(
-      backgroundColor: AppTheme.scaffoldBackground,
+        backgroundColor: AppTheme.scaffoldBackground,
         // Add drawer for mobile
-        drawer: isMobile ? const Drawer(
-          child: AppSidebar(isInDrawer: true),
-        ) : null,
-        appBar: isMobile
-            ? AppBar(
-                toolbarHeight: 70,
-                title: Row(
-          children: [
-                    // Search bar
-                    Expanded(
-                      child: Container(
+        drawer:
+            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
+        appBar:
+            isMobile
+                ? AppBar(
+                  toolbarHeight: 70,
+                  title: Row(
+                    children: [
+                      // Search bar
+                      Expanded(
+                        child: Container(
+                          height: 45,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppTheme.neutral200),
+                          ),
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: _handleSearch,
+                            decoration: InputDecoration(
+                              hintText: 'Search products or scan barc...',
+                              hintStyle: TextStyle(
+                                color: AppTheme.neutral400,
+                                fontSize: 14,
+                              ),
+                              prefixIcon: Icon(
+                                Icons.search,
+                                color: AppTheme.neutral500,
+                                size: 22,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                            ),
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Barcode scanner button
+                      Container(
+                        width: 45,
                         height: 45,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: AppTheme.primaryOrange.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppTheme.neutral200),
-                        ),
-                        child: TextField(
-                          controller: _searchController,
-                          onChanged: _handleSearch,
-                          decoration: InputDecoration(
-                            hintText: 'Search products or scan barc...',
-                            hintStyle: TextStyle(
-                              color: AppTheme.neutral400,
-                              fontSize: 14,
-                            ),
-                            prefixIcon: Icon(
-                              Icons.search,
-                              color: AppTheme.neutral500,
-                              size: 22,
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
+                          border: Border.all(
+                            color: AppTheme.primaryOrange.withValues(
+                              alpha: 0.3,
                             ),
                           ),
-                          style: const TextStyle(fontSize: 14),
+                        ),
+                        child: IconButton(
+                          icon: Icon(
+                            Icons.qr_code_scanner,
+                            color: AppTheme.primaryOrange,
+                            size: 22,
+                          ),
+                          tooltip: 'Scan Barcode',
+                          padding: EdgeInsets.zero,
+                          onPressed: _openBarcodeScanner,
                         ),
                       ),
+                    ],
+                  ),
+                )
+                : AppBar(
+                  // Tablet/Desktop - keep simple
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.qr_code_scanner),
+                      tooltip: 'Scan Barcode',
+                      onPressed: _openBarcodeScanner,
                     ),
                     const SizedBox(width: 8),
-                    // Barcode scanner button
-                    Container(
-                      width: 45,
-                      height: 45,
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryOrange.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppTheme.primaryOrange.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: IconButton(
-                        icon: Icon(
-                          Icons.qr_code_scanner,
-                          color: AppTheme.primaryOrange,
-                          size: 22,
-                        ),
-                        tooltip: 'Scan Barcode',
-                        padding: EdgeInsets.zero,
-                        onPressed: () {
-                          // TODO: Implement barcode scanner
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Barcode scanner coming soon'),
-                              duration: Duration(seconds: 1),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
                   ],
                 ),
-              )
-            : AppBar(
-                // Tablet/Desktop - keep simple
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.qr_code_scanner),
-                    tooltip: 'Scan Barcode',
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Barcode scanner coming soon')),
-                      );
-                    },
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-        body: isMobile 
-            ? _buildMobileLayout(productsState, cart) 
-            : _buildTabletLayout(productsState, cart),
+        body:
+            isMobile
+                ? _buildMobileLayout(productsState, cart)
+                : _buildTabletLayout(productsState, cart),
         // Bottom bar for mobile only
-        bottomNavigationBar: isMobile
-            ? _buildBottomBar(cart, cartItemCount)
-            : null,
+        bottomNavigationBar:
+            isMobile ? _buildBottomBar(cart, cartItemCount) : null,
       ),
     );
   }
@@ -278,9 +370,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
         ),
 
         // Products Grid
-        Expanded(
-          child: _buildProductsGrid(productsState),
-        ),
+        Expanded(child: _buildProductsGrid(productsState)),
       ],
     );
   }
@@ -288,41 +378,38 @@ class _POSScreenState extends ConsumerState<POSScreen> {
   /// Tablet layout: Products + Cart side by side
   Widget _buildTabletLayout(dynamic productsState, Cart cart) {
     return Row(
-        children: [
-          // Left: Products Panel
-          Expanded(
-            flex: 2,
-            child: Column(
-              children: [
-                // Search Bar
-                POSSearchBar(
-                  controller: _searchController,
-                  onSearch: _handleSearch,
-                  onBarcodeScan: _handleBarcodeScan,
-                ),
-
-                // Category Bar
-                CategoryBar(
-                  categories: productsState.categories,
-                  selectedCategoryId: productsState.selectedCategoryId,
-                  onCategorySelected: (categoryId) {
-                    ref.read(productsProvider.notifier).selectCategory(categoryId);
-                  },
-                ),
-
-                // Products Grid
-                Expanded(
-                child: _buildProductsGrid(productsState),
+      children: [
+        // Left: Products Panel
+        Expanded(
+          flex: 2,
+          child: Column(
+            children: [
+              // Search Bar
+              POSSearchBar(
+                controller: _searchController,
+                onSearch: _handleSearch,
+                onBarcodeScan: (barcode) => _handleBarcodeScan(barcode),
               ),
+
+              // Category Bar
+              CategoryBar(
+                categories: productsState.categories,
+                selectedCategoryId: productsState.selectedCategoryId,
+                onCategorySelected: (categoryId) {
+                  ref
+                      .read(productsProvider.notifier)
+                      .selectCategory(categoryId);
+                },
+              ),
+
+              // Products Grid
+              Expanded(child: _buildProductsGrid(productsState)),
             ],
           ),
         ),
 
         // Divider
-        Container(
-          width: 1,
-          color: AppTheme.neutral200,
-        ),
+        Container(width: 1, color: AppTheme.neutral200),
 
         // Right: Cart Panel
         SizedBox(
@@ -330,7 +417,9 @@ class _POSScreenState extends ConsumerState<POSScreen> {
           child: CartPanel(
             cart: cart,
             onUpdateQuantity: (productId, quantity) {
-              ref.read(cartProvider.notifier).updateQuantity(productId, quantity);
+              ref
+                  .read(cartProvider.notifier)
+                  .updateQuantity(productId, quantity);
             },
             onRemoveItem: (productId) {
               ref.read(cartProvider.notifier).removeItem(productId);
@@ -367,23 +456,25 @@ class _POSScreenState extends ConsumerState<POSScreen> {
               // SAVE button (no icon, single line)
               Expanded(
                 child: OutlinedButton(
-                  onPressed: cart.items.isEmpty
-                      ? null
-                      : () {
-                          // TODO: Implement save/on hold functionality
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Save feature coming soon'),
-                              duration: Duration(seconds: 1),
-                            ),
-                          );
-                        },
+                  onPressed:
+                      cart.items.isEmpty
+                          ? null
+                          : () {
+                            // TODO: Implement save/on hold functionality
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Save feature coming soon'),
+                                duration: Duration(seconds: 1),
+                              ),
+                            );
+                          },
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     side: BorderSide(
-                      color: cart.items.isEmpty
-                          ? AppTheme.neutral300
-                          : AppTheme.neutral600,
+                      color:
+                          cart.items.isEmpty
+                              ? AppTheme.neutral300
+                              : AppTheme.neutral600,
                       width: 1.5,
                     ),
                   ),
@@ -392,9 +483,10 @@ class _POSScreenState extends ConsumerState<POSScreen> {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: cart.items.isEmpty
-                          ? AppTheme.neutral400
-                          : AppTheme.neutral800,
+                      color:
+                          cart.items.isEmpty
+                              ? AppTheme.neutral400
+                              : AppTheme.neutral800,
                     ),
                   ),
                 ),
@@ -404,9 +496,10 @@ class _POSScreenState extends ConsumerState<POSScreen> {
               Expanded(
                 flex: 2,
                 child: ElevatedButton(
-                  onPressed: cart.items.isEmpty 
-                      ? null 
-                      : () => _showMobileCart(context), // Show cart first
+                  onPressed:
+                      cart.items.isEmpty
+                          ? null
+                          : () => _showMobileCart(context), // Show cart first
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryOrange,
                     foregroundColor: Colors.white,
@@ -439,38 +532,34 @@ class _POSScreenState extends ConsumerState<POSScreen> {
 
     if (productsState.error != null) {
       return Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-            const Icon(
-                                    Icons.error_outline,
-                                    size: 48,
-                                    color: AppTheme.error,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(productsState.error!),
-                                  const SizedBox(height: 16),
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      ref.read(productsProvider.notifier).refresh();
-                                    },
-                                    child: const Text('Retry'),
-                                  ),
-                                ],
-                              ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: AppTheme.error),
+            const SizedBox(height: 16),
+            Text(productsState.error!),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                ref.read(productsProvider.notifier).refresh();
+              },
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
       );
     }
 
     return RefreshIndicator(
-                              onRefresh: () async {
-                                await ref.read(productsProvider.notifier).refresh();
-                              },
-                              child: ProductGrid(
-                                products: productsState.filteredProducts,
-                                onProductTap: (product) {
-                                  ref.read(cartProvider.notifier).addProduct(product);
-                                },
-                              ),
+      onRefresh: () async {
+        await ref.read(productsProvider.notifier).refresh();
+      },
+      child: ProductGrid(
+        products: productsState.filteredProducts,
+        onProductTap: (product) {
+          ref.read(cartProvider.notifier).addProduct(product);
+        },
+      ),
     );
   }
 
@@ -480,61 +569,66 @@ class _POSScreenState extends ConsumerState<POSScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.9,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) {
-          return Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            child: Column(
-              children: [
-                // Handle
-                Container(
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppTheme.neutral300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+      builder:
+          (context) => DraggableScrollableSheet(
+            initialChildSize: 0.9,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            expand: false,
+            builder: (context, scrollController) {
+              return Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
                 ),
-                
-                // Cart panel - Using Consumer to watch cart changes
-                Expanded(
-                  child: Consumer(
-                    builder: (context, ref, child) {
-                      final cart = ref.watch(cartProvider);
-                      
-                      return CartPanel(
-              cart: cart,
-              onUpdateQuantity: (productId, quantity) {
-                ref.read(cartProvider.notifier).updateQuantity(productId, quantity);
-              },
-              onRemoveItem: (productId) {
-                ref.read(cartProvider.notifier).removeItem(productId);
-              },
-              onClearCart: () {
-                ref.read(cartProvider.notifier).clear();
-              },
-                        onApplyLoyalty: _handleApplyLoyalty,
-                        onCheckout: () {
-                          Navigator.pop(context); // Close modal first
-                          _handleCheckout();
+                child: Column(
+                  children: [
+                    // Handle
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppTheme.neutral300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+
+                    // Cart panel - Using Consumer to watch cart changes
+                    Expanded(
+                      child: Consumer(
+                        builder: (context, ref, child) {
+                          final cart = ref.watch(cartProvider);
+
+                          return CartPanel(
+                            cart: cart,
+                            onUpdateQuantity: (productId, quantity) {
+                              ref
+                                  .read(cartProvider.notifier)
+                                  .updateQuantity(productId, quantity);
+                            },
+                            onRemoveItem: (productId) {
+                              ref
+                                  .read(cartProvider.notifier)
+                                  .removeItem(productId);
+                            },
+                            onClearCart: () {
+                              ref.read(cartProvider.notifier).clear();
+                            },
+                            onApplyLoyalty: _handleApplyLoyalty,
+                            onCheckout: () {
+                              Navigator.pop(context); // Close modal first
+                              _handleCheckout();
+                            },
+                          );
                         },
-                      );
-                    },
-            ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
-        ],
-      ),
-          );
-        },
-      ),
     );
   }
 }
@@ -543,15 +637,11 @@ class _POSScreenState extends ConsumerState<POSScreen> {
 class _PaymentBottomSheet extends ConsumerWidget {
   final Cart cart;
   final BuildContext parentContext; // ✅ Parent context from POSScreen
-  
-  const _PaymentBottomSheet({
-    required this.cart,
-    required this.parentContext,
-  });
+
+  const _PaymentBottomSheet({required this.cart, required this.parentContext});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-
     return Container(
       height: MediaQuery.of(context).size.height * 0.7,
       decoration: const BoxDecoration(
@@ -601,7 +691,7 @@ class _PaymentBottomSheet extends ConsumerWidget {
                 children: [
                   // Total
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: AppTheme.primaryOrangeBackground,
                       borderRadius: BorderRadius.circular(16),
@@ -615,9 +705,12 @@ class _PaymentBottomSheet extends ConsumerWidget {
                         const SizedBox(height: 8),
                         Text(
                           CurrencyFormatter.formatLAKWithSymbol(cart.total),
-                          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                          style: Theme.of(
+                            context,
+                          ).textTheme.headlineLarge?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: AppTheme.primaryOrange,
+                            fontSize: 24,
                           ),
                         ),
                       ],
@@ -639,12 +732,16 @@ class _PaymentBottomSheet extends ConsumerWidget {
                     onTap: () async {
                       // ✅ Get cart notifier BEFORE closing bottom sheet
                       final cartNotifier = ref.read(cartProvider.notifier);
-                      
+
                       // ✅ Close bottom sheet (using modal's context)
                       Navigator.pop(context);
-                      
+
                       // ✅ Handle payment using PARENT context (POSScreen context, still mounted!)
-                      await _handleCashPayment(parentContext, cartNotifier, cart);
+                      await _handleCashPayment(
+                        parentContext,
+                        cartNotifier,
+                        cart,
+                      );
                     },
                   ),
                   const SizedBox(height: 12),
@@ -657,7 +754,7 @@ class _PaymentBottomSheet extends ConsumerWidget {
                     onTap: () {
                       // ✅ Close bottom sheet (using modal's context)
                       Navigator.pop(context);
-                      
+
                       // ✅ Handle payment using PARENT context (POSScreen context, still mounted!)
                       _handlePhayPayPayment(parentContext, ref, cart);
                     },
@@ -748,16 +845,14 @@ Future<void> _handleCashPayment(
 ) async {
   // Navigate to full-screen cash payment page
   print('📱 Opening CashPaymentDialog...');
-  
+
   // ✅ Dialog handles payment internally (no disposal issues!)
   final result = await Navigator.push<Map<String, dynamic>>(
     context,
     MaterialPageRoute(
       fullscreenDialog: true,
-      builder: (context) => CashPaymentDialog(
-        totalAmount: cart.total,
-        cart: cart,
-      ),
+      builder:
+          (context) => CashPaymentDialog(totalAmount: cart.total, cart: cart),
     ),
   );
 
@@ -773,7 +868,7 @@ Future<void> _handleCashPayment(
   }
 
   print('✅ Payment result is success, proceeding...');
-  
+
   // ✅ Success! Dialog is already closed, show success on main screen
   if (!context.mounted) {
     print('⚠️  Context not mounted, aborting success dialog');
@@ -800,38 +895,46 @@ Future<void> _handleCashPayment(
   }
 
   print('🎉 Showing success dialog for 2 seconds...');
-  
+
   try {
     // Show success dialog
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        icon: const Icon(
-          Icons.check_circle,
-          color: AppTheme.success,
-          size: 64,
-        ),
-        title: const Text('Payment Successful!'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Total: ${CurrencyFormatter.formatLAKWithSymbol(cart.total)}',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      builder:
+          (context) => AlertDialog(
+            icon: const Icon(
+              Icons.check_circle,
+              color: AppTheme.success,
+              size: 64,
             ),
-            const SizedBox(height: 4),
-            Text('Tendered: ${CurrencyFormatter.formatLAKWithSymbol(tendered)}'),
-            Text('Change: ${CurrencyFormatter.formatLAKWithSymbol(change)}'),
-            const SizedBox(height: 12),
-            const Text(
-              '✓ Order created successfully',
-              style: TextStyle(color: AppTheme.success),
+            title: const Text('Payment Successful!'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Total: ${CurrencyFormatter.formatLAKWithSymbol(cart.total)}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Tendered: ${CurrencyFormatter.formatLAKWithSymbol(tendered)}',
+                ),
+                Text(
+                  'Change: ${CurrencyFormatter.formatLAKWithSymbol(change)}',
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  '✓ Order created successfully',
+                  style: TextStyle(color: AppTheme.success),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
     );
     print('✅ Success dialog shown');
 
@@ -839,7 +942,7 @@ Future<void> _handleCashPayment(
     print('⏱️  Waiting 2 seconds...');
     await Future.delayed(const Duration(seconds: 2));
     print('⏱️  2 seconds elapsed');
-    
+
     if (context.mounted) {
       Navigator.pop(context); // Close success dialog
       print('✅ Success dialog auto-closed');
@@ -864,12 +967,13 @@ Future<void> _handlePhayPayPayment(
     context,
     MaterialPageRoute(
       fullscreenDialog: true,
-      builder: (context) => PhayPayBankSelectionDialog(
-        amount: cart.total,
-        onBankSelected: (bank) {
-          Navigator.pop(context, bank);
-        },
-      ),
+      builder:
+          (context) => PhayPayBankSelectionDialog(
+            amount: cart.total,
+            onBankSelected: (bank) {
+              Navigator.pop(context, bank);
+            },
+          ),
     ),
   );
 
@@ -877,18 +981,20 @@ Future<void> _handlePhayPayPayment(
     print('❌ PhayPay payment cancelled - no bank selected');
     return;
   }
-  
+
   if (!context.mounted) {
     print('⚠️ Context not mounted after bank selection, aborting...');
     return;
   }
 
   // Create payment
-  final success = await ref.read(paymentProvider.notifier).processPhayPayPayment(
-    amount: cart.total,
-    bankMethod: bankMethod,
-    cart: cart,
-  );
+  final success = await ref
+      .read(paymentProvider.notifier)
+      .processPhayPayPayment(
+        amount: cart.total,
+        bankMethod: bankMethod,
+        cart: cart,
+      );
 
   if (!success) {
     if (context.mounted) {
@@ -916,4 +1022,3 @@ Future<void> _handlePhayPayPayment(
     ),
   );
 }
-

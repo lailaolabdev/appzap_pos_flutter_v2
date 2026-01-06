@@ -11,7 +11,8 @@ class ApiConstants {
 
   // Base URLs by environment
   static const Map<Environment, String> _baseUrls = {
-    Environment.development: 'http://localhost/api/v1',
+    Environment.development: 'http://192.168.1.209/api/v1',
+    // Environment.development: 'http://192.168.43.215/api/v1',
     Environment.staging: 'https://api-v2.appzap.la:9090/api/v1',
     Environment.production: 'https://api-v2.appzap.la/api/v1',
   };
@@ -72,19 +73,23 @@ class ApiConstants {
   // ============ INVENTORY ENDPOINTS ============
   static const String inventoryItems = '/inventory/items';
   static const String stockAdjust = '/inventory/stock/adjust';
+  static const String stockTransfer = '/inventory/stock/transfer';
+  static const String inventoryTransactions = '/inventory/transactions';
   static const String inventoryAlerts = '/inventory/alerts';
-  static const String purchaseOrders = '/inventory/purchase-orders';
   static const String inventoryValuation = '/inventory/valuation';
+  static const String inventoryHealth = '/inventory/health';
+  static const String purchaseOrders = '/inventory/purchase-orders';
 
   // ============ CUSTOMER ENDPOINTS ============
   static const String customers = '/crm/customers';
   static const String customerAvailablePoints =
       '/crm/customers/{customerId}/loyalty/available-points'; // Fixed path
   static const String redeemPoints =
-      '/crm/loyalty-programs/{programId}/redeem-points'; // Fixed path
+      '/crm/customers/{customerId}/loyalty/redeem-points'; // Fixed path
 
   // ============ TRANSACTION ENDPOINTS ============
-  static const String transactions = '/transactions/';
+  static const String transactions = '/transactions';
+  static const String transactionById = '/transactions/{transactionId}';
   static const String transactionSummary = '/transactions/summary';
   static const String transactionReceipt =
       '/transactions/{transactionId}/receipt';

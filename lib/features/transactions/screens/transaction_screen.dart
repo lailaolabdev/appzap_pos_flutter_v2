@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../app/app_shell.dart';
@@ -46,9 +47,10 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      initialDateRange: _startDate != null && _endDate != null
-          ? DateTimeRange(start: _startDate!, end: _endDate!)
-          : null,
+      initialDateRange:
+          _startDate != null && _endDate != null
+              ? DateTimeRange(start: _startDate!, end: _endDate!)
+              : null,
     );
 
     if (picked != null) {
@@ -63,9 +65,10 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
   void _showFilters() async {
     final result = await showDialog<TransactionFilters>(
       context: context,
-      builder: (context) => TransactionFilterDialog(
-        currentFilters: ref.read(transactionProvider).filters,
-      ),
+      builder:
+          (context) => TransactionFilterDialog(
+            currentFilters: ref.read(transactionProvider).filters,
+          ),
     );
 
     if (result != null) {
@@ -81,9 +84,11 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
-        drawer: isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
+        drawer:
+            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
           title: const Text('Transactions'),
+          surfaceTintColor: AppTheme.scaffoldBackground,
           actions: [
             // Date range button
             IconButton(
@@ -106,62 +111,66 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
             const SizedBox(width: 8),
           ],
         ),
-        body: transactionState.isLoading && transactionState.transactions.isEmpty
-            ? const Center(child: CircularProgressIndicator())
-            : transactionState.error != null
+        body:
+            transactionState.isLoading && transactionState.transactions.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : transactionState.error != null
                 ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error, size: 48, color: AppTheme.error),
+                      const SizedBox(height: 16),
+                      Text(transactionState.error!),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed:
+                            () =>
+                                ref
+                                    .read(transactionProvider.notifier)
+                                    .refresh(),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+                : RefreshIndicator(
+                  onRefresh:
+                      () => ref.read(transactionProvider.notifier).refresh(),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.error, size: 48, color: AppTheme.error),
+                        // Date range display
+                        _buildDateRangeDisplay(),
                         const SizedBox(height: 16),
-                        Text(transactionState.error!),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () =>
-                              ref.read(transactionProvider.notifier).refresh(),
-                          child: const Text('Retry'),
-                        ),
+
+                        // Active filters chips
+                        if (transactionState.filters.hasActiveFilters)
+                          _buildActiveFilters(transactionState.filters),
+
+                        // Summary cards
+                        if (transactionState.summary != null) ...[
+                          const SizedBox(height: 16),
+                          TransactionSummaryCards(
+                            summary: transactionState.summary!,
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+
+                        // Transactions list
+                        _buildTransactionsList(transactionState, isMobile),
+
+                        // Pagination
+                        if (transactionState.pagination != null) ...[
+                          const SizedBox(height: 16),
+                          _buildPagination(transactionState.pagination!),
+                        ],
                       ],
                     ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: () =>
-                        ref.read(transactionProvider.notifier).refresh(),
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Date range display
-                          _buildDateRangeDisplay(),
-                          const SizedBox(height: 16),
-
-                          // Active filters chips
-                          if (transactionState.filters.hasActiveFilters)
-                            _buildActiveFilters(transactionState.filters),
-
-                          // Summary cards
-                          if (transactionState.summary != null) ...[
-                            const SizedBox(height: 16),
-                            TransactionSummaryCards(
-                              summary: transactionState.summary!,
-                            ),
-                            const SizedBox(height: 24),
-                          ],
-
-                          // Transactions list
-                          _buildTransactionsList(transactionState, isMobile),
-
-                          // Pagination
-                          if (transactionState.pagination != null) ...[
-                            const SizedBox(height: 16),
-                            _buildPagination(transactionState.pagination!),
-                          ],
-                        ],
-                      ),
-                    ),
                   ),
+                ),
       ),
     );
   }
@@ -195,7 +204,11 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.edit, size: 20, color: AppTheme.primaryOrange),
+            icon: const Icon(
+              Icons.edit,
+              size: 20,
+              color: AppTheme.primaryOrange,
+            ),
             onPressed: _pickDateRange,
             tooltip: 'Change date range',
           ),
@@ -208,17 +221,21 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     final chips = <Widget>[];
 
     if (filters.status != null) {
-      chips.add(_buildFilterChip(
-        'Status: ${_getStatusLabel(filters.status!)}',
-        () => ref.read(transactionProvider.notifier).setStatusFilter(null),
-      ));
+      chips.add(
+        _buildFilterChip(
+          'Status: ${_getStatusLabel(filters.status!)}',
+          () => ref.read(transactionProvider.notifier).setStatusFilter(null),
+        ),
+      );
     }
 
     if (filters.method != null) {
-      chips.add(_buildFilterChip(
-        'Method: ${_getMethodLabel(filters.method!)}',
-        () => ref.read(transactionProvider.notifier).setMethodFilter(null),
-      ));
+      chips.add(
+        _buildFilterChip(
+          'Method: ${_getMethodLabel(filters.method!)}',
+          () => ref.read(transactionProvider.notifier).setMethodFilter(null),
+        ),
+      );
     }
 
     if (chips.isEmpty) return const SizedBox.shrink();
@@ -237,8 +254,8 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
             ...chips,
             const Spacer(),
             TextButton.icon(
-              onPressed: () =>
-                  ref.read(transactionProvider.notifier).clearFilters(),
+              onPressed:
+                  () => ref.read(transactionProvider.notifier).clearFilters(),
               icon: const Icon(Icons.clear, size: 16),
               label: const Text('Clear All'),
             ),
@@ -302,36 +319,32 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         onTap: () {
-          Navigator.pushNamed(
-            context,
-            '/transactions/${transaction.transactionId}',
-          );
+          context.push('/transactions/${transaction.transactionId}');
         },
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(
+          child: Column(
             children: [
-              // Payment method icon
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: _getPaymentMethodColor(transaction).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  _getPaymentMethodIcon(transaction),
-                  color: _getPaymentMethodColor(transaction),
-                ),
-              ),
-              const SizedBox(width: 16),
-
-              // Transaction info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: _getPaymentMethodColor(
+                        transaction,
+                      ).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      _getPaymentMethodIcon(transaction),
+                      color: _getPaymentMethodColor(transaction),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           transaction.transactionId,
@@ -340,62 +353,77 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                             fontSize: 16,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        _buildStatusBadge(transaction.transactionStatus),
+                        const SizedBox(height: 4),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                  ),
+                  _buildStatusBadge(transaction.transactionStatus),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          DateFormat('MMM d, yyyy • h:mm a').format(
+                            transaction.timing.initiatedAt ??
+                                transaction.createdAt,
+                          ),
+                          style: const TextStyle(
+                            color: AppTheme.neutral600,
+                            fontSize: 13,
+                          ),
+                        ),
+                        if (transaction.staff?.processedBy != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'By ${transaction.staff!.processedBy!.name}',
+                            style: const TextStyle(
+                              color: AppTheme.neutral500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (transaction.paymentSummary != null &&
+                      transaction
+                          .paymentSummary!
+                          .paymentMethodBreakdown
+                          .isNotEmpty)
                     Text(
-                      DateFormat('MMM d, yyyy • h:mm a')
-                          .format(transaction.timing.initiatedAt ?? transaction.createdAt),
+                      _getMethodLabel(
+                        transaction
+                            .paymentSummary!
+                            .paymentMethodBreakdown
+                            .first
+                            .method,
+                      ),
                       style: const TextStyle(
-                        color: AppTheme.neutral600,
                         fontSize: 12,
+                        color: AppTheme.neutral600,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    if (transaction.staff?.processedBy != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        'By ${transaction.staff!.processedBy!.name}',
-                        style: const TextStyle(
-                          color: AppTheme.neutral500,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-
-              // Amount
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
+                  const SizedBox(width: 12),
                   Text(
                     CurrencyFormatter.formatLAKWithSymbol(
                       transaction.consolidatedTotals.grandTotal.amount,
                     ),
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: transaction.isVoided
-                          ? AppTheme.error
-                          : AppTheme.neutral900,
+                      fontSize: 20,
+                      color:
+                          transaction.isVoided
+                              ? AppTheme.error
+                              : AppTheme.neutral900,
                     ),
                   ),
-                  if (transaction.paymentSummary != null &&
-                      transaction.paymentSummary!.paymentMethodBreakdown.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      _getMethodLabel(
-                        transaction.paymentSummary!.paymentMethodBreakdown.first.method,
-                      ),
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.neutral600,
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ],
@@ -455,17 +483,21 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         IconButton(
-          onPressed: pagination.hasPrev
-              ? () {
-                  final currentPage = ref.read(transactionProvider).filters.page;
-                  ref.read(transactionProvider.notifier).applyFilters(
-                        ref
-                            .read(transactionProvider)
-                            .filters
-                            .copyWith(page: currentPage - 1),
-                      );
-                }
-              : null,
+          onPressed:
+              pagination.hasPrev
+                  ? () {
+                    final currentPage =
+                        ref.read(transactionProvider).filters.page;
+                    ref
+                        .read(transactionProvider.notifier)
+                        .applyFilters(
+                          ref
+                              .read(transactionProvider)
+                              .filters
+                              .copyWith(page: currentPage - 1),
+                        );
+                  }
+                  : null,
           icon: const Icon(Icons.chevron_left),
         ),
         const SizedBox(width: 8),
@@ -475,17 +507,21 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
         ),
         const SizedBox(width: 8),
         IconButton(
-          onPressed: pagination.hasNext
-              ? () {
-                  final currentPage = ref.read(transactionProvider).filters.page;
-                  ref.read(transactionProvider.notifier).applyFilters(
-                        ref
-                            .read(transactionProvider)
-                            .filters
-                            .copyWith(page: currentPage + 1),
-                      );
-                }
-              : null,
+          onPressed:
+              pagination.hasNext
+                  ? () {
+                    final currentPage =
+                        ref.read(transactionProvider).filters.page;
+                    ref
+                        .read(transactionProvider.notifier)
+                        .applyFilters(
+                          ref
+                              .read(transactionProvider)
+                              .filters
+                              .copyWith(page: currentPage + 1),
+                        );
+                  }
+                  : null,
           icon: const Icon(Icons.chevron_right),
         ),
       ],
@@ -498,11 +534,13 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
       return Icons.payments;
     }
 
-    final method = transaction.paymentSummary!.paymentMethodBreakdown.first.method;
-    
+    final method =
+        transaction.paymentSummary!.paymentMethodBreakdown.first.method;
+
     if (method == 'cash') return Icons.payments;
     if (method.contains('card')) return Icons.credit_card;
-    if (method.contains('qr') || method.contains('bank')) return Icons.qr_code_2;
+    if (method.contains('qr') || method.contains('bank'))
+      return Icons.qr_code_2;
     return Icons.payment;
   }
 
@@ -512,11 +550,13 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
       return AppTheme.neutral600;
     }
 
-    final method = transaction.paymentSummary!.paymentMethodBreakdown.first.method;
-    
+    final method =
+        transaction.paymentSummary!.paymentMethodBreakdown.first.method;
+
     if (method == 'cash') return AppTheme.success;
     if (method.contains('card')) return Colors.blue;
-    if (method.contains('qr') || method.contains('bank')) return AppTheme.primaryOrange;
+    if (method.contains('qr') || method.contains('bank'))
+      return AppTheme.primaryOrange;
     return AppTheme.neutral600;
   }
 
@@ -554,4 +594,3 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     }
   }
 }
-

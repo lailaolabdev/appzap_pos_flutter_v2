@@ -54,52 +54,70 @@ class Transaction extends Equatable {
       consolidatedTotals: ConsolidatedTotals.fromJson(
         json['consolidatedTotals'] as Map<String, dynamic>? ?? {},
       ),
-      payments: (json['payments'] as List<dynamic>?)
+      payments:
+          (json['payments'] as List<dynamic>?)
               ?.map((e) => Payment.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
-      lineItems: (json['lineItems'] as List<dynamic>?)
-              ?.map((e) => TransactionLineItem.fromJson(e as Map<String, dynamic>))
+      lineItems:
+          (json['lineItems'] as List<dynamic>?)
+              ?.map(
+                (e) => TransactionLineItem.fromJson(e as Map<String, dynamic>),
+              )
               .toList() ??
           [],
-      paymentSummary: json['paymentSummary'] != null
-          ? PaymentSummary.fromJson(json['paymentSummary'] as Map<String, dynamic>)
-          : null,
-      staff: json['staff'] != null
-          ? TransactionStaff.fromJson(json['staff'] as Map<String, dynamic>)
-          : null,
-      customer: json['customer'] != null
-          ? TransactionCustomer.fromJson(json['customer'] as Map<String, dynamic>)
-          : null,
-      tableInfo: json['tableInfo'] != null
-          ? TransactionTableInfo.fromJson(json['tableInfo'] as Map<String, dynamic>)
-          : null,
+      paymentSummary:
+          json['paymentSummary'] != null
+              ? PaymentSummary.fromJson(
+                json['paymentSummary'] as Map<String, dynamic>,
+              )
+              : null,
+      staff:
+          json['staff'] != null
+              ? TransactionStaff.fromJson(json['staff'] as Map<String, dynamic>)
+              : null,
+      customer:
+          json['customer'] != null
+              ? TransactionCustomer.fromJson(
+                json['customer'] as Map<String, dynamic>,
+              )
+              : null,
+      tableInfo:
+          json['tableInfo'] != null
+              ? TransactionTableInfo.fromJson(
+                json['tableInfo'] as Map<String, dynamic>,
+              )
+              : null,
       timing: TransactionTiming.fromJson(
         json['timing'] as Map<String, dynamic>? ?? {},
       ),
       countInTotals: json['countInTotals'] as bool? ?? true,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : DateTime.now(),
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.parse(json['createdAt'] as String)
+              : DateTime.now(),
+      updatedAt:
+          json['updatedAt'] != null
+              ? DateTime.parse(json['updatedAt'] as String)
+              : DateTime.now(),
     );
   }
 
   bool get isCompleted => transactionStatus == 'completed';
   bool get isPending => transactionStatus == 'pending';
   bool get isVoided => transactionStatus == 'voided';
-  bool get isRefunded => transactionStatus == 'refunded' || transactionStatus == 'partially_refunded';
+  bool get isRefunded =>
+      transactionStatus == 'refunded' ||
+      transactionStatus == 'partially_refunded';
 
   @override
   List<Object?> get props => [
-        id,
-        transactionId,
-        transactionStatus,
-        consolidatedTotals,
-        timing,
-      ];
+    id,
+    transactionId,
+    transactionStatus,
+    consolidatedTotals,
+    timing,
+  ];
 }
 
 /// Consolidated Totals
@@ -123,9 +141,7 @@ class ConsolidatedTotals extends Equatable {
       subtotal: MoneyAmount.fromJson(
         json['subtotal'] as Map<String, dynamic>? ?? {},
       ),
-      tax: MoneyAmount.fromJson(
-        json['tax'] as Map<String, dynamic>? ?? {},
-      ),
+      tax: MoneyAmount.fromJson(json['tax'] as Map<String, dynamic>? ?? {}),
       discounts: MoneyAmount.fromJson(
         json['discounts'] as Map<String, dynamic>? ?? {},
       ),
@@ -139,7 +155,13 @@ class ConsolidatedTotals extends Equatable {
   }
 
   @override
-  List<Object?> get props => [subtotal, tax, discounts, serviceCharge, grandTotal];
+  List<Object?> get props => [
+    subtotal,
+    tax,
+    discounts,
+    serviceCharge,
+    grandTotal,
+  ];
 }
 
 /// Money Amount
@@ -147,16 +169,35 @@ class MoneyAmount extends Equatable {
   final double amount;
   final String currency;
 
-  const MoneyAmount({
-    required this.amount,
-    required this.currency,
-  });
+  const MoneyAmount({required this.amount, required this.currency});
 
   factory MoneyAmount.fromJson(Map<String, dynamic> json) {
     return MoneyAmount(
-      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+      amount: _extractAmountValue(json['amount']),
       currency: json['currency'] as String? ?? 'LAK',
     );
+  }
+
+  /// Helper method to extract amount value from API response
+  /// Handles both direct numbers and {amount: number, currency: string} objects
+  static double _extractAmountValue(dynamic value) {
+    if (value == null) return 0.0;
+
+    // If it's already a number, return it
+    if (value is num) return value.toDouble();
+
+    // If it's a Map with 'amount' field, extract the amount
+    if (value is Map<String, dynamic> && value.containsKey('amount')) {
+      final amount = value['amount'];
+      if (amount is num) return amount.toDouble();
+    }
+
+    // Fallback: try to parse as string or return 0
+    if (value is String) {
+      return double.tryParse(value) ?? 0.0;
+    }
+
+    return 0.0;
   }
 
   @override
@@ -185,12 +226,16 @@ class Payment extends Equatable {
       grossAmount: MoneyAmount.fromJson(
         json['grossAmount'] as Map<String, dynamic>? ?? {},
       ),
-      changeAmount: json['changeAmount'] != null
-          ? MoneyAmount.fromJson(json['changeAmount'] as Map<String, dynamic>)
-          : null,
-      processedAt: json['processedAt'] != null
-          ? DateTime.parse(json['processedAt'] as String)
-          : null,
+      changeAmount:
+          json['changeAmount'] != null
+              ? MoneyAmount.fromJson(
+                json['changeAmount'] as Map<String, dynamic>,
+              )
+              : null,
+      processedAt:
+          json['processedAt'] != null
+              ? DateTime.parse(json['processedAt'] as String)
+              : null,
       processedBy: json['processedBy'] as String?,
     );
   }
@@ -227,10 +272,10 @@ class TransactionLineItem extends Equatable {
       menuItemId: json['menuItemId'] as String?,
       name: json['name'] as String? ?? '',
       quantity: json['quantity'] as int? ?? 0,
-      unitPrice: (json['unitPrice'] as num?)?.toDouble() ?? 0.0,
-      subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
-      tax: (json['tax'] as num?)?.toDouble() ?? 0.0,
-      total: (json['total'] as num?)?.toDouble() ?? 0.0,
+      unitPrice: MoneyAmount._extractAmountValue(json['unitPrice']),
+      subtotal: MoneyAmount._extractAmountValue(json['subtotal']),
+      tax: MoneyAmount._extractAmountValue(json['tax']),
+      total: MoneyAmount._extractAmountValue(json['total']),
     );
   }
 
@@ -250,10 +295,13 @@ class PaymentSummary extends Equatable {
 
   factory PaymentSummary.fromJson(Map<String, dynamic> json) {
     return PaymentSummary(
-      totalPaid: (json['totalPaid'] as num?)?.toDouble() ?? 0.0,
-      paymentMethodBreakdown: (json['paymentMethodBreakdown'] as List<dynamic>?)
-              ?.map((e) =>
-                  PaymentMethodBreakdown.fromJson(e as Map<String, dynamic>))
+      totalPaid: MoneyAmount._extractAmountValue(json['totalPaid']),
+      paymentMethodBreakdown:
+          (json['paymentMethodBreakdown'] as List<dynamic>?)
+              ?.map(
+                (e) =>
+                    PaymentMethodBreakdown.fromJson(e as Map<String, dynamic>),
+              )
               .toList() ??
           [],
     );
@@ -278,7 +326,7 @@ class PaymentMethodBreakdown extends Equatable {
   factory PaymentMethodBreakdown.fromJson(Map<String, dynamic> json) {
     return PaymentMethodBreakdown(
       method: json['method'] as String? ?? '',
-      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+      amount: MoneyAmount._extractAmountValue(json['amount']),
       currency: json['currency'] as String? ?? 'LAK',
     );
   }
@@ -291,15 +339,16 @@ class PaymentMethodBreakdown extends Equatable {
 class TransactionStaff extends Equatable {
   final StaffMember? processedBy;
 
-  const TransactionStaff({
-    this.processedBy,
-  });
+  const TransactionStaff({this.processedBy});
 
   factory TransactionStaff.fromJson(Map<String, dynamic> json) {
     return TransactionStaff(
-      processedBy: json['processedBy'] != null
-          ? StaffMember.fromJson(json['processedBy'] as Map<String, dynamic>)
-          : null,
+      processedBy:
+          json['processedBy'] != null
+              ? StaffMember.fromJson(
+                json['processedBy'] as Map<String, dynamic>,
+              )
+              : null,
     );
   }
 
@@ -313,11 +362,7 @@ class StaffMember extends Equatable {
   final String name;
   final String? role;
 
-  const StaffMember({
-    required this.id,
-    required this.name,
-    this.role,
-  });
+  const StaffMember({required this.id, required this.name, this.role});
 
   factory StaffMember.fromJson(Map<String, dynamic> json) {
     return StaffMember(
@@ -337,11 +382,7 @@ class TransactionCustomer extends Equatable {
   final String? name;
   final String? phone;
 
-  const TransactionCustomer({
-    this.customerId,
-    this.name,
-    this.phone,
-  });
+  const TransactionCustomer({this.customerId, this.name, this.phone});
 
   factory TransactionCustomer.fromJson(Map<String, dynamic> json) {
     return TransactionCustomer(
@@ -384,19 +425,18 @@ class TransactionTiming extends Equatable {
   final DateTime? initiatedAt;
   final DateTime? completedAt;
 
-  const TransactionTiming({
-    this.initiatedAt,
-    this.completedAt,
-  });
+  const TransactionTiming({this.initiatedAt, this.completedAt});
 
   factory TransactionTiming.fromJson(Map<String, dynamic> json) {
     return TransactionTiming(
-      initiatedAt: json['initiatedAt'] != null
-          ? DateTime.parse(json['initiatedAt'] as String)
-          : null,
-      completedAt: json['completedAt'] != null
-          ? DateTime.parse(json['completedAt'] as String)
-          : null,
+      initiatedAt:
+          json['initiatedAt'] != null
+              ? DateTime.parse(json['initiatedAt'] as String)
+              : null,
+      completedAt:
+          json['completedAt'] != null
+              ? DateTime.parse(json['completedAt'] as String)
+              : null,
     );
   }
 
@@ -427,11 +467,14 @@ class TransactionSummary extends Equatable {
       totalTxnCount: json['totalTxnCount'] as int? ?? 0,
       salesCount: json['salesCount'] as int? ?? 0,
       voidCount: json['voidCount'] as int? ?? 0,
-      salesAmount: (json['salesAmount'] as num?)?.toDouble() ?? 0.0,
-      voidAmount: (json['voidAmount'] as num?)?.toDouble() ?? 0.0,
-      paymentMethodBreakdown: (json['paymentMethodBreakdown'] as List<dynamic>?)
-              ?.map((e) =>
-                  PaymentMethodBreakdown.fromJson(e as Map<String, dynamic>))
+      salesAmount: MoneyAmount._extractAmountValue(json['salesAmount']),
+      voidAmount: MoneyAmount._extractAmountValue(json['voidAmount']),
+      paymentMethodBreakdown:
+          (json['paymentMethodBreakdown'] as List<dynamic>?)
+              ?.map(
+                (e) =>
+                    PaymentMethodBreakdown.fromJson(e as Map<String, dynamic>),
+              )
               .toList() ??
           [],
     );
@@ -439,12 +482,12 @@ class TransactionSummary extends Equatable {
 
   @override
   List<Object?> get props => [
-        totalTxnCount,
-        salesCount,
-        voidCount,
-        salesAmount,
-        voidAmount,
-      ];
+    totalTxnCount,
+    salesCount,
+    voidCount,
+    salesAmount,
+    voidAmount,
+  ];
 }
 
 /// Pagination
@@ -506,15 +549,17 @@ class RefundResult extends Equatable {
     return RefundResult(
       transactionId: json['transactionId'] as String? ?? '',
       refundTransactionId: json['refundTransactionId'] as String? ?? '',
-      refundAmount: (json['refundAmount'] as num?)?.toDouble() ?? 0.0,
+      refundAmount: MoneyAmount._extractAmountValue(json['refundAmount']),
       refundMethod: json['refundMethod'] as String? ?? '',
       status: json['status'] as String? ?? '',
-      refundedAt: json['refundedAt'] != null
-          ? DateTime.parse(json['refundedAt'] as String)
-          : DateTime.now(),
-      refundedBy: json['refundedBy'] != null
-          ? StaffMember.fromJson(json['refundedBy'] as Map<String, dynamic>)
-          : null,
+      refundedAt:
+          json['refundedAt'] != null
+              ? DateTime.parse(json['refundedAt'] as String)
+              : DateTime.now(),
+      refundedBy:
+          json['refundedBy'] != null
+              ? StaffMember.fromJson(json['refundedBy'] as Map<String, dynamic>)
+              : null,
       reason: json['reason'] as String? ?? '',
     );
   }
@@ -543,12 +588,14 @@ class VoidResult extends Equatable {
     return VoidResult(
       transactionId: json['transactionId'] as String? ?? '',
       status: json['status'] as String? ?? '',
-      voidedAt: json['voidedAt'] != null
-          ? DateTime.parse(json['voidedAt'] as String)
-          : DateTime.now(),
-      voidedBy: json['voidedBy'] != null
-          ? StaffMember.fromJson(json['voidedBy'] as Map<String, dynamic>)
-          : null,
+      voidedAt:
+          json['voidedAt'] != null
+              ? DateTime.parse(json['voidedAt'] as String)
+              : DateTime.now(),
+      voidedBy:
+          json['voidedBy'] != null
+              ? StaffMember.fromJson(json['voidedBy'] as Map<String, dynamic>)
+              : null,
       reason: json['reason'] as String? ?? '',
     );
   }
@@ -556,4 +603,3 @@ class VoidResult extends Equatable {
   @override
   List<Object?> get props => [transactionId, status];
 }
-

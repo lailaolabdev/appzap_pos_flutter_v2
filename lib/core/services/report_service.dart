@@ -30,9 +30,7 @@ class ReportService {
       },
     );
 
-    return DailySalesSummary.fromJson(
-      response['data'] as Map<String, dynamic>,
-    );
+    return DailySalesSummary.fromJson(response['data'] as Map<String, dynamic>);
   }
 
   /// Get daily summary for specific date
@@ -49,9 +47,7 @@ class ReportService {
   }
 
   /// Get daily summary for today
-  Future<DailySalesSummary> getTodaySummary({
-    required String branchId,
-  }) async {
+  Future<DailySalesSummary> getTodaySummary({required String branchId}) async {
     return await getDailySummaryForDate(
       branchId: branchId,
       date: DateTime.now(),
@@ -80,10 +76,7 @@ class ReportService {
   }) async {
     final response = await _apiClient.get(
       ApiConstants.endOfDay,
-      queryParameters: {
-        'branchId': branchId,
-        'date': date,
-      },
+      queryParameters: {'branchId': branchId, 'date': date},
     );
 
     return EndOfDayReport.fromJson(response['data'] as Map<String, dynamic>);
@@ -95,10 +88,7 @@ class ReportService {
     required DateTime date,
   }) async {
     final dateStr = date.toIso8601String().split('T')[0];
-    return await getEndOfDayReport(
-      branchId: branchId,
-      date: dateStr,
-    );
+    return await getEndOfDayReport(branchId: branchId, date: dateStr);
   }
 
   /// Get today's end of day report
@@ -133,9 +123,36 @@ class ReportService {
     );
 
     final data = response['data'] as List<dynamic>? ?? [];
-    return data
-        .map((json) => SalesByProductItem.fromJson(json as Map<String, dynamic>))
-        .toList();
+    final List<SalesByProductItem> products = [];
+
+    // Flatten the nested category/item structure
+    for (final category in data) {
+      final categoryData = category as Map<String, dynamic>;
+      final items = categoryData['items'] as List<dynamic>? ?? [];
+
+      for (final item in items) {
+        final itemData = item as Map<String, dynamic>;
+        final quantitySold = itemData['totalQuantity'] as int? ?? 0;
+        final totalRevenue =
+            (itemData['totalNetSales'] as num?)?.toDouble() ?? 0;
+        final averagePrice =
+            quantitySold > 0 ? totalRevenue / quantitySold : 0.0;
+
+        products.add(
+          SalesByProductItem(
+            productId: itemData['menuItemId'] as String? ?? '',
+            productName: itemData['itemName'] as String? ?? '',
+            category: categoryData['categoryName'] as String?,
+            quantitySold: quantitySold,
+            totalRevenue: totalRevenue,
+            averagePrice: averagePrice,
+            orderCount: 0, // Not available in backend response
+          ),
+        );
+      }
+    }
+
+    return products;
   }
 
   /// Get sales by product for date range
@@ -174,10 +191,45 @@ class ReportService {
       },
     );
 
-    final data = response['data'] as List<dynamic>? ?? [];
-    return data
-        .map((json) => SalesByStaffItem.fromJson(json as Map<String, dynamic>))
-        .toList();
+    // Handle both array and object response structures
+    final data = response['data'];
+    final List<SalesByStaffItem> staffMembers = [];
+
+    if (data is List) {
+      // If it's already a list, use it directly
+      return data
+          .map(
+            (json) => SalesByStaffItem.fromJson(json as Map<String, dynamic>),
+          )
+          .toList();
+    } else if (data is Map<String, dynamic>) {
+      // If it's an object, check for common patterns like nested structure
+      if (data.containsKey('employees') && data['employees'] is List) {
+        final employees = data['employees'] as List<dynamic>;
+        return employees
+            .map(
+              (json) => SalesByStaffItem.fromJson(json as Map<String, dynamic>),
+            )
+            .toList();
+      } else if (data.containsKey('items') && data['items'] is List) {
+        final items = data['items'] as List<dynamic>;
+        return items
+            .map(
+              (json) => SalesByStaffItem.fromJson(json as Map<String, dynamic>),
+            )
+            .toList();
+      } else {
+        // Try to convert the single object to a staff member
+        try {
+          final staffMember = SalesByStaffItem.fromJson(data);
+          return [staffMember];
+        } catch (e) {
+          print('Failed to parse staff data as single object: $e');
+        }
+      }
+    }
+
+    return staffMembers;
   }
 
   /// Get sales by staff for date range
@@ -256,10 +308,7 @@ class ReportService {
   }) async {
     final response = await _apiClient.get(
       '/reports/hourly-sales',
-      queryParameters: {
-        'branchId': branchId,
-        'date': date,
-      },
+      queryParameters: {'branchId': branchId, 'date': date},
     );
 
     return response['data'] as List<dynamic>? ?? [];
@@ -312,13 +361,9 @@ class ReportService {
   }) async {
     final response = await _apiClient.get(
       '/reports/summary-stats',
-      queryParameters: {
-        'branchId': branchId,
-        'period': period,
-      },
+      queryParameters: {'branchId': branchId, 'period': period},
     );
 
     return response['data'] as Map<String, dynamic>;
   }
 }
-

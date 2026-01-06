@@ -47,7 +47,6 @@ class OrdersNotifier extends StateNotifier<OrdersState> {
   /// Load orders from API
   Future<void> loadOrders() async {
     state = state.copyWith(isLoading: true, error: null);
-
     try {
       if (_branchId == null) {
         state = state.copyWith(
@@ -56,64 +55,38 @@ class OrdersNotifier extends StateNotifier<OrdersState> {
         );
         return;
       }
-
-      print('🔄 Loading orders for branch: $_branchId');
-      
-      // ✅ OrderService.getOrders() already returns List<Order> (parsed objects)!
       final ordersList = await _orderService.getOrders(branchId: _branchId);
-      
-      print('📦 Response type: ${ordersList.runtimeType}');
-      print('📦 Orders count: ${ordersList.length}');
-      
-      if (ordersList.isNotEmpty) {
-        print('📋 Sample order:');
-        final first = ordersList.first;
-        print('   ID: ${first.id}');
-        print('   Order Number: ${first.orderId}');
-        print('   Status: ${first.status.name}');
-        print('   Items: ${first.items.length}');
-        print('   Total: ${first.pricing.total}');
-      }
-      
-      print('✅ Successfully loaded ${ordersList.length} orders');
-
       state = state.copyWith(
         orders: ordersList,
         filteredOrders: ordersList,
         isLoading: false,
       );
     } catch (e, stackTrace) {
-      print('❌ Error loading orders: $e');
-      print('Stack trace: $stackTrace');
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
+      state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
   /// Filter orders by status
   void filterByStatus(String? status) {
     if (status == null || status == 'all') {
-      state = state.copyWith(
-        filteredOrders: state.orders,
-        statusFilter: null,
-      );
+      state = state.copyWith(filteredOrders: state.orders, statusFilter: null);
     } else {
-      final filtered = state.orders
-          .where((order) => order.status.name.toLowerCase() == status.toLowerCase())
-          .toList();
-      state = state.copyWith(
-        filteredOrders: filtered,
-        statusFilter: status,
-      );
+      final filtered =
+          state.orders
+              .where(
+                (order) =>
+                    order.status.name.toLowerCase() == status.toLowerCase(),
+              )
+              .toList();
+      state = state.copyWith(filteredOrders: filtered, statusFilter: status);
     }
   }
 }
 
-final ordersProvider = StateNotifierProvider<OrdersNotifier, OrdersState>((ref) {
+final ordersProvider = StateNotifierProvider<OrdersNotifier, OrdersState>((
+  ref,
+) {
   final orderService = ref.watch(orderServiceProvider);
   final branchId = ref.watch(currentBranchIdProvider);
   return OrdersNotifier(orderService, branchId);
 });
-

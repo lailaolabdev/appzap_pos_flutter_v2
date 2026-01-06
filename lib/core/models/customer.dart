@@ -71,25 +71,25 @@ class Customer extends Equatable {
 
   factory Customer.fromJson(Map<String, dynamic> json) {
     return Customer(
-      id: json['_id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      email: json['email'] as String?,
-      phone: json['phone'] as String?,
-      loyaltyPoints: json['loyaltyPoints'] as int? ?? 0,
-      tier: LoyaltyTier.fromString(json['tier'] as String? ?? 'bronze'),
+      id: json['_id']?.toString() ?? '',
+      name: json['firstName']?.toString() ?? json['name']?.toString() ?? '',
+      email: json['email']?.toString(),
+      phone: json['phoneNumber']?.toString() ?? json['phone']?.toString(),
+      loyaltyPoints: (json['loyaltyPoints'] as num?)?.toInt() ?? 0,
+      tier: LoyaltyTier.fromString(json['tier']?.toString() ?? 'bronze'),
       totalSpent: (json['totalSpent'] as num?)?.toDouble() ?? 0,
-      visitCount: json['visitCount'] as int? ?? 0,
+      visitCount: (json['visitCount'] as num?)?.toInt() ?? 0,
       lastVisit:
           json['lastVisit'] != null
-              ? DateTime.tryParse(json['lastVisit'] as String)
+              ? DateTime.tryParse(json['lastVisit'].toString())
               : null,
       dateOfBirth:
           json['dateOfBirth'] != null
-              ? DateTime.tryParse(json['dateOfBirth'] as String)
+              ? DateTime.tryParse(json['dateOfBirth'].toString())
               : null,
       createdAt:
           json['createdAt'] != null
-              ? DateTime.parse(json['createdAt'] as String)
+              ? DateTime.parse(json['createdAt'].toString())
               : DateTime.now(),
     );
   }
@@ -186,14 +186,14 @@ class CustomerPoints extends Equatable {
 
   factory CustomerPoints.fromJson(Map<String, dynamic> json) {
     return CustomerPoints(
-      customerId: json['customerId'] as String? ?? '',
-      currentPoints: json['currentPoints'] as int? ?? 0,
-      tier: LoyaltyTier.fromString(json['tier'] as String? ?? 'bronze'),
+      customerId: json['customerId']?.toString() ?? '',
+      currentPoints: (json['currentPoints'] as num?)?.toInt() ?? 0,
+      tier: LoyaltyTier.fromString(json['tier']?.toString() ?? 'bronze'),
       nextTier:
           json['nextTier'] != null
-              ? LoyaltyTier.fromString(json['nextTier'] as String)
+              ? LoyaltyTier.fromString(json['nextTier'].toString())
               : null,
-      pointsToNextTier: json['pointsToNextTier'] as int? ?? 0,
+      pointsToNextTier: (json['pointsToNextTier'] as num?)?.toInt() ?? 0,
       history:
           (json['history'] as List<dynamic>?)
               ?.map((e) => PointsHistory.fromJson(e as Map<String, dynamic>))
@@ -231,14 +231,14 @@ class PointsHistory extends Equatable {
 
   factory PointsHistory.fromJson(Map<String, dynamic> json) {
     return PointsHistory(
-      type: json['type'] as String? ?? 'earned',
-      points: json['points'] as int? ?? 0,
-      orderId: json['orderId'] as String?,
+      type: json['type']?.toString() ?? 'earned',
+      points: (json['points'] as num?)?.toInt() ?? 0,
+      orderId: json['orderId']?.toString(),
       date:
           json['date'] != null
-              ? DateTime.parse(json['date'] as String)
+              ? DateTime.parse(json['date'].toString())
               : DateTime.now(),
-      description: json['description'] as String?,
+      description: json['description']?.toString(),
     );
   }
 

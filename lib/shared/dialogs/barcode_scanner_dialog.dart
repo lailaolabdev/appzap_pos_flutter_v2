@@ -30,7 +30,7 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog> {
     if (_isProcessing) return;
 
     final List<Barcode> barcodes = capture.barcodes;
-    
+
     if (barcodes.isNotEmpty) {
       final barcode = barcodes.first;
       final String? code = barcode.rawValue;
@@ -66,10 +66,7 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog> {
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.qr_code_scanner,
-                    color: Colors.white,
-                  ),
+                  const Icon(Icons.qr_code_scanner, color: Colors.white),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
@@ -94,11 +91,8 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog> {
               child: ClipRRect(
                 child: Stack(
                   children: [
-                    MobileScanner(
-                      controller: controller,
-                      onDetect: _onDetect,
-                    ),
-                    
+                    MobileScanner(controller: controller, onDetect: _onDetect),
+
                     // Overlay with scanning frame
                     Center(
                       child: Container(
@@ -113,7 +107,7 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog> {
                         ),
                       ),
                     ),
-                    
+
                     // Instructions
                     Positioned(
                       bottom: 32,
@@ -129,10 +123,7 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog> {
                         child: const Text(
                           'Position the barcode within the frame',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                          ),
+                          style: TextStyle(color: Colors.white, fontSize: 14),
                         ),
                       ),
                     ),
@@ -156,10 +147,10 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog> {
                   // Toggle flash
                   IconButton(
                     icon: ValueListenableBuilder(
-                      valueListenable: controller.torchState,
-                      builder: (context, state, child) {
+                      valueListenable: controller,
+                      builder: (context, MobileScannerState state, child) {
                         return Icon(
-                          state == TorchState.off
+                          state.torchState == TorchState.off
                               ? Icons.flash_off
                               : Icons.flash_on,
                           color: Colors.white,
@@ -169,13 +160,14 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog> {
                     ),
                     onPressed: () => controller.toggleTorch(),
                   ),
+
                   const SizedBox(width: 32),
-                  
+
                   // Switch camera
                   IconButton(
                     icon: ValueListenableBuilder(
-                      valueListenable: controller.cameraFacingState,
-                      builder: (context, state, child) {
+                      valueListenable: controller,
+                      builder: (context, MobileScannerState state, child) {
                         return const Icon(
                           Icons.cameraswitch,
                           color: Colors.white,
@@ -203,4 +195,3 @@ Future<String?> showBarcodeScanner(BuildContext context) async {
     builder: (context) => const BarcodeScannerDialog(),
   );
 }
-

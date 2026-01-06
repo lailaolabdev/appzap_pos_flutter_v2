@@ -33,13 +33,17 @@ class ProductsState {
     String? error,
     String? selectedCategoryId,
     String? searchQuery,
+    bool updateSelectedCategory = false,
   }) {
     return ProductsState(
       products: products ?? this.products,
       categories: categories ?? this.categories,
       isLoading: isLoading ?? this.isLoading,
       error: error,
-      selectedCategoryId: selectedCategoryId ?? this.selectedCategoryId,
+      selectedCategoryId:
+          updateSelectedCategory
+              ? selectedCategoryId
+              : (selectedCategoryId ?? this.selectedCategoryId),
       searchQuery: searchQuery ?? this.searchQuery,
     );
   }
@@ -62,7 +66,6 @@ class ProductsState {
                 (p.sku?.toLowerCase().contains(query) ?? false);
           }).toList();
     }
-
     return filtered;
   }
 }
@@ -111,7 +114,10 @@ class ProductsNotifier extends StateNotifier<ProductsState> {
 
   /// Select category
   void selectCategory(String? categoryId) {
-    state = state.copyWith(selectedCategoryId: categoryId);
+    state = state.copyWith(
+      selectedCategoryId: categoryId,
+      updateSelectedCategory: true,
+    );
   }
 
   /// Update search query
@@ -124,11 +130,53 @@ class ProductsNotifier extends StateNotifier<ProductsState> {
     state = state.copyWith(searchQuery: '');
   }
 
-  /// Find product by barcode
+  /// Find product by barcode (local first, then API)
   Product? findByBarcode(String barcode) {
     try {
+      // First, search in local products
       return state.products.firstWhere((p) => p.barcode == barcode);
     } catch (e) {
+      // Not found locally - return null for now
+      // The API search will be handled asynchronously
+      return null;
+    }
+  }
+
+  /// Find product by barcode with API fallback
+  Future<Product?> findByBarcodeAsync(String barcode) async {
+    try {
+      // First, search in local products
+      try {
+        return state.products.firstWhere((p) => p.barcode == barcode);
+      } catch (e) {
+        // Not found locally, search via API
+        print('🔍 Searching for barcode via API: $barcode');
+
+        if (_branchId == null || _restaurantId == null) {
+          print('❌ No branch ID or restaurant ID available for barcode search');
+          return null;
+        }
+
+        final product = await _productService.getProductByBarcode(
+          restaurantId: _restaurantId,
+          branchId: _branchId,
+          barcode: barcode,
+        );
+
+        if (product != null) {
+          print('✅ Found product via API: ${product.name}');
+
+          // Add the product to local state for future use
+          state = state.copyWith(products: [...state.products, product]);
+
+          return product;
+        } else {
+          print('❌ Product not found via API for barcode: $barcode');
+          return null;
+        }
+      }
+    } catch (e) {
+      print('❌ Error searching for product by barcode: $e');
       return null;
     }
   }

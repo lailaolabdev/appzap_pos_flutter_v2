@@ -8,6 +8,7 @@ import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/app_sidebar.dart';
 import '../../../shared/widgets/error_banner.dart';
+import '../../inventory/widgets/stock_movement_tracker.dart';
 import '../providers/menu_provider.dart';
 import '../widgets/category_form_dialog.dart';
 import '../widgets/menu_item_form_dialog.dart';
@@ -68,31 +69,36 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
   Future<void> _deleteItem(String itemId, String itemName) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Menu Item'),
-        content: Text('Are you sure you want to delete "$itemName"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete Menu Item'),
+            content: Text('Are you sure you want to delete "$itemName"?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.error,
+                ),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.error,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
     );
 
     if (confirmed == true) {
-      final success = await ref.read(menuProvider.notifier).deleteMenuItem(itemId);
+      final success = await ref
+          .read(menuProvider.notifier)
+          .deleteMenuItem(itemId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(success ? 'Item deleted successfully' : 'Failed to delete item'),
+            content: Text(
+              success ? 'Item deleted successfully' : 'Failed to delete item',
+            ),
             backgroundColor: success ? AppTheme.success : AppTheme.error,
           ),
         );
@@ -103,31 +109,38 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
   Future<void> _deleteCategory(String categoryId, String categoryName) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Category'),
-        content: Text('Are you sure you want to delete "$categoryName"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete Category'),
+            content: Text('Are you sure you want to delete "$categoryName"?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.error,
+                ),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.error,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
     );
 
     if (confirmed == true) {
-      final success = await ref.read(menuProvider.notifier).deleteCategory(categoryId);
+      final success = await ref
+          .read(menuProvider.notifier)
+          .deleteCategory(categoryId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(success ? 'Category deleted successfully' : 'Failed to delete category'),
+            content: Text(
+              success
+                  ? 'Category deleted successfully'
+                  : 'Failed to delete category',
+            ),
             backgroundColor: success ? AppTheme.success : AppTheme.error,
           ),
         );
@@ -143,16 +156,19 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
-        drawer: isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
+        drawer:
+            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
-          leading: isMobile
-              ? Builder(
-                  builder: (context) => IconButton(
-                    icon: const Icon(Icons.menu),
-                    onPressed: () => Scaffold.of(context).openDrawer(),
-                  ),
-                )
-              : null,
+          leading:
+              isMobile
+                  ? Builder(
+                    builder:
+                        (context) => IconButton(
+                          icon: const Icon(Icons.menu),
+                          onPressed: () => Scaffold.of(context).openDrawer(),
+                        ),
+                  )
+                  : null,
           title: const Text('Menu Management'),
           bottom: TabBar(
             controller: _tabController,
@@ -163,6 +179,17 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
           ),
           actions: [
             IconButton(
+              icon: const Icon(Icons.history),
+              tooltip: 'Stock Movements',
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const StockMovementTracker(),
+                  ),
+                );
+              },
+            ),
+            IconButton(
               icon: const Icon(Icons.refresh),
               tooltip: 'Refresh',
               onPressed: () => ref.read(menuProvider.notifier).refresh(),
@@ -171,8 +198,7 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
         ),
         body: Column(
           children: [
-            if (menuState.error != null)
-              ErrorBanner(message: menuState.error!),
+            if (menuState.error != null) ErrorBanner(message: menuState.error!),
             Expanded(
               child: TabBarView(
                 controller: _tabController,
@@ -225,15 +251,16 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
             decoration: InputDecoration(
               hintText: 'Search items...',
               prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _searchController.clear();
-                        ref.read(menuProvider.notifier).search('');
-                      },
-                    )
-                  : null,
+              suffixIcon:
+                  _searchController.text.isNotEmpty
+                      ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          ref.read(menuProvider.notifier).search('');
+                        },
+                      )
+                      : null,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -249,8 +276,8 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
           SizedBox(
             height: 60,
             child: Scrollbar(
-              thumbVisibility: true,  // ✅ Always show scrollbar
-              thickness: 4,  // ✅ Make it more visible
+              thumbVisibility: true, // ✅ Always show scrollbar
+              thickness: 4, // ✅ Make it more visible
               radius: const Radius.circular(2),
               child: ListView(
                 scrollDirection: Axis.horizontal,
@@ -265,12 +292,19 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
                       child: FilterChip(
                         label: const Text('All'),
                         selected: menuState.categoryFilter == null,
-                        onSelected: null,  // ✅ Disable built-in handler, use GestureDetector
+                        onSelected:
+                            null, // ✅ Disable built-in handler, use GestureDetector
                         backgroundColor: AppTheme.neutral100,
                         selectedColor: AppTheme.primaryOrange,
                         labelStyle: TextStyle(
-                          color: menuState.categoryFilter == null ? Colors.white : AppTheme.neutral700,
-                          fontWeight: menuState.categoryFilter == null ? FontWeight.w600 : FontWeight.w500,
+                          color:
+                              menuState.categoryFilter == null
+                                  ? Colors.white
+                                  : AppTheme.neutral700,
+                          fontWeight:
+                              menuState.categoryFilter == null
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
                         ),
                         showCheckmark: false,
                       ),
@@ -282,17 +316,22 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
                       padding: const EdgeInsets.only(right: 8),
                       child: GestureDetector(
                         onTap: () {
-                          ref.read(menuProvider.notifier).filterByCategory(category.id);
+                          ref
+                              .read(menuProvider.notifier)
+                              .filterByCategory(category.id);
                         },
                         child: FilterChip(
                           label: Text(category.name),
                           selected: isSelected,
-                          onSelected: null,  // ✅ Disable built-in handler, use GestureDetector
+                          onSelected:
+                              null, // ✅ Disable built-in handler, use GestureDetector
                           backgroundColor: AppTheme.neutral100,
                           selectedColor: AppTheme.primaryOrange,
                           labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : AppTheme.neutral700,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                            color:
+                                isSelected ? Colors.white : AppTheme.neutral700,
+                            fontWeight:
+                                isSelected ? FontWeight.w600 : FontWeight.w500,
                           ),
                           showCheckmark: false,
                         ),
@@ -346,9 +385,10 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
   Widget _buildMenuItemCard(dynamic item, bool isMobile) {
     Category? category;
     try {
-      category = ref.read(menuProvider).categories.firstWhere(
-        (c) => c.id == item.categoryId,
-      );
+      category = ref
+          .read(menuProvider)
+          .categories
+          .firstWhere((c) => c.id == item.categoryId);
     } catch (e) {
       category = null;
     }
@@ -357,18 +397,19 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: ListTile(
-        leading: item.images?.isNotEmpty == true
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  item.images!.first.url,
-                  width: 50,
-                  height: 50,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _buildDefaultItemIcon(),
-                ),
-              )
-            : _buildDefaultItemIcon(),
+        leading:
+            item.images?.isNotEmpty == true
+                ? ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    item.images!.first.url,
+                    width: 50,
+                    height: 50,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _buildDefaultItemIcon(),
+                  ),
+                )
+                : _buildDefaultItemIcon(),
         title: Text(
           item.name,
           style: const TextStyle(fontWeight: FontWeight.bold),
@@ -386,10 +427,7 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
               ),
             ),
             if (!item.isActive)
-              const Text(
-                'Inactive',
-                style: TextStyle(color: AppTheme.error),
-              ),
+              const Text('Inactive', style: TextStyle(color: AppTheme.error)),
           ],
         ),
         trailing: Row(
@@ -410,22 +448,27 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
   }
 
   Widget _buildCategoryCard(dynamic category) {
-    final itemCount = ref
-        .read(menuProvider)
-        .items
-        .where((item) => item.categoryId == category.id)
-        .length;
+    final itemCount =
+        ref
+            .read(menuProvider)
+            .items
+            .where((item) => item.categoryId == category.id)
+            .length;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: category.color != null
-              ? Color(int.parse(category.color!.replaceAll('#', '0xFF')))
-              : AppTheme.primaryOrange,
+          backgroundColor:
+              category.color != null
+                  ? Color(int.parse(category.color!.replaceAll('#', '0xFF')))
+                  : AppTheme.primaryOrange,
           child: Text(
             category.name.substring(0, 1).toUpperCase(),
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
         title: Text(
@@ -439,10 +482,7 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
             const SizedBox(height: 4),
             Text('$itemCount items'),
             if (!category.isActive)
-              const Text(
-                'Inactive',
-                style: TextStyle(color: AppTheme.error),
-              ),
+              const Text('Inactive', style: TextStyle(color: AppTheme.error)),
           ],
         ),
         trailing: Row(
@@ -492,17 +532,17 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
             const SizedBox(height: 12),
             Text(
               title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.neutral500,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: AppTheme.neutral500),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 6),
             Text(
               subtitle,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.neutral400,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppTheme.neutral400),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
@@ -512,7 +552,10 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
               label: Text(actionLabel),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryOrange,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
               ),
             ),
           ],
@@ -521,4 +564,3 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
     );
   }
 }
-

@@ -10,10 +10,7 @@ import '../providers/transaction_provider.dart';
 class TransactionDetailScreen extends ConsumerStatefulWidget {
   final String transactionId;
 
-  const TransactionDetailScreen({
-    super.key,
-    required this.transactionId,
-  });
+  const TransactionDetailScreen({super.key, required this.transactionId});
 
   @override
   ConsumerState<TransactionDetailScreen> createState() =>
@@ -26,7 +23,9 @@ class _TransactionDetailScreenState
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(transactionProvider.notifier).loadTransaction(widget.transactionId);
+      ref
+          .read(transactionProvider.notifier)
+          .loadTransaction(widget.transactionId);
     });
   }
 
@@ -40,6 +39,7 @@ class _TransactionDetailScreenState
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackground,
       appBar: AppBar(
+        surfaceTintColor: AppTheme.scaffoldBackground,
         title: Text(widget.transactionId),
         actions: [
           if (transaction != null && transaction.isCompleted)
@@ -50,58 +50,59 @@ class _TransactionDetailScreenState
             ),
         ],
       ),
-      body: isLoading && transaction == null
-          ? const Center(child: CircularProgressIndicator())
-          : error != null && transaction == null
+      body:
+          isLoading && transaction == null
+              ? const Center(child: CircularProgressIndicator())
+              : error != null && transaction == null
               ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error, size: 48, color: AppTheme.error),
-                      const SizedBox(height: 16),
-                      Text(error),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          ref
-                              .read(transactionProvider.notifier)
-                              .loadTransaction(widget.transactionId);
-                        },
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                )
-              : transaction == null
-                  ? const Center(child: Text('Transaction not found'))
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Header Card
-                          _buildHeaderCard(transaction),
-                          const SizedBox(height: 16),
-
-                          // Amount Summary Card
-                          _buildAmountSummaryCard(transaction),
-                          const SizedBox(height: 16),
-
-                          // Payment Info Card
-                          if (transaction.payments.isNotEmpty)
-                            _buildPaymentInfoCard(transaction),
-                          if (transaction.payments.isNotEmpty)
-                            const SizedBox(height: 16),
-
-                          // Line Items
-                          _buildLineItemsCard(transaction),
-                          const SizedBox(height: 16),
-
-                          // Additional Info
-                          _buildAdditionalInfoCard(transaction),
-                        ],
-                      ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error, size: 48, color: AppTheme.error),
+                    const SizedBox(height: 16),
+                    Text(error),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        ref
+                            .read(transactionProvider.notifier)
+                            .loadTransaction(widget.transactionId);
+                      },
+                      child: const Text('Retry'),
                     ),
+                  ],
+                ),
+              )
+              : transaction == null
+              ? const Center(child: Text('Transaction not found'))
+              : SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header Card
+                    _buildHeaderCard(transaction),
+                    const SizedBox(height: 16),
+
+                    // Amount Summary Card
+                    _buildAmountSummaryCard(transaction),
+                    const SizedBox(height: 16),
+
+                    // Payment Info Card
+                    if (transaction.payments.isNotEmpty)
+                      _buildPaymentInfoCard(transaction),
+                    if (transaction.payments.isNotEmpty)
+                      const SizedBox(height: 16),
+
+                    // Line Items
+                    _buildLineItemsCard(transaction),
+                    const SizedBox(height: 16),
+
+                    // Additional Info
+                    _buildAdditionalInfoCard(transaction),
+                  ],
+                ),
+              ),
     );
   }
 
@@ -142,7 +143,11 @@ class _TransactionDetailScreenState
             const SizedBox(height: 16),
             Row(
               children: [
-                const Icon(Icons.access_time, size: 16, color: AppTheme.neutral600),
+                const Icon(
+                  Icons.access_time,
+                  size: 16,
+                  color: AppTheme.neutral600,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   DateFormat('MMM d, yyyy • h:mm a').format(
@@ -156,7 +161,11 @@ class _TransactionDetailScreenState
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.check_circle, size: 16, color: AppTheme.success),
+                  const Icon(
+                    Icons.check_circle,
+                    size: 16,
+                    color: AppTheme.success,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'Completed: ${DateFormat('h:mm a').format(transaction.timing.completedAt!)}',
@@ -173,7 +182,7 @@ class _TransactionDetailScreenState
 
   Widget _buildAmountSummaryCard(Transaction transaction) {
     final totals = transaction.consolidatedTotals;
-    
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -182,10 +191,7 @@ class _TransactionDetailScreenState
           children: [
             const Text(
               'Amount Summary',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             _buildAmountRow('Subtotal', totals.subtotal.amount),
@@ -217,7 +223,7 @@ class _TransactionDetailScreenState
 
   Widget _buildPaymentInfoCard(Transaction transaction) {
     final payment = transaction.payments.first;
-    
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -226,10 +232,7 @@ class _TransactionDetailScreenState
           children: [
             const Text(
               'Payment Information',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             Row(
@@ -266,7 +269,8 @@ class _TransactionDetailScreenState
                 ),
               ],
             ),
-            if (payment.changeAmount != null && payment.changeAmount!.amount > 0) ...[
+            if (payment.changeAmount != null &&
+                payment.changeAmount!.amount > 0) ...[
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -313,10 +317,7 @@ class _TransactionDetailScreenState
           children: [
             Text(
               'Items (${transaction.lineItems.length})',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             ...transaction.lineItems.map((item) => _buildLineItem(item)),
@@ -340,10 +341,7 @@ class _TransactionDetailScreenState
             ),
             child: Text(
               '${item.quantity}x',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
             ),
           ),
           const SizedBox(width: 12),
@@ -353,9 +351,7 @@ class _TransactionDetailScreenState
               children: [
                 Text(
                   item.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -370,9 +366,7 @@ class _TransactionDetailScreenState
           ),
           Text(
             CurrencyFormatter.formatLAKWithSymbol(item.total),
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -388,10 +382,7 @@ class _TransactionDetailScreenState
           children: [
             const Text(
               'Additional Information',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             if (transaction.customer != null) ...[
@@ -486,12 +477,7 @@ class _TransactionDetailScreenState
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
             ],
           ),
         ),
@@ -547,7 +533,8 @@ class _TransactionDetailScreenState
   IconData _getPaymentIcon(String method) {
     if (method == 'cash') return Icons.payments;
     if (method.contains('card')) return Icons.credit_card;
-    if (method.contains('qr') || method.contains('bank')) return Icons.qr_code_2;
+    if (method.contains('qr') || method.contains('bank'))
+      return Icons.qr_code_2;
     return Icons.payment;
   }
 
@@ -581,10 +568,7 @@ class _TransactionDetailScreenState
 
   void _viewReceipt(Transaction transaction) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Receipt viewing coming soon'),
-      ),
+      const SnackBar(content: Text('Receipt viewing coming soon')),
     );
   }
 }
-

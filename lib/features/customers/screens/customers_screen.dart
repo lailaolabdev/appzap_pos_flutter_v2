@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
+import '../../../core/models/customer.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/app_sidebar.dart';
@@ -35,66 +36,69 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
-        drawer: isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
+        drawer:
+            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
           title: const Text('Customers'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add_outlined),
-            tooltip: 'Add Customer',
-            onPressed: () async {
-              final result = await showDialog(
-                context: context,
-                builder: (context) => const AddCustomerDialog(),
-              );
-              
-              if (result == true) {
-                ref.read(customersProvider.notifier).loadCustomers();
-              }
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Search bar
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: Colors.white,
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search by name or phone...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          ref.read(customersProvider.notifier).search('');
-                        },
-                      )
-                    : null,
-                filled: true,
-                fillColor: AppTheme.neutral50,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-              onChanged: (value) {
-                ref.read(customersProvider.notifier).search(value);
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.person_add_outlined),
+              tooltip: 'Add Customer',
+              onPressed: () async {
+                final result = await showDialog(
+                  context: context,
+                  builder: (context) => const AddCustomerDialog(),
+                );
+
+                if (result == true) {
+                  ref.read(customersProvider.notifier).loadCustomers();
+                }
               },
             ),
-          ),
+            const SizedBox(width: 8),
+          ],
+        ),
+        body: Column(
+          children: [
+            // Search bar
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: Colors.white,
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search by name or phone...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon:
+                      _searchController.text.isNotEmpty
+                          ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              ref.read(customersProvider.notifier).search('');
+                            },
+                          )
+                          : null,
+                  filled: true,
+                  fillColor: AppTheme.neutral50,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                onChanged: (value) {
+                  ref.read(customersProvider.notifier).search(value);
+                },
+              ),
+            ),
 
-          // Customer list
-          Expanded(
-            child: customersState.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : customersState.error != null
-                    ? Center(
+            // Customer list
+            Expanded(
+              child:
+                  customersState.isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : customersState.error != null
+                      ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -108,78 +112,90 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                             const SizedBox(height: 16),
                             ElevatedButton(
                               onPressed: () {
-                                ref.read(customersProvider.notifier).loadCustomers();
+                                ref
+                                    .read(customersProvider.notifier)
+                                    .loadCustomers();
                               },
                               child: const Text('Retry'),
                             ),
                           ],
                         ),
                       )
-                    : customersState.customers.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(32),
-                                  decoration: const BoxDecoration(
-                                    color: AppTheme.primaryOrangeBackground,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.people_outline,
-                                    size: 64,
-                                    color: AppTheme.primaryOrange,
-                                  ),
+                      : customersState.customers.isEmpty
+                      ? SingleChildScrollView(
+                        child: Container(
+                          height:
+                              MediaQuery.of(context).size.height -
+                              MediaQuery.of(context).padding.top -
+                              kToolbarHeight -
+                              100, // Account for search bar
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(32),
+                                decoration: const BoxDecoration(
+                                  color: AppTheme.primaryOrangeBackground,
+                                  shape: BoxShape.circle,
                                 ),
-                                const SizedBox(height: 24),
-                                Text(
-                                  'No Customers Yet',
-                                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                child: const Icon(
+                                  Icons.people_outline,
+                                  size: 64,
+                                  color: AppTheme.primaryOrange,
                                 ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'Add your first customer to get started',
-                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                    color: AppTheme.neutral500,
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                ElevatedButton.icon(
-                                  onPressed: () async {
-                                    final result = await showDialog(
-                                      context: context,
-                                      builder: (context) => const AddCustomerDialog(),
-                                    );
-                                    
-                                    if (result == true) {
-                                      ref.read(customersProvider.notifier).loadCustomers();
-                                    }
-                                  },
-                                  icon: const Icon(Icons.person_add),
-                                  label: const Text('Add Customer'),
-                                ),
-                              ],
-                            ),
-                          )
-                        : RefreshIndicator(
-                            onRefresh: () async {
-                              await ref.read(customersProvider.notifier).loadCustomers();
-                            },
-                            child: ListView.builder(
-                              padding: const EdgeInsets.all(16),
-                              itemCount: customersState.customers.length,
-                              itemBuilder: (context, index) {
-                                final customer = customersState.customers[index];
-                                return _CustomerCard(customer: customer);
-                              },
-                            ),
+                              ),
+                              const SizedBox(height: 24),
+                              Text(
+                                'No Customers Yet',
+                                style: Theme.of(context).textTheme.headlineSmall
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Add your first customer to get started',
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(color: AppTheme.neutral500),
+                              ),
+                              const SizedBox(height: 24),
+                              ElevatedButton.icon(
+                                onPressed: () async {
+                                  final result = await showDialog(
+                                    context: context,
+                                    builder:
+                                        (context) => const AddCustomerDialog(),
+                                  );
+
+                                  if (result == true) {
+                                    ref
+                                        .read(customersProvider.notifier)
+                                        .loadCustomers();
+                                  }
+                                },
+                                icon: const Icon(Icons.person_add),
+                                label: const Text('Add Customer'),
+                              ),
+                            ],
                           ),
-          ),
-        ],
-      ),
+                        ),
+                      )
+                      : RefreshIndicator(
+                        onRefresh: () async {
+                          await ref
+                              .read(customersProvider.notifier)
+                              .loadCustomers();
+                        },
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: customersState.customers.length,
+                          itemBuilder: (context, index) {
+                            final customer = customersState.customers[index];
+                            return _CustomerCard(customer: customer);
+                          },
+                        ),
+                      ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -191,13 +207,14 @@ class _CustomerCard extends ConsumerWidget {
 
   const _CustomerCard({required this.customer});
 
-  Color _getTierColor(String tier) {
-    switch (tier.toLowerCase()) {
-      case 'platinum':
+  // ✅ CORRECT
+  Color _getTierColor(LoyaltyTier tier) {
+    switch (tier) {
+      case LoyaltyTier.platinum:
         return const Color(0xFFE5E4E2);
-      case 'gold':
+      case LoyaltyTier.gold:
         return const Color(0xFFFFD700);
-      case 'silver':
+      case LoyaltyTier.silver:
         return const Color(0xFFC0C0C0);
       default:
         return const Color(0xFFCD7F32);
@@ -230,7 +247,9 @@ class _CustomerCard extends ConsumerWidget {
                 radius: 28,
                 backgroundColor: AppTheme.primaryOrangeBackground,
                 child: Text(
-                  customer.name[0].toUpperCase(),
+                  customer.name.isNotEmpty
+                      ? customer.name[0].toUpperCase()
+                      : '?',
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -250,9 +269,8 @@ class _CustomerCard extends ConsumerWidget {
                         Expanded(
                           child: Text(
                             customer.name,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                         ),
                         // Tier badge
@@ -262,7 +280,7 @@ class _CustomerCard extends ConsumerWidget {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: _getTierColor(customer.tier.name),
+                            color: _getTierColor(customer.tier),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -311,7 +329,9 @@ class _CustomerCard extends ConsumerWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          CurrencyFormatter.formatLAKWithSymbol(customer.totalSpent),
+                          CurrencyFormatter.formatLAKWithSymbol(
+                            customer.totalSpent,
+                          ),
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
@@ -347,4 +367,3 @@ class _CustomerCard extends ConsumerWidget {
     );
   }
 }
-

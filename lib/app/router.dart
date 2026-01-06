@@ -15,6 +15,14 @@ import '../features/orders/screens/orders_screen.dart';
 import '../features/inventory/screens/inventory_screen.dart';
 import '../features/customers/screens/customers_screen.dart';
 import '../features/reports/screens/reports_screen.dart';
+import '../features/reports/widget/daily_sales_report_screen.dart';
+import '../features/reports/widget/products_report_screen.dart';
+import '../features/reports/widget/staff_report_screen.dart';
+import '../features/reports/widget/end_of_day_report_screen.dart';
+import '../features/reports/widget/sales_trends_report_screen.dart';
+import '../features/reports/widget/categories_report_screen.dart';
+import '../features/reports/widget/payments_report_screen.dart';
+import '../features/reports/widget/hourly_sales_report_screen.dart';
 import '../features/transactions/screens/transaction_screen.dart';
 import '../features/transactions/screens/transaction_detail_screen.dart';
 import '../shared/widgets/splash_screen.dart';
@@ -36,6 +44,14 @@ class AppRoutes {
   static const String customers = '/customers';
   static const String transactions = '/transactions';
   static const String reports = '/reports';
+  static const String dailySalesReport = '/reports/daily-sales';
+  static const String productsReport = '/reports/products';
+  static const String staffReport = '/reports/staff';
+  static const String endOfDayReport = '/reports/end-of-day';
+  static const String salesTrendsReport = '/reports/sales-trends';
+  static const String categoriesReport = '/reports/categories';
+  static const String paymentsReport = '/reports/payments';
+  static const String hourlySalesReport = '/reports/hourly-sales';
   static const String settings = '/settings';
 }
 
@@ -47,10 +63,12 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: true,
     redirect: (context, state) {
-      final isLoading = authState.status == AuthStatus.initial ||
+      final isLoading =
+          authState.status == AuthStatus.initial ||
           authState.status == AuthStatus.loading;
       final isAuthenticated = authState.isAuthenticated;
-      final isAuthRoute = state.matchedLocation == AppRoutes.login ||
+      final isAuthRoute =
+          state.matchedLocation == AppRoutes.login ||
           state.matchedLocation == AppRoutes.pinLogin ||
           state.matchedLocation == AppRoutes.register ||
           state.matchedLocation == AppRoutes.otp ||
@@ -99,10 +117,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.register,
         builder: (context, state) {
           final data = state.extra as Map<String, dynamic>?;
-          
+
           // Check if this is the new self-service registration flow
           final registrationToken = data?['registrationToken'] as String?;
-          
+
           if (registrationToken != null) {
             // New self-service registration flow
             return RegistrationScreen(
@@ -168,30 +186,64 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.reports,
         builder: (context, state) => const ReportsScreen(),
+        routes: [
+          GoRoute(
+            path: 'daily-sales',
+            builder: (context, state) => const DailySalesReportScreen(),
+          ),
+          GoRoute(
+            path: 'products',
+            builder: (context, state) => const ProductsReportScreen(),
+          ),
+          GoRoute(
+            path: 'staff',
+            builder: (context, state) => const StaffReportScreen(),
+          ),
+          GoRoute(
+            path: 'end-of-day',
+            builder: (context, state) => const EndOfDayReportScreen(),
+          ),
+          GoRoute(
+            path: 'sales-trends',
+            builder: (context, state) => const SalesTrendsReportScreen(),
+          ),
+          GoRoute(
+            path: 'categories',
+            builder: (context, state) => const CategoriesReportScreen(),
+          ),
+          GoRoute(
+            path: 'payments',
+            builder: (context, state) => const PaymentsReportScreen(),
+          ),
+          GoRoute(
+            path: 'hourly-sales',
+            builder: (context, state) => const HourlySalesReportScreen(),
+          ),
+        ],
       ),
     ],
-    errorBuilder: (context, state) => Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.red),
-            const SizedBox(height: 16),
-            Text(
-              'Page not found',
-              style: Theme.of(context).textTheme.headlineSmall,
+    errorBuilder:
+        (context, state) => Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(
+                  'Page not found',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                Text(state.error?.message ?? 'Unknown error'),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () => context.go(AppRoutes.pos),
+                  child: const Text('Go to POS'),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(state.error?.message ?? 'Unknown error'),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () => context.go(AppRoutes.pos),
-              child: const Text('Go to POS'),
-            ),
-          ],
+          ),
         ),
-      ),
-    ),
   );
 });
-

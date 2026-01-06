@@ -72,7 +72,9 @@ class MenuService {
     // Access nested menuItem
     final data = response['data'];
     if (data == null || data['menuItem'] == null) {
-      throw Exception('No data in response - menu item may not have been created');
+      throw Exception(
+        'No data in response - menu item may not have been created',
+      );
     }
 
     final menuItemData = Map<String, dynamic>.from(data['menuItem']);
@@ -115,8 +117,11 @@ class MenuService {
     if (name != null) data['name'] = name;
     if (description != null) data['description'] = description;
     if (categoryId != null) data['categoryId'] = categoryId;
-    
-    if (basePrice != null || costPrice != null || taxRate != null || taxIncluded != null) {
+
+    if (basePrice != null ||
+        costPrice != null ||
+        taxRate != null ||
+        taxIncluded != null) {
       data['pricing'] = {};
       if (basePrice != null) data['pricing']['basePrice'] = basePrice;
       if (costPrice != null) data['pricing']['costPrice'] = costPrice;
@@ -127,7 +132,8 @@ class MenuService {
     if (trackStock != null || lowStockThreshold != null) {
       data['inventory'] = {};
       if (trackStock != null) data['inventory']['trackStock'] = trackStock;
-      if (lowStockThreshold != null) data['inventory']['lowStockThreshold'] = lowStockThreshold;
+      if (lowStockThreshold != null)
+        data['inventory']['lowStockThreshold'] = lowStockThreshold;
     }
 
     if (isActive != null) data['isActive'] = isActive;
@@ -155,10 +161,7 @@ class MenuService {
   }) async {
     final response = await _apiClient.post(
       '${ApiConstants.menuItems}/bulk',
-      data: {
-        'restaurantId': restaurantId,
-        'items': items,
-      },
+      data: {'restaurantId': restaurantId, 'items': items},
     );
 
     final itemsList = response['data']['items'] as List<dynamic>? ?? [];
@@ -255,11 +258,7 @@ class MenuItemImage {
   final String url;
   final String? thumbnailUrl;
 
-  MenuItemImage({
-    required this.imageId,
-    required this.url,
-    this.thumbnailUrl,
-  });
+  MenuItemImage({required this.imageId, required this.url, this.thumbnailUrl});
 
   factory MenuItemImage.fromJson(Map<String, dynamic> json) {
     return MenuItemImage(
@@ -269,4 +268,3 @@ class MenuItemImage {
     );
   }
 }
-

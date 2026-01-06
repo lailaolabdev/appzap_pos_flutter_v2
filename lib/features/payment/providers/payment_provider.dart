@@ -61,39 +61,44 @@ class PaymentState {
   bool get isFailed => processState == PaymentProcessState.failed;
 
   // Helper getters for backward compatibility
-  Order? get order => checkoutResponse != null
-      ? Order(
-          id: checkoutResponse!.order.id,
-          orderId: checkoutResponse!.order.orderId,
-          qNumber: int.tryParse(checkoutResponse!.order.qNumber) ?? 0,
-          orderType: OrderType.fromString(checkoutResponse!.order.orderType),
-          status: OrderStatus.fromString(checkoutResponse!.order.orderStatus),
-          items: [],
-          pricing: OrderPricing(
-            subtotal: 0,
-            subtotalAfterDiscount: 0,
-            tax: 0,
-            discountTotal: 0,
-            total: checkoutResponse!.pricing.totalAmount,
-            currency: 'LAK',
-          ),
-          createdAt: DateTime.parse(checkoutResponse!.order.createdAt),
-        )
-      : null;
+  Order? get order =>
+      checkoutResponse != null
+          ? Order(
+            id: checkoutResponse!.order.id,
+            orderId: checkoutResponse!.order.orderId,
+            qNumber: int.tryParse(checkoutResponse!.order.qNumber) ?? 0,
+            orderType: OrderType.fromString(checkoutResponse!.order.orderType),
+            status: OrderStatus.fromString(checkoutResponse!.order.orderStatus),
+            items: [],
+            pricing: OrderPricing(
+              subtotal: 0,
+              subtotalAfterDiscount: 0,
+              tax: 0,
+              discountTotal: 0,
+              total: checkoutResponse!.pricing.totalAmount,
+              currency: 'LAK',
+            ),
+            createdAt: DateTime.parse(checkoutResponse!.order.createdAt),
+          )
+          : null;
 
-  payment_models.PaymentResult? get paymentResult => checkoutResponse != null
-      ? payment_models.PaymentResult(
-          transactionId: checkoutResponse!.transaction.transactionId,
-          paymentId: checkoutResponse!.order.orderId,
-          orderId: checkoutResponse!.order.orderId,
-          status: checkoutResponse!.transaction.transactionStatus == 'completed'
-              ? payment_models.PaymentStatus.completed
-              : payment_models.PaymentStatus.pending,
-          paymentMethod: payment_models.PaymentMethod.cash,
-          amount: payment_models.PaymentAmount(total: checkoutResponse!.pricing.totalAmount),
-          completedAt: DateTime.parse(checkoutResponse!.order.createdAt),
-        )
-      : null;
+  payment_models.PaymentResult? get paymentResult =>
+      checkoutResponse != null
+          ? payment_models.PaymentResult(
+            transactionId: checkoutResponse!.transaction.transactionId,
+            paymentId: checkoutResponse!.order.orderId,
+            orderId: checkoutResponse!.order.orderId,
+            status:
+                checkoutResponse!.transaction.transactionStatus == 'completed'
+                    ? payment_models.PaymentStatus.completed
+                    : payment_models.PaymentStatus.pending,
+            paymentMethod: payment_models.PaymentMethod.cash,
+            amount: payment_models.PaymentAmount(
+              total: checkoutResponse!.pricing.totalAmount,
+            ),
+            completedAt: DateTime.parse(checkoutResponse!.order.createdAt),
+          )
+          : null;
 }
 
 /// Payment notifier
@@ -123,7 +128,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     print('   Total: $total');
     print('   Tendered: $tendered');
     print('   BranchId: $_branchId');
-    
+
     if (_branchId == null) {
       print('❌ Payment failed: Branch not configured');
       state = state.copyWith(
@@ -141,22 +146,22 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       );
 
       print('📞 Calling checkoutService.processCashPaymentFromCart...');
-      final checkoutResponse = await _checkoutService.processCashPaymentFromCart(
-        cart: cart,
-        tenderedAmount: tendered,
-      );
+      final checkoutResponse = await _checkoutService
+          .processCashPaymentFromCart(cart: cart, tenderedAmount: tendered);
 
       print('✅ Checkout response received:');
       print('   Order ID: ${checkoutResponse.order.orderId}');
       print('   Transaction ID: ${checkoutResponse.transaction.transactionId}');
-      print('   Transaction Status: ${checkoutResponse.transaction.transactionStatus}');
-      
+      print(
+        '   Transaction Status: ${checkoutResponse.transaction.transactionStatus}',
+      );
+
       print('🎉 Setting state to completed...');
       state = state.copyWith(
         processState: PaymentProcessState.completed,
         checkoutResponse: checkoutResponse,
       );
-      
+
       print('✅ Payment processing complete, returning true');
       return true;
     } catch (e, stackTrace) {
@@ -190,23 +195,24 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       // For PhayPay, we still need to create the order first
       // because the QR generation needs an orderId
       state = state.copyWith(processState: PaymentProcessState.creatingOrder);
-      
+
       // TODO: For now, use the old createOrder API for PhayPay
       // In future, backend should support PhayPay in unified checkout
       // For now, this is a limitation that requires 2 steps
-      
+
       // Create PhayPay payment (assuming order will be created by backend)
       state = state.copyWith(
         processState: PaymentProcessState.processingPayment,
       );
-      
+
       // Note: This is placeholder - PhayPay integration needs backend update
       // to support unified checkout flow
       state = state.copyWith(
         processState: PaymentProcessState.failed,
-        error: 'PhayPay payment requires backend implementation for unified checkout',
+        error:
+            'PhayPay payment requires backend implementation for unified checkout',
       );
-      
+
       return false;
     } catch (e) {
       state = state.copyWith(

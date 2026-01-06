@@ -9,6 +9,7 @@ import '../../../core/utils/date_formatter.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/app_sidebar.dart';
 import '../providers/orders_provider.dart';
+import 'order_details_screen.dart';
 
 /// Orders management screen
 class OrdersScreen extends ConsumerStatefulWidget {
@@ -36,7 +37,8 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
-        drawer: isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
+        drawer:
+            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
           title: const Text('Orders'),
           actions: [
@@ -55,40 +57,42 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
             const SizedBox(width: 8),
           ],
         ),
-        body: ordersState.isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : ordersState.error != null
+        body:
+            ordersState.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : ordersState.error != null
                 ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 64,
-                          color: AppTheme.error,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          ordersState.error!,
-                          style: const TextStyle(color: AppTheme.error),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () {
-                            ref.read(ordersProvider.notifier).loadOrders();
-                          },
-                          child: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  )
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: AppTheme.error,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        ordersState.error!,
+                        style: const TextStyle(color: AppTheme.error),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          ref.read(ordersProvider.notifier).loadOrders();
+                        },
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
                 : RefreshIndicator(
-                    onRefresh: () async {
-                      await ref.read(ordersProvider.notifier).loadOrders();
-                    },
-                    child: ordersState.filteredOrders.isEmpty
-                        ? _buildEmptyState()
-                        : ListView.builder(
+                  onRefresh: () async {
+                    await ref.read(ordersProvider.notifier).loadOrders();
+                  },
+                  child:
+                      ordersState.filteredOrders.isEmpty
+                          ? _buildEmptyState()
+                          : ListView.builder(
                             padding: const EdgeInsets.all(16),
                             itemCount: ordersState.filteredOrders.length,
                             itemBuilder: (context, index) {
@@ -96,7 +100,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                               return _OrderCard(order: order);
                             },
                           ),
-                  ),
+                ),
       ),
     );
   }
@@ -114,18 +118,18 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
           const SizedBox(height: 16),
           Text(
             'No Orders Found',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: AppTheme.neutral600,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(color: AppTheme.neutral600),
           ),
           const SizedBox(height: 8),
           Text(
             _selectedStatus == 'all'
                 ? 'Start selling to see orders here'
                 : 'No orders with ${_selectedStatus} status',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.neutral500,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral500),
           ),
         ],
       ),
@@ -135,53 +139,61 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
   void _showFilterBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.all_inclusive),
-              title: const Text('All Orders'),
-              selected: _selectedStatus == 'all',
-              onTap: () {
-                setState(() => _selectedStatus = 'all');
-                ref.read(ordersProvider.notifier).filterByStatus(null);
-                Navigator.pop(context);
-              },
+      builder:
+          (context) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.all_inclusive),
+                  title: const Text('All Orders'),
+                  selected: _selectedStatus == 'all',
+                  onTap: () {
+                    setState(() => _selectedStatus = 'all');
+                    ref.read(ordersProvider.notifier).filterByStatus(null);
+                    Navigator.pop(context);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.hourglass_empty,
+                    color: Colors.orange,
+                  ),
+                  title: const Text('Pending'),
+                  selected: _selectedStatus == 'pending',
+                  onTap: () {
+                    setState(() => _selectedStatus = 'pending');
+                    ref.read(ordersProvider.notifier).filterByStatus('pending');
+                    Navigator.pop(context);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.check_circle, color: Colors.green),
+                  title: const Text('Completed'),
+                  selected: _selectedStatus == 'completed',
+                  onTap: () {
+                    setState(() => _selectedStatus = 'completed');
+                    ref
+                        .read(ordersProvider.notifier)
+                        .filterByStatus('completed');
+                    Navigator.pop(context);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.cancel, color: Colors.red),
+                  title: const Text('Cancelled'),
+                  selected: _selectedStatus == 'cancelled',
+                  onTap: () {
+                    setState(() => _selectedStatus = 'cancelled');
+                    ref
+                        .read(ordersProvider.notifier)
+                        .filterByStatus('cancelled');
+                    Navigator.pop(context);
+                  },
+                ),
+              ],
             ),
-            ListTile(
-              leading: const Icon(Icons.hourglass_empty, color: Colors.orange),
-              title: const Text('Pending'),
-              selected: _selectedStatus == 'pending',
-              onTap: () {
-                setState(() => _selectedStatus = 'pending');
-                ref.read(ordersProvider.notifier).filterByStatus('pending');
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.check_circle, color: Colors.green),
-              title: const Text('Completed'),
-              selected: _selectedStatus == 'completed',
-              onTap: () {
-                setState(() => _selectedStatus = 'completed');
-                ref.read(ordersProvider.notifier).filterByStatus('completed');
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.cancel, color: Colors.red),
-              title: const Text('Cancelled'),
-              selected: _selectedStatus == 'cancelled',
-              onTap: () {
-                setState(() => _selectedStatus = 'cancelled');
-                ref.read(ordersProvider.notifier).filterByStatus('cancelled');
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 }
@@ -197,9 +209,12 @@ class _OrderCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         onTap: () {
-          // TODO: Navigate to order details
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Order ${order.orderId} details - Coming Soon')),
+          // Navigate to order details
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OrderDetailsScreen(order: order),
+            ),
           );
         },
         borderRadius: BorderRadius.circular(12),
@@ -212,13 +227,19 @@ class _OrderCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    order.orderId,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  Flexible(
+                    flex: 2,
+                    child: Text(
+                      order.orderId,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
+                  const SizedBox(width: 8),
                   _OrderStatusChip(status: order.status.name),
                 ],
               ),
@@ -228,13 +249,21 @@ class _OrderCard extends StatelessWidget {
               if (order.customer != null) ...[
                 Row(
                   children: [
-                    const Icon(Icons.person, size: 16, color: AppTheme.neutral600),
+                    const Icon(
+                      Icons.person,
+                      size: 16,
+                      color: AppTheme.neutral600,
+                    ),
                     const SizedBox(width: 4),
-                    Text(
-                      order.customer?.name ?? 'Guest',
-                      style: const TextStyle(
-                        color: AppTheme.neutral600,
-                        fontSize: 14,
+                    Expanded(
+                      child: Text(
+                        order.customer?.name ?? 'Guest',
+                        style: const TextStyle(
+                          color: AppTheme.neutral600,
+                          fontSize: 14,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     ),
                   ],
@@ -245,13 +274,21 @@ class _OrderCard extends StatelessWidget {
               // Time
               Row(
                 children: [
-                  const Icon(Icons.access_time, size: 16, color: AppTheme.neutral600),
+                  const Icon(
+                    Icons.access_time,
+                    size: 16,
+                    color: AppTheme.neutral600,
+                  ),
                   const SizedBox(width: 4),
-                  Text(
-                    DateFormatter.formatDateTime(order.createdAt),
-                    style: TextStyle(
-                      color: AppTheme.neutral600,
-                      fontSize: 14,
+                  Expanded(
+                    child: Text(
+                      DateFormatter.formatDateTime(order.createdAt),
+                      style: TextStyle(
+                        color: AppTheme.neutral600,
+                        fontSize: 14,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
                 ],
@@ -263,20 +300,31 @@ class _OrderCard extends StatelessWidget {
 
               // Items count & Total
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    '${order.items.length} ${order.items.length == 1 ? 'item' : 'items'}',
-                    style: TextStyle(
-                      color: AppTheme.neutral700,
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      '${order.items.length} ${order.items.length == 1 ? 'item' : 'items'}',
+                      style: TextStyle(color: AppTheme.neutral700),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
-                  Text(
-                    CurrencyFormatter.formatLAKWithSymbol(order.pricing.total),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.primaryOrange,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      CurrencyFormatter.formatLAKWithSymbol(
+                        order.pricing.total,
+                      ),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryOrange,
+                      ),
+                      textAlign: TextAlign.end,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
                 ],

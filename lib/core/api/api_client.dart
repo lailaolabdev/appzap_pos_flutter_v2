@@ -238,6 +238,11 @@ class ApiClient {
   Map<String, dynamic> _handleResponse(Response response) {
     final data = response.data;
 
+    // Handle 204 No Content responses (common for DELETE requests)
+    if (response.statusCode == 204 || data == null) {
+      return {'success': true, 'message': 'Operation completed successfully'};
+    }
+
     if (data is Map<String, dynamic>) {
       if (data['success'] == false) {
         throw ApiException.fromResponse(response);

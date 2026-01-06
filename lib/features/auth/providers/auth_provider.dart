@@ -102,7 +102,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   /// Verify OTP - Smart Response (Handles both login AND registration)
-  /// 
+  ///
   /// Returns OTPVerificationResult which can be:
   /// 1. isRegistered=true → User logged in (update auth state)
   /// 2. isRegistered=false → Registration required (no auth state change)
@@ -119,10 +119,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       // If user is registered, update auth state
       if (result.isRegistered && result.user != null) {
-        state = AuthState(
-          status: AuthStatus.authenticated,
-          user: result.user,
-        );
+        state = AuthState(status: AuthStatus.authenticated, user: result.user);
       }
 
       return result;
@@ -132,7 +129,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   /// Complete registration for new users (Self-service!)
-  /// 
+  ///
   /// Called after OTP verification returns registrationToken.
   /// Creates account and logs user in automatically.
   Future<void> registerWithPhone({
@@ -151,10 +148,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
 
       // Update auth state - user is now authenticated!
-      state = AuthState(
-        status: AuthStatus.authenticated,
-        user: result.user,
-      );
+      state = AuthState(status: AuthStatus.authenticated, user: result.user);
     } catch (e) {
       rethrow;
     }

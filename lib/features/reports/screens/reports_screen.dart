@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
@@ -17,8 +18,10 @@ class ReportsScreen extends ConsumerWidget {
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
-        drawer: isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
+        drawer:
+            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
+          surfaceTintColor: AppTheme.scaffoldBackground,
           title: const Text('Reports & Analytics'),
           actions: [
             IconButton(
@@ -27,7 +30,9 @@ class ReportsScreen extends ConsumerWidget {
               onPressed: () {
                 // TODO: Show date range picker
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Date range selector coming soon')),
+                  const SnackBar(
+                    content: Text('Date range selector coming soon'),
+                  ),
                 );
               },
             ),
@@ -59,9 +64,9 @@ class ReportsScreen extends ConsumerWidget {
               const SizedBox(height: 8),
               Text(
                 'Select a report to view detailed insights',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.neutral600,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),
               ),
               const SizedBox(height: 24),
 
@@ -72,63 +77,76 @@ class ReportsScreen extends ConsumerWidget {
                 crossAxisCount: isMobile ? 2 : 3,
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
-                childAspectRatio: isMobile ? 1.0 : 1.2,  // Square cards on mobile, wider on tablet
+                childAspectRatio:
+                    isMobile
+                        ? 1.0
+                        : 1.2, // Square cards on mobile, wider on tablet
                 children: [
                   _ReportCard(
                     icon: Icons.assessment,
                     title: 'Daily Sales',
                     description: 'View today\'s performance',
                     color: AppTheme.primaryOrange,
-                    onTap: () => _showComingSoon(context, 'Daily Sales Report'),
+                    onTap:
+                        () =>
+                            _navigateToReport(context, '/reports/daily-sales'),
                   ),
                   _ReportCard(
                     icon: Icons.inventory_2,
                     title: 'Products',
                     description: 'Sales by products',
                     color: Colors.blue,
-                    onTap: () => _showComingSoon(context, 'Products Report'),
+                    onTap:
+                        () => _navigateToReport(context, '/reports/products'),
                   ),
                   _ReportCard(
                     icon: Icons.people,
                     title: 'Staff',
                     description: 'Performance by staff',
                     color: Colors.green,
-                    onTap: () => _showComingSoon(context, 'Staff Report'),
+                    onTap: () => _navigateToReport(context, '/reports/staff'),
                   ),
                   _ReportCard(
                     icon: Icons.nightlight_round,
                     title: 'End of Day',
                     description: 'Daily closing report',
                     color: Colors.purple,
-                    onTap: () => _showComingSoon(context, 'End of Day Report'),
+                    onTap:
+                        () => _navigateToReport(context, '/reports/end-of-day'),
                   ),
                   _ReportCard(
                     icon: Icons.trending_up,
                     title: 'Sales Trends',
                     description: 'Historical trends',
                     color: Colors.teal,
-                    onTap: () => _showComingSoon(context, 'Sales Trends'),
+                    onTap:
+                        () =>
+                            _navigateToReport(context, '/reports/sales-trends'),
                   ),
                   _ReportCard(
                     icon: Icons.category,
                     title: 'Categories',
                     description: 'Sales by category',
                     color: Colors.orange,
-                    onTap: () => _showComingSoon(context, 'Category Report'),
+                    onTap:
+                        () => _navigateToReport(context, '/reports/categories'),
                   ),
                   _ReportCard(
                     icon: Icons.payment,
                     title: 'Payments',
                     description: 'Payment methods breakdown',
                     color: Colors.indigo,
-                    onTap: () => _showComingSoon(context, 'Payment Methods'),
+                    onTap:
+                        () => _navigateToReport(context, '/reports/payments'),
                   ),
                   _ReportCard(
                     icon: Icons.schedule,
                     title: 'Hourly Sales',
                     description: 'Sales by hour',
                     color: Colors.pink,
-                    onTap: () => _showComingSoon(context, 'Hourly Sales'),
+                    onTap:
+                        () =>
+                            _navigateToReport(context, '/reports/hourly-sales'),
                   ),
                 ],
               ),
@@ -139,16 +157,8 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  void _showComingSoon(BuildContext context, String reportName) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$reportName - Coming Soon'),
-        action: SnackBarAction(
-          label: 'OK',
-          onPressed: () {},
-        ),
-      ),
-    );
+  void _navigateToReport(BuildContext context, String route) {
+    context.go(route);
   }
 }
 
@@ -171,41 +181,41 @@ class _ReportCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(12),  // Reduced from 16 to 12
+          padding: const EdgeInsets.all(12), // Reduced from 16 to 12
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,  // Don't expand unnecessarily
+            mainAxisSize: MainAxisSize.min, // Don't expand unnecessarily
             children: [
               Container(
-                padding: const EdgeInsets.all(10),  // Reduced from 12 to 10
+                padding: const EdgeInsets.all(10), // Reduced from 12 to 10
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   icon,
-                  size: 28,  // Reduced from 32 to 28
+                  size: 28, // Reduced from 32 to 28
                   color: color,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 4),  // Increased from 2 to 4 for better spacing
+              const SizedBox(
+                height: 4,
+              ), // Increased from 2 to 4 for better spacing
               Text(
                 description,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(

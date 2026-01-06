@@ -45,15 +45,9 @@ class MoneyAmount {
   final double amount;
   final String currency;
 
-  MoneyAmount({
-    required this.amount,
-    this.currency = 'LAK',
-  });
+  MoneyAmount({required this.amount, this.currency = 'LAK'});
 
-  Map<String, dynamic> toJson() => {
-    'amount': amount,
-    'currency': currency,
-  };
+  Map<String, dynamic> toJson() => {'amount': amount, 'currency': currency};
 
   factory MoneyAmount.fromJson(Map<String, dynamic> json) => MoneyAmount(
     amount: (json['amount'] as num?)?.toDouble() ?? 0,
@@ -63,14 +57,15 @@ class MoneyAmount {
 
 class PaymentMethod {
   final String method; // cash, card, bank_qr_jdb, etc.
-  final MoneyAmount customerAmount;  // ✅ Object: the amount being paid
-  final MoneyAmount? tenderedAmount;  // ✅ Object: for cash - amount customer gave
+  final MoneyAmount customerAmount; // ✅ Object: the amount being paid
+  final MoneyAmount?
+  tenderedAmount; // ✅ Object: for cash - amount customer gave
   final Map<String, dynamic>? paymentDetails;
 
   PaymentMethod({
     required this.method,
     required this.customerAmount,
-    this.tenderedAmount,  // Required for cash, optional for others
+    this.tenderedAmount, // Required for cash, optional for others
     this.paymentDetails,
   });
 
@@ -79,17 +74,17 @@ class PaymentMethod {
       'method': method,
       'customerAmount': customerAmount.toJson(),
     };
-    
+
     // Only include tenderedAmount if provided (required for cash)
     if (tenderedAmount != null) {
       json['tenderedAmount'] = tenderedAmount!.toJson();
     }
-    
+
     // Include payment details if provided (for QR payments, etc.)
     if (paymentDetails != null && paymentDetails!.isNotEmpty) {
       json['paymentDetails'] = paymentDetails;
     }
-    
+
     return json;
   }
 }
@@ -99,11 +94,7 @@ class CustomerInfo {
   final String? name;
   final String? phone;
 
-  CustomerInfo({
-    this.customerId,
-    this.name,
-    this.phone,
-  });
+  CustomerInfo({this.customerId, this.name, this.phone});
 
   Map<String, dynamic> toJson() => {
     if (customerId != null) 'customerId': customerId,
@@ -182,7 +173,7 @@ class CheckoutOrder {
         qNumberValue = json['qNumber'] as String;
       }
     }
-    
+
     return CheckoutOrder(
       id: json['_id'] as String? ?? '',
       orderId: json['orderId'] as String? ?? '',
@@ -234,9 +225,12 @@ class CheckoutResponse {
   factory CheckoutResponse.fromJson(Map<String, dynamic> json) {
     return CheckoutResponse(
       order: CheckoutOrder.fromJson(json['order'] as Map<String, dynamic>),
-      transaction:
-          CheckoutTransaction.fromJson(json['transaction'] as Map<String, dynamic>),
-      pricing: CheckoutPricing.fromJson(json['pricing'] as Map<String, dynamic>),
+      transaction: CheckoutTransaction.fromJson(
+        json['transaction'] as Map<String, dynamic>,
+      ),
+      pricing: CheckoutPricing.fromJson(
+        json['pricing'] as Map<String, dynamic>,
+      ),
       message: json['message'] as String? ?? '',
     );
   }
@@ -285,10 +279,10 @@ class CheckoutService {
     print('   Line items: ${lineItems.length}');
     print('   Payments: ${payments.length}');
     print('   Expected total: $expectedTotal');
-    
+
     // Generate idempotency key if not provided
-    final key = idempotencyKey ?? 
-        'checkout-${DateTime.now().millisecondsSinceEpoch}';
+    final key =
+        idempotencyKey ?? 'checkout-${DateTime.now().millisecondsSinceEpoch}';
 
     print('📤 Making API call to ${ApiConstants.processPayment}');
     final response = await _apiClient.post(
@@ -308,20 +302,22 @@ class CheckoutService {
     print('📥 API response received');
     print('   Response keys: ${response.keys.toList()}');
     print('   Has data key: ${response.containsKey('data')}');
-    
+
     if (response['data'] != null) {
       print('   Data type: ${response['data'].runtimeType}');
       if (response['data'] is Map) {
         print('   Data keys: ${(response['data'] as Map).keys.toList()}');
       }
     }
-    
+
     print('🔄 Parsing CheckoutResponse...');
-    final checkoutResponse = CheckoutResponse.fromJson(response['data'] as Map<String, dynamic>);
+    final checkoutResponse = CheckoutResponse.fromJson(
+      response['data'] as Map<String, dynamic>,
+    );
     print('✅ CheckoutResponse parsed successfully');
     print('   Order ID: ${checkoutResponse.order.orderId}');
     print('   Transaction ID: ${checkoutResponse.transaction.transactionId}');
-    
+
     return checkoutResponse;
   }
 
@@ -335,33 +331,30 @@ class CheckoutService {
     print('   Cart total: ${cart.total}');
     print('   Tendered amount: $tenderedAmount');
     print('   Cart items: ${cart.items.length}');
-    
+
     // Transform cart items to LineItems
-    final lineItems = cart.items.map((item) => 
-      LineItem(
-        menuItemId: item.productId,
-        name: item.productName,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        subtotal: item.subtotal,
-        notes: item.notes,
-        options: [],
-      ),
-    ).toList();
+    final lineItems =
+        cart.items
+            .map(
+              (item) => LineItem(
+                menuItemId: item.productId,
+                name: item.productName,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                subtotal: item.subtotal,
+                notes: item.notes,
+                options: [],
+              ),
+            )
+            .toList();
 
     print('✅ Line items created: ${lineItems.length}');
 
     // ✅ Create payment method with correct API format
     final payment = PaymentMethod(
       method: 'cash',
-      customerAmount: MoneyAmount(
-        amount: cart.total,
-        currency: 'LAK',
-      ),
-      tenderedAmount: MoneyAmount(
-        amount: tenderedAmount,
-        currency: 'LAK',
-      ),
+      customerAmount: MoneyAmount(amount: cart.total, currency: 'LAK'),
+      tenderedAmount: MoneyAmount(amount: tenderedAmount, currency: 'LAK'),
     );
 
     print('✅ Payment method created: cash');
@@ -391,7 +384,7 @@ class CheckoutService {
       promotions: [],
       notes: notes ?? cart.notes,
     );
-    
+
     print('✅ processCashPaymentFromCart completed successfully');
     return result;
   }
@@ -404,26 +397,26 @@ class CheckoutService {
     String? notes,
   }) async {
     // Transform cart items to LineItems
-    final lineItems = cart.items.map((item) => 
-      LineItem(
-        menuItemId: item.productId,
-        name: item.productName,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        subtotal: item.subtotal,
-        notes: item.notes,
-        options: [],
-      ),
-    ).toList();
+    final lineItems =
+        cart.items
+            .map(
+              (item) => LineItem(
+                menuItemId: item.productId,
+                name: item.productName,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                subtotal: item.subtotal,
+                notes: item.notes,
+                options: [],
+              ),
+            )
+            .toList();
 
     // ✅ Create payment method with correct API format
     // For QR payments: only customerAmount is required (no tenderedAmount)
     final payment = PaymentMethod(
       method: bankMethod,
-      customerAmount: MoneyAmount(
-        amount: cart.total,
-        currency: 'LAK',
-      ),
+      customerAmount: MoneyAmount(amount: cart.total, currency: 'LAK'),
       // No tenderedAmount for QR payments (customer pays exact amount)
       paymentDetails: paymentDetails,
     );
@@ -448,5 +441,170 @@ class CheckoutService {
       notes: notes ?? cart.notes,
     );
   }
-}
 
+  /// Helper: Save order as pending/hold status from Cart
+  Future<CheckoutResponse> saveOrderAsPending({
+    required Cart cart,
+    String? notes,
+  }) async {
+    print('💾 CheckoutService.saveOrderAsPending called');
+    print('   Cart items: ${cart.items.length}');
+    print('   Total: ${cart.total}');
+
+    // Transform cart items to LineItems
+    final lineItems =
+        cart.items
+            .map(
+              (item) => LineItem(
+                menuItemId: item.productId,
+                name: item.productName,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                subtotal: item.subtotal,
+                notes: item.notes,
+                options: [],
+              ),
+            )
+            .toList();
+
+    // Create customer info if available
+    CustomerInfo? customerInfo;
+    if (cart.customer != null) {
+      customerInfo = CustomerInfo(
+        customerId: cart.customer!.id,
+        name: cart.customer!.name,
+        phone: cart.customer!.phone,
+      );
+    }
+
+    // Save as pending order without payment
+    return await savePendingOrder(
+      lineItems: lineItems,
+      expectedTotal: cart.total,
+      customer: customerInfo,
+      promotions: [],
+      notes: notes ?? cart.notes,
+    );
+  }
+
+  /// Save pending order (without payment processing)
+  Future<CheckoutResponse> savePendingOrder({
+    required List<LineItem> lineItems,
+    required double expectedTotal,
+    CustomerInfo? customer,
+    List<dynamic>? promotions,
+    String? notes,
+  }) async {
+    print('📤 Saving pending order to API...');
+
+    final requestBody = {
+      'orderType': 'dine_in',
+      'status': 'pending', // Set status as pending
+      'lineItems': lineItems.map((item) => item.toJson()).toList(),
+      'totalAmount': {'amount': expectedTotal, 'currency': 'LAK'},
+      if (customer != null) 'customer': customer.toJson(),
+      if (promotions != null && promotions.isNotEmpty) 'promotions': promotions,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+
+    print('📋 Request body: $requestBody');
+
+    try {
+      // Use createOrder endpoint for creating pending orders
+      final response = await _apiClient.post(
+        ApiConstants.createOrder,
+        data: requestBody,
+      );
+
+      print('📥 API Response status: ${response['status'] ?? 'unknown'}');
+      print('📋 API Response body: $response');
+
+      // For pending orders, create a simplified CheckoutResponse
+      final orderData = response['data'] ?? response;
+      final result = CheckoutResponse(
+        order: CheckoutOrder(
+          id:
+              orderData['_id']?.toString() ??
+              DateTime.now().millisecondsSinceEpoch.toString(),
+          orderId:
+              orderData['_id']?.toString() ??
+              DateTime.now().millisecondsSinceEpoch.toString(),
+          orderNumber:
+              orderData['orderNumber']?.toString() ??
+              'ORD-${DateTime.now().millisecondsSinceEpoch}',
+          qNumber: orderData['qNumber']?.toString() ?? '0',
+          orderType: 'dine_in',
+          orderStatus: 'pending',
+          lineItems: lineItems.map((item) => item.toJson()).toList(),
+          pricing: {
+            'subtotal': {'amount': expectedTotal, 'currency': 'LAK'},
+            'totalDue': {'amount': expectedTotal, 'currency': 'LAK'},
+          },
+          customer: customer?.toJson(),
+          createdAt: DateTime.now().toIso8601String(),
+        ),
+        transaction: CheckoutTransaction(
+          transactionId: 'pending-${DateTime.now().millisecondsSinceEpoch}',
+          transactionStatus: 'pending',
+          paymentSummary: {},
+        ),
+        pricing: CheckoutPricing(
+          subtotal: {'amount': expectedTotal, 'currency': 'LAK'},
+          totalTax: {'amount': 0.0, 'currency': 'LAK'},
+          totalDiscount: {'amount': 0.0, 'currency': 'LAK'},
+          totalFees: {'amount': 0.0, 'currency': 'LAK'},
+          totalTip: {'amount': 0.0, 'currency': 'LAK'},
+          totalDue: {'amount': expectedTotal, 'currency': 'LAK'},
+          currency: 'LAK',
+        ),
+        message: 'Order saved as pending successfully',
+      );
+
+      print('✅ savePendingOrder completed successfully');
+      return result;
+    } catch (e) {
+      print('❌ createOrder endpoint failed: $e');
+      print('🔄 Trying alternative approach with checkout system...');
+
+      // Alternative approach: Use checkout system but with no payments to create pending order
+      try {
+        final alternativeBody = {
+          'lineItems': lineItems.map((item) => item.toJson()).toList(),
+          'payments': [], // Empty payments array for pending order
+          'expectedTotal': expectedTotal,
+          'orderType': 'dine_in',
+          'orderStatus': 'pending', // Use orderStatus for checkout system
+          if (customer != null) 'customer': customer.toJson(),
+          if (promotions != null && promotions.isNotEmpty)
+            'promotions': promotions,
+          if (notes != null && notes.isNotEmpty) 'notes': notes,
+          'idempotencyKey': 'pending-${DateTime.now().millisecondsSinceEpoch}',
+        };
+
+        print('📋 Alternative request body: $alternativeBody');
+
+        final response = await _apiClient.post(
+          ApiConstants.processPayment,
+          data: alternativeBody,
+        );
+
+        print('📥 Alternative API Response: $response');
+
+        // Parse the checkout response
+        final result = CheckoutResponse.fromJson(
+          response['data'] as Map<String, dynamic>,
+        );
+
+        print('✅ savePendingOrder completed via alternative approach');
+        return result;
+      } catch (alternativeError) {
+        print('❌ Alternative approach also failed: $alternativeError');
+        print(
+          '💡 Suggestion: Check if your backend supports order creation endpoints',
+        );
+        rethrow;
+      }
+    }
+  }
+}

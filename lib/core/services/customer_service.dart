@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../constants/api_constants.dart';
 import '../models/customer.dart';
+import '../models/customer.dart';
 
 final customerServiceProvider = Provider<CustomerService>((ref) {
   final apiClient = ref.watch(apiClientProvider);
@@ -52,10 +53,7 @@ class CustomerService {
     required String restaurantId,
     required String phone,
   }) async {
-    return await getCustomers(
-      restaurantId: restaurantId,
-      search: phone,
-    );
+    return await getCustomers(restaurantId: restaurantId, search: phone);
   }
 
   /// Create a new customer
@@ -68,8 +66,8 @@ class CustomerService {
     final response = await _apiClient.post(
       ApiConstants.customers,
       data: {
-        'name': name,
-        'phone': phone,
+        'firstName': name,
+        'phoneNumber': phone,
         if (email != null) 'email': email,
         if (dateOfBirth != null) 'dateOfBirth': dateOfBirth,
       },
@@ -89,8 +87,8 @@ class CustomerService {
     final response = await _apiClient.patch(
       '${ApiConstants.customers}/$customerId',
       data: {
-        if (name != null) 'name': name,
-        if (phone != null) 'phone': phone,
+        if (name != null) 'firstName': name,
+        if (phone != null) 'phoneNumber': phone,
         if (email != null) 'email': email,
         if (dateOfBirth != null) 'dateOfBirth': dateOfBirth,
       },
@@ -105,11 +103,92 @@ class CustomerService {
   }
 
   /// Get customer loyalty points and history
-  Future<CustomerPoints> getCustomerPoints(String customerId) async {
-    final url = ApiConstants.customerAvailablePoints.replaceAll('{customerId}', customerId);
-    final response = await _apiClient.get(url);
+  Future<CustomerPoints> getCustomerPoints(
+    String customerId, {
+    String? restaurantId,
+  }) async {
+    final url = ApiConstants.customerAvailablePoints.replaceAll(
+      '{customerId}',
+      customerId,
+    );
+    
+    final queryParameters = <String, dynamic>{};
+    if (restaurantId != null) {
+      queryParameters['restaurantId'] = restaurantId;
+    }
+    
+    try {
+      final response = await _apiClient.get(
+        url,
+        queryParameters: queryParameters.isNotEmpty ? queryParameters : null,
+      );
 
-    return CustomerPoints.fromJson(response['data'] as Map<String, dynamic>);
+      return CustomerPoints.fromJson(response['data'] as Map<String, dynamic>);
+    } catch (e) {
+      // If the loyalty points endpoint fails, return default points based on customer data
+      // This is a fallback for when the server endpoint isn't implemented
+      print('⚠️ Loyalty points endpoint failed: $e');
+      print('🔄 Using fallback: creating CustomerPoints from customer data');
+      
+      // Try to get the customer to extract loyalty points
+      try {
+        final customers = await getCustomers(
+          restaurantId: restaurantId ?? '',
+          search: customerId,
+        );
+        
+        final customer = customers.isNotEmpty ? customers.first : null;
+        if (customer != null) {
+          return CustomerPoints(
+            customerId: customer.id,
+            currentPoints: customer.loyaltyPoints,
+            tier: customer.tier,
+            nextTier: _getNextTier(customer.tier),
+            pointsToNextTier: _getPointsToNextTier(customer.tier, customer.loyaltyPoints),
+            history: [], // Empty history as fallback
+          );
+        }
+      } catch (fallbackError) {
+        print('❌ Fallback also failed: $fallbackError');
+      }
+      
+      // Final fallback - return empty points
+      return CustomerPoints(
+        customerId: customerId,
+        currentPoints: 0,
+        tier: LoyaltyTier.bronze,
+        nextTier: LoyaltyTier.silver,
+        pointsToNextTier: 100,
+        history: [],
+      );
+    }
+  }
+
+  /// Get next loyalty tier
+  LoyaltyTier? _getNextTier(LoyaltyTier currentTier) {
+    switch (currentTier) {
+      case LoyaltyTier.bronze:
+        return LoyaltyTier.silver;
+      case LoyaltyTier.silver:
+        return LoyaltyTier.gold;
+      case LoyaltyTier.gold:
+        return LoyaltyTier.platinum;
+      case LoyaltyTier.platinum:
+        return null; // Already at highest tier
+    }
+  }
+
+  /// Calculate points needed for next tier
+  int _getPointsToNextTier(LoyaltyTier currentTier, int currentPoints) {
+    final thresholds = {
+      LoyaltyTier.bronze: 100,    // Points needed for Silver
+      LoyaltyTier.silver: 500,   // Points needed for Gold  
+      LoyaltyTier.gold: 1000,    // Points needed for Platinum
+      LoyaltyTier.platinum: 0,   // Already at highest tier
+    };
+    
+    final threshold = thresholds[currentTier] ?? 0;
+    return threshold > currentPoints ? threshold - currentPoints : 0;
   }
 
   /// Redeem loyalty points
@@ -118,13 +197,13 @@ class CustomerService {
     required int points,
     required String orderId,
   }) async {
+    final url = ApiConstants.redeemPoints.replaceAll(
+      '{customerId}',
+      customerId,
+    );
     final response = await _apiClient.post(
-      ApiConstants.redeemPoints,
-      data: {
-        'customerId': customerId,
-        'points': points,
-        'orderId': orderId,
-      },
+      url,
+      data: {'points': points, 'orderId': orderId},
     );
 
     return response['data'] as Map<String, dynamic>;
@@ -138,10 +217,7 @@ class CustomerService {
   }) async {
     final response = await _apiClient.post(
       '${ApiConstants.customers}/$customerId/points/add',
-      data: {
-        'points': points,
-        'reason': reason,
-      },
+      data: {'points': points, 'reason': reason},
     );
 
     return CustomerPoints.fromJson(response['data'] as Map<String, dynamic>);
@@ -155,10 +231,7 @@ class CustomerService {
   }) async {
     final response = await _apiClient.get(
       '${ApiConstants.customers}/$customerId/orders',
-      queryParameters: {
-        'page': page,
-        'limit': limit,
-      },
+      queryParameters: {'page': page, 'limit': limit},
     );
 
     return response['data'] as List<dynamic>? ?? [];
@@ -180,10 +253,7 @@ class CustomerService {
   }) async {
     final response = await _apiClient.get(
       '${ApiConstants.customers}/top',
-      queryParameters: {
-        'restaurantId': restaurantId,
-        'limit': limit,
-      },
+      queryParameters: {'restaurantId': restaurantId, 'limit': limit},
     );
 
     final data = response['data'] as List<dynamic>? ?? [];
@@ -204,4 +274,3 @@ class CustomerService {
     return response['data'] as Map<String, dynamic>;
   }
 }
-

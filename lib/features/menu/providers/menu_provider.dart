@@ -4,6 +4,7 @@ import '../../../core/models/product.dart';
 import '../../../core/services/menu_service.dart';
 import '../../../core/services/product_service.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../inventory/providers/inventory_provider.dart';
 
 /// Menu state
 class MenuState {
@@ -30,6 +31,7 @@ class MenuState {
     String? error,
     String? searchQuery,
     String? categoryFilter,
+    bool updateCategoryFilter = false,
   }) {
     return MenuState(
       items: items ?? this.items,
@@ -37,13 +39,17 @@ class MenuState {
       isLoading: isLoading ?? this.isLoading,
       error: error,
       searchQuery: searchQuery ?? this.searchQuery,
-      categoryFilter: categoryFilter ?? this.categoryFilter,
+      categoryFilter:
+          updateCategoryFilter
+              ? categoryFilter
+              : (categoryFilter ?? this.categoryFilter),
     );
   }
 
   int get activeItemsCount => items.where((i) => i.isActive).length;
   int get inactiveItemsCount => items.where((i) => !i.isActive).length;
-  int get activeCategoriesCount => categories.where((c) => c.isActive == true).length;
+  int get activeCategoriesCount =>
+      categories.where((c) => c.isActive == true).length;
 }
 
 /// Menu notifier
@@ -92,10 +98,7 @@ class MenuNotifier extends StateNotifier<MenuState> {
         isLoading: false,
       );
     } catch (e) {
-      state = state.copyWith(
-        error: e.toString(),
-        isLoading: false,
-      );
+      state = state.copyWith(error: e.toString(), isLoading: false);
     }
   }
 
@@ -107,7 +110,10 @@ class MenuNotifier extends StateNotifier<MenuState> {
 
   /// Filter by category
   void filterByCategory(String? categoryId) {
-    state = state.copyWith(categoryFilter: categoryId);
+    state = state.copyWith(
+      categoryFilter: categoryId,
+      updateCategoryFilter: true,
+    );
     loadMenu();
   }
 
@@ -281,13 +287,10 @@ class MenuNotifier extends StateNotifier<MenuState> {
 }
 
 /// Menu provider
-final menuProvider = StateNotifierProvider<MenuNotifier, MenuState>(
-  (ref) {
-    final menuService = ref.watch(menuServiceProvider);
-    final productService = ref.watch(productServiceProvider);
-    final restaurantId = ref.watch(currentRestaurantIdProvider);
-    final branchId = ref.watch(currentBranchIdProvider);
-    return MenuNotifier(menuService, productService, restaurantId, branchId);
-  },
-);
-
+final menuProvider = StateNotifierProvider<MenuNotifier, MenuState>((ref) {
+  final menuService = ref.watch(menuServiceProvider);
+  final productService = ref.watch(productServiceProvider);
+  final restaurantId = ref.watch(currentRestaurantIdProvider);
+  final branchId = ref.watch(currentBranchIdProvider);
+  return MenuNotifier(menuService, productService, restaurantId, branchId);
+});

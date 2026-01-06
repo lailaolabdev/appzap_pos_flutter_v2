@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/inventory.dart';
 import '../../../core/services/inventory_service.dart';
+import '../../../core/services/inventory_api_service.dart' as api;
 import '../../auth/providers/auth_provider.dart';
 
 /// Inventory state
@@ -51,6 +52,35 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
   final String? _restaurantId;
   final String? _branchId;
 
+  /// Categories and Units
+  final List<String> _categories = [
+    'Food Items',
+    'Beverages',
+    'Supplies',
+    'Packaging',
+    'Cleaning',
+    'Equipment',
+    'Raw Materials',
+    'Condiments',
+  ];
+
+  final List<String> _units = [
+    'pieces',
+    'kg',
+    'g',
+    'liters',
+    'ml',
+    'boxes',
+    'packs',
+    'bottles',
+    'cans',
+    'bags',
+  ];
+
+  /// Getters
+  List<String> get categories => List.unmodifiable(_categories);
+  List<String> get units => List.unmodifiable(_units);
+
   InventoryNotifier(this._inventoryService, this._restaurantId, this._branchId)
     : super(const InventoryState()) {
     loadInventory();
@@ -77,15 +107,9 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
         status: state.statusFilter,
       );
 
-      state = state.copyWith(
-        items: items,
-        isLoading: false,
-      );
+      state = state.copyWith(items: items, isLoading: false);
     } catch (e) {
-      state = state.copyWith(
-        error: e.toString(),
-        isLoading: false,
-      );
+      state = state.copyWith(error: e.toString(), isLoading: false);
     }
   }
 
@@ -94,10 +118,8 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
     if (_restaurantId == null || _branchId == null) return;
 
     try {
-      final alerts = await _inventoryService.getInventoryAlerts(
-        restaurantId: _restaurantId,
-        branchId: _branchId,
-      );
+      final apiService = api.InventoryApiService(_inventoryService as dynamic);
+      final alerts = await apiService.getLowStockAlerts();
 
       state = state.copyWith(alerts: alerts);
     } catch (e) {
@@ -134,31 +156,139 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
       return false;
     }
   }
+
+  /// Create inventory item
+  Future<void> createInventoryItem({
+    required String name,
+    String? description,
+    String? sku,
+    String? barcode,
+    required String category,
+    required String unit,
+    required double costPerUnit,
+    double? sellingPrice,
+    required int currentStock,
+    required int minStockLevel,
+    required int maxStockLevel,
+    String status = 'active',
+    bool trackStock = true,
+  }) async {
+    if (_restaurantId == null || _branchId == null) {
+      throw Exception('Restaurant or Branch not configured');
+    }
+
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      final apiService = api.InventoryApiService(_inventoryService as dynamic);
+      await apiService.createInventoryItem(
+        name: name,
+        description: description,
+        sku: sku,
+        barcode: barcode,
+        category: category,
+        unit: unit,
+        costPerUnit: costPerUnit,
+        sellingPrice: sellingPrice,
+        currentStock: currentStock,
+        minStockLevel: minStockLevel,
+        maxStockLevel: maxStockLevel,
+        status: status,
+        trackStock: trackStock,
+      );
+
+      await loadInventory();
+    } catch (e) {
+      state = state.copyWith(error: e.toString(), isLoading: false);
+      rethrow;
+    }
+  }
+
+  /// Update inventory item
+  Future<void> updateInventoryItem({
+    required String itemId,
+    required String name,
+    String? description,
+    String? sku,
+    String? barcode,
+    required String category,
+    required String unit,
+    required double costPerUnit,
+    double? sellingPrice,
+    required int minStockLevel,
+    required int maxStockLevel,
+    String status = 'active',
+    bool trackStock = true,
+  }) async {
+    if (_restaurantId == null || _branchId == null) {
+      throw Exception('Restaurant or Branch not configured');
+    }
+
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      final apiService = api.InventoryApiService(_inventoryService as dynamic);
+      await apiService.updateInventoryItem(
+        itemId: itemId,
+        name: name,
+        description: description,
+        sku: sku,
+        barcode: barcode,
+        category: category,
+        unit: unit,
+        costPerUnit: costPerUnit,
+        sellingPrice: sellingPrice,
+        minStockLevel: minStockLevel,
+        maxStockLevel: maxStockLevel,
+        status: status,
+        trackStock: trackStock,
+      );
+
+      await loadInventory();
+    } catch (e) {
+      state = state.copyWith(error: e.toString(), isLoading: false);
+      rethrow;
+    }
+  }
+
+  /// Delete inventory item
+  Future<void> deleteInventoryItem(String itemId) async {
+    if (_restaurantId == null || _branchId == null) {
+      throw Exception('Restaurant or Branch not configured');
+    }
+
+    try {
+      final apiService = api.InventoryApiService(_inventoryService as dynamic);
+      await apiService.deleteInventoryItem(itemId);
+      await loadInventory();
+    } catch (e) {
+      rethrow;
+    }
+  }
 }
 
 /// Inventory provider
-final inventoryProvider = StateNotifierProvider<InventoryNotifier, InventoryState>(
-  (ref) {
-    final inventoryService = ref.watch(inventoryServiceProvider);
-    final restaurantId = ref.watch(currentRestaurantIdProvider);
-    final branchId = ref.watch(currentBranchIdProvider);
-    return InventoryNotifier(inventoryService, restaurantId, branchId);
-  },
-);
+final inventoryProvider =
+    StateNotifierProvider<InventoryNotifier, InventoryState>((ref) {
+      final inventoryService = ref.watch(inventoryServiceProvider);
+      final restaurantId = ref.watch(currentRestaurantIdProvider);
+      final branchId = ref.watch(currentBranchIdProvider);
+      return InventoryNotifier(inventoryService, restaurantId, branchId);
+    });
 
 /// Inventory valuation provider
-final inventoryValuationProvider = FutureProvider<InventoryValuation?>((ref) async {
+final inventoryValuationProvider = FutureProvider<InventoryValuation?>((
+  ref,
+) async {
   final restaurantId = ref.watch(currentRestaurantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
   if (restaurantId == null || branchId == null) return null;
 
   try {
-    return await ref.read(inventoryServiceProvider).getInventoryValuation(
-      restaurantId: restaurantId,
-      branchId: branchId,
-    );
+    return await ref
+        .read(inventoryServiceProvider)
+        .getInventoryValuation(restaurantId: restaurantId, branchId: branchId);
   } catch (e) {
     return null;
   }
 });
-
