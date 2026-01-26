@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
 import '../../../core/models/inventory.dart';
+import '../../../core/models/product.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/app_sidebar.dart';
 import '../../../shared/widgets/error_banner.dart';
+import '../../pos/providers/pos_provider.dart';
 import '../providers/inventory_provider.dart';
 import '../widgets/adjust_stock_dialog.dart';
-import '../widgets/stock_movement_tracker.dart';
 
 /// Inventory management screen - Advanced inventory tracking (USP #2)
 class InventoryScreen extends ConsumerStatefulWidget {
@@ -61,11 +61,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   void _setStatusFilter(String? status) {
     ref.read(inventoryProvider.notifier).setStatusFilter(status);
+    // Force refresh after applying filter to ensure data is loaded
+    ref.read(inventoryProvider.notifier).refresh();
   }
 
   @override
   Widget build(BuildContext context) {
     final inventoryState = ref.watch(inventoryProvider);
+    final productsState = ref.watch(productsProvider);
     final valuationAsync = ref.watch(inventoryValuationProvider);
     final isMobile = Responsive.isMobile(context);
 
@@ -75,83 +78,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         drawer:
             isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
+          backgroundColor: AppTheme.scaffoldBackground,
+          surfaceTintColor: AppTheme.scaffoldBackground,
           title: const Text('Inventory Management'),
           actions: [
             IconButton(
-              icon: const Icon(Icons.history),
-              tooltip: 'Stock Movements',
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const StockMovementTracker(),
-                  ),
-                );
-              },
-            ),
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.filter_list),
-              tooltip: 'Filter',
-              onSelected: _setStatusFilter,
-              itemBuilder:
-                  (context) => [
-                    PopupMenuItem(
-                      value: null,
-                      child: Text(
-                        'All Items',
-                        style: TextStyle(
-                          fontWeight:
-                              inventoryState.statusFilter == null
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                        ),
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'low_stock',
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.warning_amber,
-                            color: Colors.orange,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Low Stock (${inventoryState.lowStockCount})',
-                            style: TextStyle(
-                              fontWeight:
-                                  inventoryState.statusFilter == 'low_stock'
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'out_of_stock',
-                      child: Row(
-                        children: [
-                          const Icon(Icons.error, color: Colors.red, size: 18),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Out of Stock (${inventoryState.outOfStockCount})',
-                            style: TextStyle(
-                              fontWeight:
-                                  inventoryState.statusFilter == 'out_of_stock'
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-            ),
-            IconButton(
               icon: const Icon(Icons.refresh),
               tooltip: 'Refresh',
-              onPressed: () => ref.read(inventoryProvider.notifier).refresh(),
+              onPressed: () {
+                // Refresh both inventory and products data
+                ref.read(inventoryProvider.notifier).refresh();
+                ref.read(productsProvider.notifier).refresh();
+              },
             ),
           ],
         ),
@@ -186,7 +124,19 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           onTap:
                               () => _showLowStockModal(context, inventoryState),
                           child: _buildAlertCard(
-                            inventoryState.lowStockCount.toString(),
+                            inventoryState.items
+                                .where((item) {
+                                  // Only count items that have corresponding products
+                                  final product = _findProductByName(
+                                    productsState.products,
+                                    item.name,
+                                  );
+                                  return product != null &&
+                                      item.isLowStock &&
+                                      item.currentStock > 0;
+                                })
+                                .length
+                                .toString(),
                             'Low Stock',
                             Icons.warning_amber,
                             Colors.orange,
@@ -200,7 +150,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                               () =>
                                   _showOutOfStockModal(context, inventoryState),
                           child: _buildAlertCard(
-                            inventoryState.outOfStockCount.toString(),
+                            inventoryState.items
+                                .where((item) {
+                                  // Only count items that have corresponding products
+                                  final product = _findProductByName(
+                                    productsState.products,
+                                    item.name,
+                                  );
+                                  return product != null &&
+                                      item.currentStock == 0;
+                                })
+                                .length
+                                .toString(),
                             'Out of Stock',
                             Icons.error,
                             Colors.red,
@@ -228,7 +189,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
             // Search bar
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(10),
               child: TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
@@ -273,14 +234,39 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       : inventoryState.items.isEmpty
                       ? _buildEmptyState()
                       : RefreshIndicator(
-                        onRefresh:
-                            () =>
-                                ref.read(inventoryProvider.notifier).refresh(),
+                        onRefresh: () async {
+                          // Refresh both inventory and products data
+                          await ref.read(inventoryProvider.notifier).refresh();
+                          await ref.read(productsProvider.notifier).refresh();
+                        },
                         child: ListView.builder(
-                          itemCount: inventoryState.items.length,
+                          itemCount:
+                              inventoryState.items.where((item) {
+                                // Only show inventory items that have corresponding products
+                                final product = _findProductByName(
+                                  productsState.products,
+                                  item.name,
+                                );
+                                return product != null;
+                              }).length,
                           itemBuilder: (context, index) {
-                            final item = inventoryState.items[index];
-                            return _buildInventoryCard(item);
+                            // Filter items that have corresponding products
+                            final filteredItems =
+                                inventoryState.items.where((item) {
+                                  final product = _findProductByName(
+                                    productsState.products,
+                                    item.name,
+                                  );
+                                  return product != null;
+                                }).toList();
+
+                            final item = filteredItems[index];
+                            // Find corresponding product
+                            final product = _findProductByName(
+                              productsState.products,
+                              item.name,
+                            );
+                            return _buildInventoryCard(item, product);
                           },
                         ),
                       ),
@@ -385,7 +371,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
   }
 
-  Widget _buildInventoryCard(InventoryItem item) {
+  Widget _buildInventoryCard(InventoryItem item, Product? product) {
     final stockColor =
         item.currentStock == 0
             ? Colors.red
@@ -397,34 +383,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: ListTile(
         contentPadding: const EdgeInsets.all(12),
-        leading: Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            color: stockColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                item.currentStock.toString(),
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: stockColor,
-                ),
-              ),
-              Text(
-                item.unit,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: stockColor.withOpacity(0.7),
-                ),
-              ),
-            ],
-          ),
-        ),
         title: Text(
           item.name,
           style: const TextStyle(fontWeight: FontWeight.w600),
@@ -433,6 +391,48 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 4),
+            // Product Stock Info
+            if (product != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.restaurant_menu, size: 14, color: Colors.blue),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Product Stock: ${item.currentStock}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    // Show tracked indicator if product has inventory data
+                    if (product.inventory != null) ...[
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.track_changes,
+                        size: 12,
+                        color: AppTheme.success,
+                      ),
+                      Text(
+                        'Tracked',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppTheme.success,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            if (product != null) const SizedBox(height: 4),
             if (item.sku != null || item.barcode != null)
               Text(
                 [
@@ -442,36 +442,69 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 style: const TextStyle(fontSize: 11),
               ),
             const SizedBox(height: 4),
+            // Stock Status Row
             Row(
               children: [
-                Icon(
-                  item.currentStock == 0
-                      ? Icons.error
-                      : item.isLowStock
-                      ? Icons.warning_amber
-                      : Icons.check_circle,
-                  size: 14,
-                  color: stockColor,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  item.currentStock == 0
-                      ? 'Out of Stock'
-                      : item.isLowStock
-                      ? 'Low Stock (threshold: ${item.lowStockThreshold})'
-                      : 'In Stock',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: stockColor,
-                    fontWeight: FontWeight.w500,
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(
+                        item.currentStock == 0
+                            ? Icons.error
+                            : item.isLowStock
+                            ? Icons.warning_amber
+                            : Icons.check_circle,
+                        size: 14,
+                        color: stockColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          item.currentStock == 0
+                              ? 'Out of Stock'
+                              : item.isLowStock
+                              ? 'Low Stock (${item.lowStockThreshold})'
+                              : 'In Stock',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: stockColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                // Inventory vs Product Stock Comparison
+                if (product != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _getStockSyncColor(
+                        item.currentStock,
+                        product.inventory?.currentStock ?? 0,
+                      ).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      _getStockSyncStatus(
+                        item.currentStock,
+                        product.inventory?.currentStock ?? 0,
+                      ),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: _getStockSyncColor(
+                          item.currentStock,
+                          product.inventory?.currentStock ?? 0,
+                        ),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
               ],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Value: ${CurrencyFormatter.format(item.totalValue)}',
-              style: const TextStyle(fontSize: 11, color: AppTheme.neutral600),
             ),
             if (item.lastStockUpdate != null)
               Text(
@@ -524,7 +557,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   // Show Low Stock Items Modal
   void _showLowStockModal(BuildContext context, InventoryState state) {
-    final lowStockItems = state.items.where((item) => item.isLowStock).toList();
+    final lowStockItems =
+        state.items
+            .where((item) => item.isLowStock && item.currentStock > 0)
+            .toList();
     final isMobile = Responsive.isMobile(context);
 
     final content = _buildInventoryListModal(
@@ -963,6 +999,37 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         return 'EXPIRING SOON';
       default:
         return 'ALERT';
+    }
+  }
+
+  // Helper method to find product by name
+  Product? _findProductByName(List<Product> products, String itemName) {
+    try {
+      return products.firstWhere(
+        (product) => product.name.toLowerCase() == itemName.toLowerCase(),
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Helper method to get stock sync status
+  String _getStockSyncStatus(int inventoryStock, int menuStock) {
+    if (inventoryStock == menuStock) {
+      return 'SYNCED';
+    } else if (inventoryStock > menuStock) {
+      return 'INV HIGH';
+    } else {
+      return 'MENU HIGH';
+    }
+  }
+
+  // Helper method to get stock sync color
+  Color _getStockSyncColor(int inventoryStock, int menuStock) {
+    if (inventoryStock == menuStock) {
+      return AppTheme.success;
+    } else {
+      return Colors.orange;
     }
   }
 }

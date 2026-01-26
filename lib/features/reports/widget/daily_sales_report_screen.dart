@@ -40,8 +40,6 @@ class _DailySalesReportScreenState
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
-        drawer:
-            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
           title: const Text('Daily Sales Report'),
           backgroundColor: AppTheme.primaryOrange,

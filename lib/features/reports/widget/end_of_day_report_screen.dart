@@ -43,8 +43,6 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
-        drawer:
-            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
           title: const Text('End of Day Report'),
           backgroundColor: Colors.purple,

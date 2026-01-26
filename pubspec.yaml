@@ -51,6 +51,11 @@ dependencies:
   # Printing
   printing: ^5.13.4
   pdf: ^3.11.1
+  flutter_blue_plus: ^1.32.12
+  permission_handler: ^11.3.1
+  network_info_plus: ^5.0.3
+  image: ^4.1.0
+  flutter_esc_pos_utils: ^1.0.1
   
   # Utils
   intl: ^0.20.2

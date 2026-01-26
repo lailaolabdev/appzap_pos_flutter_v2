@@ -28,11 +28,11 @@ class User extends Equatable {
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['_id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      phone: json['phone'] as String? ?? '',
-      userId: json['userId'] as String?,
-      role: json['role'] as String? ?? 'cashier',
+      id: json['_id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? '',
+      userId: json['userId']?.toString(),
+      role: json['role']?.toString() ?? 'cashier',
       isPhoneVerified: json['isPhoneVerified'] as bool? ?? false,
       restaurant:
           json['restaurantId'] is Map
@@ -40,17 +40,17 @@ class User extends Equatable {
                 json['restaurantId'] as Map<String, dynamic>,
               )
               : json['restaurantId'] != null
-              ? Restaurant(id: json['restaurantId'] as String)
+              ? Restaurant(id: json['restaurantId'].toString())
               : null,
       branch:
           json['branchId'] is Map
               ? Branch.fromJson(json['branchId'] as Map<String, dynamic>)
               : json['branchId'] != null
-              ? Branch(id: json['branchId'] as String)
+              ? Branch(id: json['branchId'].toString())
               : null,
       permissions:
           (json['permissions'] as List<dynamic>?)
-              ?.map((e) => e as String)
+              ?.map((e) => e.toString())
               .toList() ??
           [],
     );
@@ -150,9 +150,9 @@ class Restaurant extends Equatable {
 
   factory Restaurant.fromJson(Map<String, dynamic> json) {
     return Restaurant(
-      id: json['_id'] as String? ?? '',
-      name: json['name'] as String?,
-      code: json['code'] as String?,
+      id: json['_id']?.toString() ?? '',
+      name: json['name']?.toString(),
+      code: json['code']?.toString(),
       settings: json['settings'] != null
           ? RestaurantSettings.fromJson(json['settings'] as Map<String, dynamic>)
           : null,
@@ -205,7 +205,7 @@ class CurrencySettings extends Equatable {
 
   factory CurrencySettings.fromJson(Map<String, dynamic> json) {
     return CurrencySettings(
-      mainCurrency: json['mainCurrency'] as String? ?? 'LAK',
+      mainCurrency: json['mainCurrency']?.toString() ?? 'LAK',
     );
   }
 
@@ -231,9 +231,9 @@ class Branch extends Equatable {
 
   factory Branch.fromJson(Map<String, dynamic> json) {
     return Branch(
-      id: json['_id'] as String? ?? '',
-      name: json['name'] as String?,
-      branchCode: json['branchCode'] as String?,
+      id: json['_id']?.toString() ?? '',
+      name: json['name']?.toString(),
+      branchCode: json['branchCode']?.toString(),
     );
   }
 

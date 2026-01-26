@@ -87,7 +87,6 @@ class _POSScreenState extends ConsumerState<POSScreen> {
       final apiProduct = await ref
           .read(productsProvider.notifier)
           .findByBarcodeAsync(barcode);
-
       if (!mounted) return;
 
       if (apiProduct != null) {
@@ -557,7 +556,45 @@ class _POSScreenState extends ConsumerState<POSScreen> {
       child: ProductGrid(
         products: productsState.filteredProducts,
         onProductTap: (product) {
-          ref.read(cartProvider.notifier).addProduct(product);
+          print('\\n🖱️ === USER TAPPED PRODUCT ===');
+          print('   Product: ${product.name}');
+          print('   Product ID: ${product.id}');
+          print('   Attempting to add to cart...');
+
+          // ✅ REMOVED LOADING BLOCK: Allow immediate cart additions
+          // Users can add items to cart even when inventory is loading
+          // Inventory validation will happen in the cart provider but won't block UI
+
+          final success = ref.read(cartProvider.notifier).addProduct(product);
+
+          if (!success) {
+            print('❌ Failed to add ${product.name} to cart');
+            // Show user feedback for failed addition
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Cannot add ${product.name} - Check stock availability',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                backgroundColor: AppTheme.error,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          } else {
+            print('✅ Successfully added ${product.name} to cart');
+            // Optional: Show success feedback
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Added ${product.name} to cart',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                backgroundColor: AppTheme.success,
+                duration: const Duration(seconds: 1),
+              ),
+            );
+          }
+          print('=== END PRODUCT TAP ===\\n');
         },
       ),
     );

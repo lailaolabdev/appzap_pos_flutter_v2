@@ -3,17 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../constants/api_constants.dart';
 import '../models/product.dart';
+import 'inventory_api_service.dart';
 
 final menuServiceProvider = Provider<MenuService>((ref) {
   final apiClient = ref.watch(apiClientProvider);
-  return MenuService(apiClient);
+  final inventoryService = ref.watch(inventoryApiServiceProvider);
+  return MenuService(apiClient, inventoryService);
 });
 
 /// Service for menu management operations (CRUD for items and categories)
 class MenuService {
   final ApiClient _apiClient;
+  final InventoryApiService _inventoryService;
 
-  MenuService(this._apiClient);
+  MenuService(this._apiClient, this._inventoryService);
 
   // ==================== MENU ITEMS ====================
 
@@ -35,6 +38,7 @@ class MenuService {
     String currency = 'LAK',
     bool trackStock = true,
     int lowStockThreshold = 10,
+    int initialStock = 0,
     String unit = 'unit',
     bool isActive = true,
     int displayOrder = 0,
@@ -94,7 +98,102 @@ class MenuService {
       menuItemData['updatedBy'] = menuItemData['updatedBy']['_id'];
     }
 
-    return Product.fromJson(menuItemData);
+    final createdProduct = Product.fromJson(menuItemData);
+
+    // 🚀 AUTO-CREATE INVENTORY ITEM when trackStock is enabled
+    if (trackStock) {
+      try {
+        print('🔄 Creating inventory item for menu item: $name');
+        print('   Restaurant ID: $restaurantId');
+        print('   Branch ID: $branchId');
+        print('   Track Stock: $trackStock');
+        print('   Cost Price: $costPrice');
+
+        if (restaurantId == null || branchId == null) {
+          throw Exception(
+            'Restaurant ID and Branch ID are required for inventory creation',
+          );
+        }
+
+        print('🔄 Creating inventory item for menu item: $name');
+        print('   Restaurant ID: $restaurantId');
+        print('   Branch ID: $branchId');
+        print('   Track Stock: $trackStock');
+        print('   lowStockThreshold parameter received: $lowStockThreshold');
+        print('   Cost Price: ${costPrice ?? 0.0}');
+
+        final createdInventoryItem = await _inventoryService.createInventoryItem(
+          name: name,
+          description: description,
+          sku: sku,
+          barcode: barcode,
+          category: 'finished_good', // Menu items are typically finished goods
+          unit: unit,
+          costPerUnit: costPrice ?? 0.0,
+          sellingPrice: basePrice,
+          currentStock: initialStock, // Use the provided initial stock
+          minStockLevel:
+              lowStockThreshold, // ✅ This should be the real value from form
+          maxStockLevel: lowStockThreshold * 10, // Default to 10x min level
+          status: isActive ? 'active' : 'inactive',
+          trackStock: true,
+          itemId: createdProduct.id, // Use menu item ID as itemId
+          itemType: 'menu_item', // Set proper item type
+          restaurantId: restaurantId,
+          branchId: branchId,
+        );
+
+        print('✅ Auto-created inventory item for menu item: $name');
+        print('🔍 Verifying created inventory item threshold...');
+        print('   Expected minStockLevel: $lowStockThreshold');
+        print('   Actual minStockLevel: ${createdInventoryItem.minStockLevel}');
+
+        // 🛡️ WORKAROUND: If backend returned wrong threshold, update it
+        if (createdInventoryItem.minStockLevel != lowStockThreshold) {
+          print(
+            '⚠️ Backend returned incorrect minStockLevel! Attempting to fix...',
+          );
+          try {
+            await _inventoryService.updateInventoryItem(
+              itemId: createdInventoryItem.id,
+              name: name,
+              description: description,
+              sku: sku,
+              barcode: barcode,
+              category: 'finished_good',
+              unit: unit,
+              costPerUnit: costPrice ?? 0.0,
+              sellingPrice: basePrice,
+              minStockLevel: lowStockThreshold, // Force correct value
+              maxStockLevel: lowStockThreshold * 10,
+              status: isActive ? 'active' : 'inactive',
+              trackStock: true,
+              menuItemId: createdProduct.id,
+            );
+            print(
+              '✅ Successfully updated minStockLevel to correct value: $lowStockThreshold',
+            );
+          } catch (updateError) {
+            print('❌ Failed to update minStockLevel: $updateError');
+            print(
+              '   The inventory item was created with minStockLevel: ${createdInventoryItem.minStockLevel}',
+            );
+          }
+        }
+      } catch (e) {
+        // Don't fail menu creation if inventory creation fails
+        // Just log the error
+        print('❌ Failed to auto-create inventory item for $name: $e');
+        print(
+          '   This means the menu item was created but no inventory entry exists.',
+        );
+        print(
+          '   You may need to manually create the inventory entry or check the backend.',
+        );
+      }
+    }
+
+    return createdProduct;
   }
 
   /// Update an existing menu item
@@ -111,6 +210,8 @@ class MenuService {
     int? lowStockThreshold,
     bool? isActive,
     int? displayOrder,
+    String? restaurantId,
+    String? branchId,
   }) async {
     final Map<String, dynamic> data = {};
 
@@ -146,7 +247,52 @@ class MenuService {
 
     // ⚠️ UPDATE response format: Direct menu item object { _id, name, ... }
     // NOT wrapped in { success, data }
-    return Product.fromJson(response);
+    final updatedProduct = Product.fromJson(response);
+
+    // 🚀 AUTO-CREATE INVENTORY ITEM when trackStock is being enabled
+    if (trackStock == true) {
+      try {
+        // Check if inventory item already exists for this menu item
+        // For now, we'll attempt to create and handle duplicates gracefully
+        await _inventoryService.createInventoryItem(
+          name: updatedProduct.name,
+          description: updatedProduct.description,
+          sku: updatedProduct.sku,
+          barcode: updatedProduct.barcode,
+          category: 'finished_good',
+          unit: updatedProduct.inventory?.unit ?? 'unit',
+          costPerUnit: updatedProduct.pricing.costPrice ?? 0.0,
+          sellingPrice: updatedProduct.pricing.basePrice,
+          currentStock: 0, // Start with 0 stock
+          minStockLevel: updatedProduct.inventory?.lowStockThreshold ?? 10,
+          maxStockLevel:
+              (updatedProduct.inventory?.lowStockThreshold ?? 10) * 10,
+          status: updatedProduct.isActive ? 'active' : 'inactive',
+          trackStock: true,
+          itemId: updatedProduct.id, // Use menu item ID as itemId
+          itemType: 'menu_item', // Required: Type of item
+          restaurantId: restaurantId,
+          branchId: branchId,
+        );
+
+        print(
+          '✅ Auto-created inventory item for updated menu item: ${updatedProduct.name}',
+        );
+      } catch (e) {
+        // Handle case where inventory item might already exist
+        final errorMessage = e.toString();
+        if (errorMessage.contains('duplicate') ||
+            errorMessage.contains('exists')) {
+          print('ℹ️ Inventory item already exists for: ${updatedProduct.name}');
+        } else {
+          print(
+            '⚠️ Failed to auto-create inventory item for ${updatedProduct.name}: $e',
+          );
+        }
+      }
+    }
+
+    return updatedProduct;
   }
 
   /// Delete a menu item (soft delete)
@@ -178,6 +324,117 @@ class MenuService {
     // TODO: Implement multipart/form-data upload
     // This requires FormData from dio package
     throw UnimplementedError('Image upload not implemented yet');
+  }
+
+  /// Sync existing menu items with inventory (create inventory items for menu items with trackStock enabled)
+  Future<Map<String, String>> syncMenuItemsToInventory(
+    List<Product> menuItems, {
+    required String restaurantId,
+    required String branchId,
+  }) async {
+    final results = <String, String>{};
+
+    // Separate items that need syncing
+    final itemsToSync = <Product>[];
+    for (final menuItem in menuItems) {
+      if (menuItem.inventory?.trackStock == true) {
+        itemsToSync.add(menuItem);
+      } else {
+        results[menuItem.id] = 'skipped_no_track_stock';
+      }
+    }
+
+    if (itemsToSync.isEmpty) {
+      return results;
+    }
+
+    // Prepare inventory item data for bulk creation
+    final inventoryItemsData =
+        itemsToSync
+            .map(
+              (menuItem) => {
+                'itemId': menuItem.id, // Required: Menu item ID
+                'itemType': 'menu_item', // Required: Type of item
+                'branchId': branchId, // Required: Branch ID
+                'restaurantId': restaurantId, // Restaurant ID
+                'name': menuItem.name,
+                'category': 'finished_good',
+                'unitOfMeasure': {
+                  'name': menuItem.inventory?.unit ?? 'unit',
+                  'abbreviation': menuItem.inventory?.unit ?? 'unit',
+                  'category': 'count',
+                },
+                'costPerUnit': menuItem.pricing.costPrice ?? 0.0,
+                'currentStock': menuItem.inventory?.currentStock ?? 0,
+                'minStockLevel': menuItem.inventory?.lowStockThreshold ?? 10,
+                'maxStockLevel':
+                    (menuItem.inventory?.lowStockThreshold ?? 10) * 10,
+                'status': menuItem.isActive ? 'active' : 'inactive',
+                'trackStock': true,
+                if (menuItem.description != null)
+                  'description': menuItem.description,
+                if (menuItem.sku != null) 'sku': menuItem.sku,
+                if (menuItem.barcode != null) 'barcode': menuItem.barcode,
+                if (menuItem.pricing.basePrice > 0)
+                  'sellingPrice': menuItem.pricing.basePrice,
+              },
+            )
+            .toList();
+
+    try {
+      // Try bulk creation first
+      await _inventoryService.createInventoryItems(items: inventoryItemsData);
+
+      // If successful, mark all as success
+      for (final menuItem in itemsToSync) {
+        results[menuItem.id] = 'success';
+      }
+
+      print('✅ Bulk synced ${itemsToSync.length} menu items to inventory');
+    } catch (e) {
+      // If bulk creation fails, fall back to individual creation
+      print('⚠️ Bulk sync failed, trying individual sync: $e');
+
+      for (final menuItem in itemsToSync) {
+        try {
+          await _inventoryService.createInventoryItem(
+            name: menuItem.name,
+            description: menuItem.description,
+            sku: menuItem.sku,
+            barcode: menuItem.barcode,
+            category: 'finished_good',
+            unit: menuItem.inventory?.unit ?? 'unit',
+            costPerUnit: menuItem.pricing.costPrice ?? 0.0,
+            sellingPrice: menuItem.pricing.basePrice,
+            currentStock: menuItem.inventory?.currentStock ?? 0,
+            minStockLevel: menuItem.inventory?.lowStockThreshold ?? 10,
+            maxStockLevel: (menuItem.inventory?.lowStockThreshold ?? 10) * 10,
+            status: menuItem.isActive ? 'active' : 'inactive',
+            trackStock: true,
+            itemId: menuItem.id, // Use menu item ID as itemId
+            itemType: 'menu_item', // Required: Type of item
+            restaurantId: restaurantId,
+            branchId: branchId,
+          );
+
+          results[menuItem.id] = 'success';
+          print('✅ Synced menu item to inventory: ${menuItem.name}');
+        } catch (e) {
+          final errorMessage = e.toString();
+          if (errorMessage.contains('duplicate') ||
+              errorMessage.contains('exists') ||
+              errorMessage.contains('already')) {
+            results[menuItem.id] = 'already_exists';
+            print('ℹ️ Inventory item already exists for: ${menuItem.name}');
+          } else {
+            results[menuItem.id] = 'failed: $errorMessage';
+            print('⚠️ Failed to sync menu item ${menuItem.name}: $e');
+          }
+        }
+      }
+    }
+
+    return results;
   }
 
   // ==================== CATEGORIES ====================

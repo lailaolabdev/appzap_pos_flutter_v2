@@ -8,7 +8,6 @@ import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/app_sidebar.dart';
 import '../../../shared/widgets/error_banner.dart';
-import '../../inventory/widgets/stock_movement_tracker.dart';
 import '../providers/menu_provider.dart';
 import '../widgets/category_form_dialog.dart';
 import '../widgets/menu_item_form_dialog.dart';
@@ -179,20 +178,12 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.history),
-              tooltip: 'Stock Movements',
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const StockMovementTracker(),
-                  ),
-                );
-              },
-            ),
-            IconButton(
               icon: const Icon(Icons.refresh),
               tooltip: 'Refresh',
-              onPressed: () => ref.read(menuProvider.notifier).refresh(),
+              onPressed: () {
+                ref.read(menuProvider.notifier).refresh();
+                ref.read(menuProvider.notifier).filterByCategory(null);
+              },
             ),
           ],
         ),

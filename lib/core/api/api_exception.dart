@@ -10,8 +10,8 @@ class ValidationError extends Equatable {
 
   factory ValidationError.fromJson(Map<String, dynamic> json) {
     return ValidationError(
-      field: json['field'] as String? ?? '',
-      message: json['message'] as String? ?? '',
+      field: json['field']?.toString() ?? '',
+      message: json['message']?.toString() ?? '',
     );
   }
 
@@ -41,8 +41,8 @@ class ApiException implements Exception {
 
     if (data is Map<String, dynamic>) {
       return ApiException(
-        message: data['message'] as String? ?? 'Unknown error',
-        code: data['code'] as String?,
+        message: data['message']?.toString() ?? 'Unknown error',
+        code: data['code']?.toString(),
         statusCode: response.statusCode,
         errors:
             (data['errors'] as List?)

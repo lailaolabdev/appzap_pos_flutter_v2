@@ -243,6 +243,15 @@ class ApiClient {
       return {'success': true, 'message': 'Operation completed successfully'};
     }
 
+    // Handle 207 Multi-Status responses (common for batch operations like stock adjustments)
+    if (response.statusCode == 207) {
+      return {
+        'success': true,
+        'message': 'Operation completed successfully',
+        'data': data,
+      };
+    }
+
     if (data is Map<String, dynamic>) {
       if (data['success'] == false) {
         throw ApiException.fromResponse(response);

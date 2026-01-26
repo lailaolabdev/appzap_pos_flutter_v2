@@ -42,8 +42,6 @@ class _HourlySalesReportScreenState
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
-        drawer:
-            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
           title: const Text('Hourly Sales Report'),
           backgroundColor: Colors.pink,

@@ -40,8 +40,6 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
-        drawer:
-            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
           title: const Text('Staff Performance Report'),
           backgroundColor: Colors.green,

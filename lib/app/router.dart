@@ -15,6 +15,7 @@ import '../features/orders/screens/orders_screen.dart';
 import '../features/inventory/screens/inventory_screen.dart';
 import '../features/customers/screens/customers_screen.dart';
 import '../features/reports/screens/reports_screen.dart';
+import '../features/settings/screens/settings_screen.dart';
 import '../features/reports/widget/daily_sales_report_screen.dart';
 import '../features/reports/widget/products_report_screen.dart';
 import '../features/reports/widget/staff_report_screen.dart';
@@ -44,6 +45,7 @@ class AppRoutes {
   static const String customers = '/customers';
   static const String transactions = '/transactions';
   static const String reports = '/reports';
+  static const String settings = '/settings';
   static const String dailySalesReport = '/reports/daily-sales';
   static const String productsReport = '/reports/products';
   static const String staffReport = '/reports/staff';
@@ -52,7 +54,8 @@ class AppRoutes {
   static const String categoriesReport = '/reports/categories';
   static const String paymentsReport = '/reports/payments';
   static const String hourlySalesReport = '/reports/hourly-sales';
-  static const String settings = '/settings';
+  static const String inventoryFixer =
+      '/inventory/fixer'; // 🔧 Inventory Fixer Tool
 }
 
 /// Router provider
@@ -220,6 +223,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const HourlySalesReportScreen(),
           ),
         ],
+      ),
+      GoRoute(
+        path: AppRoutes.settings,
+        builder: (context, state) => const SettingsScreen(),
       ),
     ],
     errorBuilder:

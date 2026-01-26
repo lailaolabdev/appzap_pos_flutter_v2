@@ -41,8 +41,6 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
-        drawer:
-            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
           title: const Text('Products Report'),
           backgroundColor: Colors.blue,

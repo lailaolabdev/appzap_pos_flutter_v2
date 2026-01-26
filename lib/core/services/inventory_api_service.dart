@@ -59,8 +59,12 @@ class InventoryApiService {
     required int maxStockLevel,
     String status = 'active',
     bool trackStock = true,
+    String? itemId,
+    String? itemType,
+    String? restaurantId,
+    String? branchId,
   }) async {
-    final data = {
+    final itemData = {
       'name': name,
       'category': category,
       'unitOfMeasure': {
@@ -70,23 +74,109 @@ class InventoryApiService {
       },
       'costPerUnit': costPerUnit,
       'currentStock': currentStock,
-      'minStockLevel': minStockLevel,
+      'minStockLevel': minStockLevel, // ✅ This should be the real value
       'maxStockLevel': maxStockLevel,
       'status': status,
       'trackStock': trackStock,
+      'itemType':
+          itemType ?? 'product', // Use parameter or default to 'product'
     };
 
-    if (description != null) data['description'] = description;
-    if (sku != null) data['sku'] = sku;
-    if (barcode != null) data['barcode'] = barcode;
-    if (sellingPrice != null) data['sellingPrice'] = sellingPrice;
+    print('📦 Inventory API Service - Creating item with data:');
+    print('   - name: $name');
+    print('   - minStockLevel: $minStockLevel (this should be the user input)');
+    print('   - currentStock: $currentStock');
+    print('   - maxStockLevel: $maxStockLevel');
+
+    // Add required fields if provided
+    if (itemId != null) itemData['itemId'] = itemId;
+    if (restaurantId != null) itemData['restaurantId'] = restaurantId;
+    if (branchId != null) itemData['branchId'] = branchId;
+
+    // Add optional fields
+    if (description != null) itemData['description'] = description;
+    if (sku != null) itemData['sku'] = sku;
+    if (barcode != null) itemData['barcode'] = barcode;
+    if (sellingPrice != null) itemData['sellingPrice'] = sellingPrice;
+
+    // Wrap in items array as expected by the backend
+    final data = {
+      'items': [itemData],
+    };
+
+    print('🚨 === CRITICAL DEBUG: SENDING TO BACKEND ===');
+    print('🚨 Full request data being sent: $data');
+    print('🚨 itemData[minStockLevel] = ${itemData['minStockLevel']}');
+    print('🚨 This value MUST be $minStockLevel');
 
     final response = await _apiClient.post(
       ApiConstants.inventoryItems,
       data: data,
     );
 
-    return InventoryItem.fromJson(response['data']);
+    print('🚨 === CRITICAL DEBUG: BACKEND RESPONSE ===');
+    print('🚨 Full response: $response');
+
+    // Extract the first (and only) item from the response
+    final responseData = response['data'];
+    if (responseData is Map<String, dynamic> && responseData['items'] is List) {
+      final items = responseData['items'] as List;
+      if (items.isNotEmpty) {
+        final itemJson = items[0] as Map<String, dynamic>;
+        print('🚨 Backend returned item: $itemJson');
+        print(
+          '🚨 Backend returned minStockLevel: ${itemJson['minStockLevel']}',
+        );
+        print('🚨 Expected minStockLevel: $minStockLevel');
+        if (itemJson['minStockLevel'] != minStockLevel) {
+          print('🚨 ❌❌❌ BACKEND BUG DETECTED! ❌❌❌');
+          print(
+            '🚨 Backend changed $minStockLevel to ${itemJson['minStockLevel']}',
+          );
+          print(
+            '🚨 This is a BACKEND ISSUE - the backend is not saving the correct value!',
+          );
+        }
+        return InventoryItem.fromJson(itemJson);
+      }
+    }
+
+    // Fallback for direct item response format
+    print('🚨 Using fallback response format');
+    final itemJson = response['data'] as Map<String, dynamic>;
+    print('🚨 Backend returned item: $itemJson');
+    print('🚨 Backend returned minStockLevel: ${itemJson['minStockLevel']}');
+    return InventoryItem.fromJson(itemJson);
+  }
+
+  /// Create multiple inventory items at once
+  Future<List<InventoryItem>> createInventoryItems({
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final data = {'items': items};
+
+    final response = await _apiClient.post(
+      ApiConstants.inventoryItems,
+      data: data,
+    );
+
+    // Handle different response formats
+    final responseData = response['data'];
+    if (responseData is Map<String, dynamic> && responseData['items'] is List) {
+      final itemsList = responseData['items'] as List;
+      return itemsList
+          .map((item) => InventoryItem.fromJson(item as Map<String, dynamic>))
+          .toList();
+    }
+
+    // Fallback for direct list response
+    if (responseData is List) {
+      return responseData
+          .map((item) => InventoryItem.fromJson(item as Map<String, dynamic>))
+          .toList();
+    }
+
+    return [];
   }
 
   /// Update inventory item
@@ -104,6 +194,7 @@ class InventoryApiService {
     required int maxStockLevel,
     String status = 'active',
     bool trackStock = true,
+    String? menuItemId, // ✅ Add menu item ID parameter
   }) async {
     final data = {
       'name': name,
@@ -124,6 +215,8 @@ class InventoryApiService {
     if (sku != null) data['sku'] = sku;
     if (barcode != null) data['barcode'] = barcode;
     if (sellingPrice != null) data['sellingPrice'] = sellingPrice;
+    if (menuItemId != null)
+      data['itemId'] = menuItemId; // ✅ Include menu item ID
 
     final response = await _apiClient.put(
       '${ApiConstants.inventoryItems}/$itemId',
@@ -181,18 +274,36 @@ class InventoryApiService {
   }) async {
     final queryParams = <String, dynamic>{'page': page, 'limit': limit};
 
-    if (itemId != null) {
+    if (itemId != null && itemId.isNotEmpty) {
       queryParams['itemId'] = itemId;
     }
 
     final response = await _apiClient.get(
-      '${ApiConstants.inventoryItems}/transactions',
+      ApiConstants.inventoryTransactions,
       queryParameters: queryParams,
     );
 
-    final List<dynamic> transactions =
-        response['data']['transactions'] ?? response['data'] ?? [];
-    return transactions.map((t) => StockTransaction.fromJson(t)).toList();
+    // Safely access the response data
+    final data = response['data'];
+    if (data == null) return [];
+
+    final List<dynamic> transactions;
+    if (data is Map<String, dynamic>) {
+      transactions = data['transactions'] as List<dynamic>? ?? [];
+    } else if (data is List<dynamic>) {
+      transactions = data;
+    } else {
+      return [];
+    }
+
+    return transactions
+        .map(
+          (t) =>
+              t is Map<String, dynamic> ? StockTransaction.fromJson(t) : null,
+        )
+        .where((t) => t != null)
+        .cast<StockTransaction>()
+        .toList();
   }
 
   /// Get inventory categories
@@ -348,20 +459,22 @@ class StockTransaction {
 
   factory StockTransaction.fromJson(Map<String, dynamic> json) {
     return StockTransaction(
-      id: json['id'] as String,
-      inventoryItemId: json['inventoryItemId'] as String,
-      inventoryItemName: json['inventoryItemName'] as String? ?? '',
-      operation: json['operation'] as String,
-      quantityBefore: (json['quantityBefore'] as num).toInt(),
-      quantityChanged: (json['quantityChanged'] as num).toInt(),
-      quantityAfter: (json['quantityAfter'] as num).toInt(),
-      reason: json['reason'] as String,
-      notes: json['notes'] as String?,
+      id: json['id']?.toString() ?? '',
+      inventoryItemId: json['inventoryItemId']?.toString() ?? '',
+      inventoryItemName: json['inventoryItemName']?.toString() ?? '',
+      operation: json['operation']?.toString() ?? '',
+      quantityBefore: (json['quantityBefore'] as num?)?.toInt() ?? 0,
+      quantityChanged: (json['quantityChanged'] as num?)?.toInt() ?? 0,
+      quantityAfter: (json['quantityAfter'] as num?)?.toInt() ?? 0,
+      reason: json['reason']?.toString() ?? '',
+      notes: json['notes']?.toString(),
       costPrice: (json['costPrice'] as num?)?.toDouble(),
-      referenceId: json['referenceId'] as String?,
-      userId: json['userId'] as String,
-      userName: json['userName'] as String? ?? '',
-      createdAt: DateTime.parse(json['createdAt'] as String),
+      referenceId: json['referenceId']?.toString(),
+      userId: json['userId']?.toString() ?? '',
+      userName: json['userName']?.toString() ?? '',
+      createdAt:
+          DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+          DateTime.now(),
     );
   }
 }
@@ -386,12 +499,14 @@ class InventoryCategory {
 
   factory InventoryCategory.fromJson(Map<String, dynamic> json) {
     return InventoryCategory(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      description: json['description'] as String?,
-      color: json['color'] as String?,
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      description: json['description']?.toString(),
+      color: json['color']?.toString(),
       itemCount: (json['itemCount'] as num?)?.toInt() ?? 0,
-      createdAt: DateTime.parse(json['createdAt'] as String),
+      createdAt:
+          DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+          DateTime.now(),
     );
   }
 }
@@ -439,10 +554,14 @@ class InventoryReport {
 
   factory InventoryReport.fromJson(Map<String, dynamic> json) {
     return InventoryReport(
-      startDate: DateTime.parse(json['startDate'] as String),
-      endDate: DateTime.parse(json['endDate'] as String),
-      totalTransactions: (json['totalTransactions'] as num).toInt(),
-      totalValueChange: (json['totalValueChange'] as num).toDouble(),
+      startDate:
+          DateTime.tryParse(json['startDate']?.toString() ?? '') ??
+          DateTime.now(),
+      endDate:
+          DateTime.tryParse(json['endDate']?.toString() ?? '') ??
+          DateTime.now(),
+      totalTransactions: (json['totalTransactions'] as num?)?.toInt() ?? 0,
+      totalValueChange: (json['totalValueChange'] as num?)?.toDouble() ?? 0.0,
       transactionsByType: Map<String, int>.from(
         json['transactionsByType'] ?? {},
       ),
@@ -451,7 +570,9 @@ class InventoryReport {
               ?.map((item) => TopMovingItem.fromJson(item))
               .toList() ??
           [],
-      generatedAt: DateTime.parse(json['generatedAt'] as String),
+      generatedAt:
+          DateTime.tryParse(json['generatedAt']?.toString() ?? '') ??
+          DateTime.now(),
     );
   }
 }
@@ -472,10 +593,10 @@ class TopMovingItem {
 
   factory TopMovingItem.fromJson(Map<String, dynamic> json) {
     return TopMovingItem(
-      itemId: json['itemId'] as String,
-      itemName: json['itemName'] as String,
-      totalMovement: (json['totalMovement'] as num).toInt(),
-      totalValue: (json['totalValue'] as num).toDouble(),
+      itemId: json['itemId']?.toString() ?? '',
+      itemName: json['itemName']?.toString() ?? '',
+      totalMovement: (json['totalMovement'] as num?)?.toInt() ?? 0,
+      totalValue: (json['totalValue'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }
@@ -498,11 +619,13 @@ class BulkImportResult {
 
   factory BulkImportResult.fromJson(Map<String, dynamic> json) {
     return BulkImportResult(
-      totalProcessed: (json['totalProcessed'] as num).toInt(),
-      successCount: (json['successCount'] as num).toInt(),
-      failureCount: (json['failureCount'] as num).toInt(),
+      totalProcessed: (json['totalProcessed'] as num?)?.toInt() ?? 0,
+      successCount: (json['successCount'] as num?)?.toInt() ?? 0,
+      failureCount: (json['failureCount'] as num?)?.toInt() ?? 0,
       errors: List<String>.from(json['errors'] ?? []),
-      importedAt: DateTime.parse(json['importedAt'] as String),
+      importedAt:
+          DateTime.tryParse(json['importedAt']?.toString() ?? '') ??
+          DateTime.now(),
     );
   }
 }

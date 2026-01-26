@@ -26,6 +26,7 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
   late final TextEditingController _costPriceController;
   late final TextEditingController _taxRateController;
   late final TextEditingController _lowStockController;
+  late final TextEditingController _initialStockController;
 
   String? _selectedCategoryId;
   bool _isActive = true;
@@ -65,13 +66,16 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
       text: widget.item?.pricing.taxRate?.toString() ?? '0',
     );
     _lowStockController = TextEditingController(
-      text: widget.item?.inventory?.lowStockThreshold?.toString() ?? '10',
+      text: (widget.item?.inventory?.lowStockThreshold ?? 10).toString(),
+    );
+    _initialStockController = TextEditingController(
+      text: widget.item == null ? '0' : (widget.item?.inventory?.currentStock ?? 0).toString(),
     );
 
     _selectedCategoryId = widget.item?.categoryId;
     _isActive = widget.item?.isActive ?? true;
     _taxIncluded = widget.item?.pricing.taxIncluded ?? false;
-    _trackStock = widget.item?.inventory?.trackStock ?? true;
+    _trackStock = widget.item?.inventory?.trackStock ?? (widget.item == null ? true : false);
   }
 
   @override
@@ -85,6 +89,7 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
     _costPriceController.dispose();
     _taxRateController.dispose();
     _lowStockController.dispose();
+    _initialStockController.dispose();
     super.dispose();
   }
 
@@ -133,6 +138,8 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
             taxIncluded: _taxIncluded,
             trackStock: _trackStock,
             lowStockThreshold: int.parse(_lowStockController.text),
+            initialStock:
+                _trackStock ? int.parse(_initialStockController.text) : 0,
             isActive: _isActive,
           );
     } else {
@@ -164,34 +171,36 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
 
     if (mounted) {
       if (success) {
-        // If stock tracking is enabled and this is a new item creation,
-        // refresh the inventory to show the newly created inventory item
-        if (widget.item == null && _trackStock) {
-          // Refresh inventory after a short delay to allow backend processing
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) {
-              try {
-                ref.read(inventoryProvider.notifier).refresh();
-              } catch (e) {
-                // Ignore inventory refresh errors to not interrupt the success flow
-              }
-            }
-          });
-        }
-        
+
         Navigator.pop(context);
+        
+        // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               widget.item == null
                   ? _trackStock
-                    ? 'Menu item created successfully! Check inventory for stock tracking.'
-                    : 'Item created successfully'
-                  : 'Item updated successfully',
+                    ? 'Menu item created successfully! Inventory entry will be created automatically.'
+                    : 'Menu item created successfully!'
+                  : 'Menu item updated successfully!',
             ),
             backgroundColor: AppTheme.success,
           ),
         );
+        
+        // Refresh inventory after a short delay to allow backend processing
+        if (widget.item == null && _trackStock) {
+          Future.delayed(const Duration(milliseconds: 1500), () {
+            if (mounted) {
+              try {
+                ref.read(inventoryProvider.notifier).refresh();
+                print('🔄 Refreshing inventory after menu item creation');
+              } catch (e) {
+                print('⚠️ Failed to refresh inventory: $e');
+              }
+            }
+          });
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -414,17 +423,59 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                     controlAffinity: ListTileControlAffinity.leading,
                   ),
 
-                  if (_trackStock)
-                    TextFormField(
-                      controller: _lowStockController,
-                      decoration: const InputDecoration(
-                        labelText: 'Low Stock Threshold',
-                        hintText: '10',
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  if (_trackStock) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _lowStockController,
+                            decoration: const InputDecoration(
+                              labelText: 'Low Stock Threshold',
+                              hintText: '10',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Required';
+                              }
+                              if (int.tryParse(value) == null) {
+                                return 'Invalid number';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _initialStockController,
+                            decoration: const InputDecoration(
+                              labelText: 'Initial Stock',
+                              hintText: '0',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Required';
+                              }
+                              if (int.tryParse(value) == null) {
+                                return 'Invalid number';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
                     ),
+                  ],
                   const SizedBox(height: 16),
 
                   // Active Status

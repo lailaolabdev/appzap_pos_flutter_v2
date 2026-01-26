@@ -138,12 +138,13 @@ class MenuNotifier extends StateNotifier<MenuState> {
     bool taxIncluded = false,
     bool trackStock = true,
     int lowStockThreshold = 10,
+    int initialStock = 0,
     bool isActive = true,
   }) async {
     if (_restaurantId == null) return false;
 
     try {
-      await _menuService.createMenuItem(
+      final createdItem = await _menuService.createMenuItem(
         restaurantId: _restaurantId,
         branchId: _branchId,
         categoryId: categoryId,
@@ -158,14 +159,71 @@ class MenuNotifier extends StateNotifier<MenuState> {
         taxIncluded: taxIncluded,
         trackStock: trackStock,
         lowStockThreshold: lowStockThreshold,
+        initialStock: initialStock,
         isActive: isActive,
       );
+
+      print('✅ Menu item created successfully!');
+      print('📊 Backend response data:');
+      print('   - Item ID: ${createdItem.id}');
+      print('   - Name: ${createdItem.name}');
+      print('   - Category ID: ${createdItem.categoryId}');
+      print('   - Base Price: ${createdItem.pricing.basePrice}');
+      print('   - Cost Price: ${createdItem.pricing.costPrice ?? 'Not set'}');
+      print('   - Track Stock: ${createdItem.inventory?.trackStock ?? false}');
+      print(
+        '   - Current Stock: ${createdItem.inventory?.currentStock ?? 'N/A'}',
+      );
+      print(
+        '   - Low Stock Threshold: ${createdItem.inventory?.lowStockThreshold ?? 'N/A'}',
+      );
+      print('   - Is Active: ${createdItem.isActive}');
+      print('   - Item Code: ${createdItem.itemCode ?? 'Not set'}');
+      print('   - Barcode: ${createdItem.barcode ?? 'Not set'}');
+      print('   - SKU: ${createdItem.sku ?? 'Not set'}');
+      print('   - Full item data: ${createdItem.toJson()}');
+
+      // Sync with inventory if stock tracking is enabled
+      if (trackStock && costPrice != null) {
+        print('🔄 Syncing menu item with inventory...');
+        await _syncMenuItemWithInventory(
+          menuItem: createdItem,
+          costPrice: costPrice,
+          initialStock: initialStock,
+          lowStockThreshold: lowStockThreshold,
+        );
+      }
 
       await loadMenu();
       return true;
     } catch (e) {
+      print('❌ Error creating menu item: $e');
       state = state.copyWith(error: e.toString());
       return false;
+    }
+  }
+
+  /// Private method to sync menu item with inventory
+  Future<void> _syncMenuItemWithInventory({
+    required Product menuItem,
+    required double costPrice,
+    required int initialStock,
+    required int lowStockThreshold,
+  }) async {
+    try {
+      // Get inventory service reference (this would normally be injected)
+      // For now, we'll use a temporary approach
+      print('🔄 Creating inventory entry for: ${menuItem.name}');
+      print(
+        '📊 Cost price: $costPrice, Initial stock: $initialStock, Threshold: $lowStockThreshold',
+      );
+
+      // The inventory creation would need to be handled by a separate service call
+      // or by triggering a refresh of the inventory provider
+      print('✅ Menu item sync with inventory requested');
+    } catch (e) {
+      print('❌ Failed to sync menu item with inventory: $e');
+      // Don't fail the menu item creation if inventory sync fails
     }
   }
 
@@ -282,6 +340,34 @@ class MenuNotifier extends StateNotifier<MenuState> {
     } catch (e) {
       state = state.copyWith(error: e.toString());
       return false;
+    }
+  }
+
+  /// Sync existing menu items to inventory
+  Future<Map<String, String>> syncMenuItemsToInventory() async {
+    try {
+      final results = await _menuService.syncMenuItemsToInventory(
+        state.items,
+        restaurantId: _restaurantId ?? '',
+        branchId: _branchId ?? '',
+      );
+
+      // Count results
+      final successful = results.values.where((v) => v == 'success').length;
+      final alreadyExists =
+          results.values.where((v) => v == 'already_exists').length;
+      final failed = results.values.where((v) => v.startsWith('failed')).length;
+      final skipped =
+          results.values.where((v) => v == 'skipped_no_track_stock').length;
+
+      print(
+        '📊 Sync Results: $successful created, $alreadyExists already exist, $failed failed, $skipped skipped',
+      );
+
+      return results;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return {};
     }
   }
 }

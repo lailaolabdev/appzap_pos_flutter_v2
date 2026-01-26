@@ -3,17 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/models/inventory.dart';
+import '../../../core/models/product.dart';
+import '../../../core/services/inventory_service.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../pos/providers/pos_provider.dart';
 import '../providers/inventory_provider.dart';
 
 /// Dialog for adjusting inventory stock levels
 class AdjustStockDialog extends ConsumerStatefulWidget {
   final InventoryItem item;
 
-  const AdjustStockDialog({
-    super.key,
-    required this.item,
-  });
+  const AdjustStockDialog({super.key, required this.item});
 
   @override
   ConsumerState<AdjustStockDialog> createState() => _AdjustStockDialogState();
@@ -27,13 +27,20 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
   final _costPriceController = TextEditingController();
 
   StockOperation _selectedOperation = StockOperation.add;
-  String _selectedReason = 'purchase';
+  String _selectedReason = 'adjustment';
   bool _isLoading = false;
   String? _error;
 
   final Map<StockOperation, List<String>> _reasons = {
     StockOperation.add: ['purchase', 'return', 'adjustment', 'other'],
-    StockOperation.remove: ['sale', 'damage', 'theft', 'waste', 'adjustment', 'other'],
+    StockOperation.remove: [
+      'sale',
+      'damage',
+      'theft',
+      'waste',
+      'adjustment',
+      'other',
+    ],
     StockOperation.set: ['physical_count', 'correction', 'other'],
   };
 
@@ -56,20 +63,235 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
 
     try {
       final adjustment = StockAdjustment(
-        inventoryItemId: widget.item.id,
-        branchId: ref.read(inventoryProvider).items.first.id, // Get from auth provider in real app
+        inventoryItemId:
+            widget.item.itemId ??
+            widget
+                .item
+                .id, // ✅ Use itemId (menu item ID) if available, fallback to inventory ID
+        branchId: widget.item.branchId, // Use the item's branch ID
         operation: _selectedOperation,
         quantity: int.parse(_quantityController.text),
         reason: _selectedReason,
         notes: _notesController.text.isEmpty ? null : _notesController.text,
-        costPrice: _costPriceController.text.isEmpty
-            ? null
-            : double.tryParse(_costPriceController.text),
+        costPrice:
+            _costPriceController.text.isEmpty
+                ? null
+                : double.tryParse(_costPriceController.text),
       );
 
-      final success = await ref.read(inventoryProvider.notifier).adjustStock(adjustment);
+      print('🔧 Created adjustment object: $adjustment');
+      print('🔧 Adjustment details:');
+      print(
+        '   - Using ID: ${widget.item.itemId ?? widget.item.id} (${widget.item.itemId != null ? "Menu Item ID" : "Inventory Item ID"})',
+      );
+      print('   - Menu Item ID: ${widget.item.itemId ?? "Not available"}');
+      print('   - Inventory Item ID: ${widget.item.id}');
+      print('   - Branch ID: ${widget.item.branchId}');
+      print('   - Operation: $_selectedOperation');
+      print('   - Quantity: ${_quantityController.text}');
+      print('   - Reason: $_selectedReason');
+
+      final success = await ref
+          .read(inventoryProvider.notifier)
+          .adjustStock(adjustment);
 
       if (success && mounted) {
+        print('\n🔄 === POST-ADJUSTMENT VERIFICATION ===');
+
+        // ✅ CRITICAL FIX: Verify the stock adjustment actually persisted in backend
+        try {
+          final inventoryService = ref.read(inventoryServiceProvider);
+          final expectedNewStock = _newStockLevel;
+
+          print('🔍 Verifying stock adjustment persisted...');
+          print('   Expected new stock level: $expectedNewStock');
+
+          final updatedItem = await inventoryService.verifyStockAdjustment(
+            inventoryItemId: widget.item.itemId ?? widget.item.id,
+            branchId: widget.item.branchId,
+            expectedStock: expectedNewStock,
+          );
+
+          if (updatedItem != null) {
+            if (updatedItem.currentStock == expectedNewStock) {
+              print('✅ Stock adjustment verified successfully!');
+              print(
+                '   New stock level in database: ${updatedItem.currentStock}',
+              );
+            } else {
+              print('❌ CRITICAL: Stock adjustment did not persist properly!');
+              print('   Expected: $expectedNewStock');
+              print('   Actual in DB: ${updatedItem.currentStock}');
+              print('   This is a backend persistence issue!');
+
+              // Show error to user
+              if (mounted) {
+                setState(() {
+                  _error =
+                      'Stock adjustment failed to persist. Expected: $expectedNewStock, but database shows: ${updatedItem.currentStock}. Please contact support.';
+                  _isLoading = false;
+                });
+                return;
+              }
+            }
+          } else {
+            print(
+              '❌ Could not verify stock adjustment - item not found in fresh data',
+            );
+
+            // Show warning to user
+            if (mounted) {
+              setState(() {
+                _error =
+                    'Could not verify stock adjustment. The item may not exist or there may be a backend issue.';
+                _isLoading = false;
+              });
+              return;
+            }
+          }
+        } catch (e) {
+          print('❌ Error during stock verification: $e');
+
+          // Continue with the rest of the process even if verification fails
+          if (mounted) {
+            setState(() {
+              _error =
+                  'Stock adjusted but verification failed: ${e.toString()}. Please refresh to see current stock levels.';
+              _isLoading = false;
+            });
+            return;
+          }
+        }
+
+        // ✅ WORKAROUND: If backend doesn't return stock data, force refresh entire inventory
+        print('🔄 Force refreshing inventory provider...');
+        try {
+          await ref.read(inventoryProvider.notifier).loadInventory();
+          print('✅ Inventory provider refreshed successfully');
+        } catch (e) {
+          print('⚠️  Warning: Failed to refresh inventory: $e');
+        }
+
+        // ✅ Also refresh products to sync stock levels in UI
+        print('🔄 Refreshing products provider to sync stock levels...');
+        try {
+          await ref.read(productsProvider.notifier).refresh();
+          print('✅ Products provider refreshed successfully');
+        } catch (e) {
+          print('⚠️  Warning: Failed to refresh products: $e');
+        }
+
+        // ✅ CRITICAL FIX: Manually sync product inventory data after stock adjustment
+        print('🔄 Manually syncing product inventory data...');
+        try {
+          final productsState = ref.read(productsProvider);
+          final productsNotifier = ref.read(productsProvider.notifier);
+
+          print('   Available products for matching:');
+          for (final product in productsState.products) {
+            print(
+              '      - ${product.name} (ID: ${product.id}) | Current inventory: ${product.inventory?.currentStock ?? "NULL"}',
+            );
+          }
+
+          // Find the product that matches this inventory item
+          // Try multiple matching strategies
+          Product? matchingProduct;
+
+          // Strategy 1: Match by menu item ID (most reliable)
+          if (widget.item.itemId != null) {
+            matchingProduct =
+                productsState.products.where((product) {
+                  return product.id == widget.item.itemId;
+                }).firstOrNull;
+
+            if (matchingProduct != null) {
+              print(
+                '📦 Found matching product by menu item ID: ${matchingProduct.name}',
+              );
+            }
+          }
+
+          // Strategy 2: Match by inventory ID (backup)
+          if (matchingProduct == null) {
+            matchingProduct =
+                productsState.products.where((product) {
+                  return product.id == widget.item.id;
+                }).firstOrNull;
+
+            if (matchingProduct != null) {
+              print(
+                '📦 Found matching product by inventory ID: ${matchingProduct.name}',
+              );
+            }
+          }
+
+          // Strategy 3: Match by name (final fallback)
+          if (matchingProduct == null) {
+            matchingProduct =
+                productsState.products.where((product) {
+                  return product.name.toLowerCase() ==
+                      widget.item.name.toLowerCase();
+                }).firstOrNull;
+
+            if (matchingProduct != null) {
+              print(
+                '📦 Found matching product by name: ${matchingProduct.name}',
+              );
+            }
+          }
+
+          if (matchingProduct != null) {
+            print('   - Product ID: ${matchingProduct.id}');
+            print(
+              '   - Current product inventory stock: ${matchingProduct.inventory?.currentStock ?? "NULL"}',
+            );
+            print(
+              '   - New inventory stock from adjustment: ${_newStockLevel}',
+            );
+
+            // Update the product's inventory data with new stock level using the new method
+            productsNotifier.updateProductInventory(
+              matchingProduct.id,
+              _newStockLevel,
+              lowStockThreshold: widget.item.minStockLevel,
+              unit: widget.item.unit,
+            );
+
+            print('✅ Successfully synced product inventory data');
+
+            // Verify the update worked
+            final updatedState = ref.read(productsProvider);
+            final updatedProduct =
+                updatedState.products
+                    .where((p) => p.id == matchingProduct!.id)
+                    .firstOrNull;
+            if (updatedProduct != null) {
+              print(
+                '   ✅ Verification: Updated product.inventory.currentStock: ${updatedProduct.inventory?.currentStock}',
+              );
+              print(
+                '   ✅ Verification: Updated product.isInStock: ${updatedProduct.isInStock}',
+              );
+            }
+          } else {
+            print(
+              '⚠️  Could not find matching product for inventory item: ${widget.item.name}',
+            );
+            print('   - Inventory item ID: ${widget.item.id}');
+            print('   - Menu item ID: ${widget.item.itemId ?? "NULL"}');
+            print('   - Available products: ${productsState.products.length}');
+            print(
+              '   - This means the menu item and inventory item are not properly linked',
+            );
+            print(
+              '   - The UI will continue to show out of stock until products are reloaded from API',
+            );
+          }
+        } catch (e) {
+          print('⚠️  Warning: Failed to sync product inventory data: $e');
+        }
+
         Navigator.pop(context, true);
       } else {
         setState(() {
@@ -78,8 +300,10 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
         });
       }
     } catch (e) {
+      print('🔧 Caught error in dialog: $e');
       setState(() {
-        _error = e.toString();
+        // Show more detailed error information
+        _error = 'Error: ${e.toString().replaceAll('Exception: ', '')}';
         _isLoading = false;
       });
     }
@@ -88,18 +312,21 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
   String _getOperationLabel(StockOperation op) {
     switch (op) {
       case StockOperation.add:
-        return 'Add Stock';
+        return 'Add';
       case StockOperation.remove:
-        return 'Remove Stock';
+        return 'Move';
       case StockOperation.set:
-        return 'Set Stock Level';
+        return 'Set';
     }
   }
 
   String _formatReason(String reason) {
-    return reason.split('_').map((word) {
-      return word[0].toUpperCase() + word.substring(1);
-    }).join(' ');
+    return reason
+        .split('_')
+        .map((word) {
+          return word[0].toUpperCase() + word.substring(1);
+        })
+        .join(' ');
   }
 
   int get _newStockLevel {
@@ -120,7 +347,7 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
       child: SingleChildScrollView(
         child: Container(
           padding: const EdgeInsets.all(24),
-          constraints: const BoxConstraints(maxWidth: 500),
+          constraints: const BoxConstraints(maxWidth: double.infinity),
           child: Form(
             key: _formKey,
             child: Column(
@@ -130,7 +357,10 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                 // Header
                 Row(
                   children: [
-                    const Icon(Icons.inventory_2, color: AppTheme.primaryOrange),
+                    const Icon(
+                      Icons.inventory_2,
+                      color: AppTheme.primaryOrange,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -196,7 +426,7 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           const Text(
-                            'Unit Value',
+                            'Unit Cost',
                             style: TextStyle(
                               fontSize: 12,
                               color: AppTheme.neutral600,
@@ -204,7 +434,7 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            CurrencyFormatter.format(widget.item.costPrice),
+                            CurrencyFormatter.format(widget.item.averageCost),
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -215,16 +445,12 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 24),
 
                 // Operation selector
                 const Text(
                   'Operation',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 8),
                 SegmentedButton<StockOperation>(
@@ -260,9 +486,10 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                 TextFormField(
                   controller: _quantityController,
                   decoration: InputDecoration(
-                    labelText: _selectedOperation == StockOperation.set
-                        ? 'New Stock Level *'
-                        : 'Quantity *',
+                    labelText:
+                        _selectedOperation == StockOperation.set
+                            ? 'New Stock Level *'
+                            : 'Quantity *',
                     hintText: 'Enter quantity',
                     prefixIcon: const Icon(Icons.numbers),
                     border: OutlineInputBorder(
@@ -284,69 +511,10 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                     }
                     return null;
                   },
-                  onChanged: (_) => setState(() {}), // Trigger rebuild for preview
+                  onChanged:
+                      (_) => setState(() {}), // Trigger rebuild for preview
                 ),
-
                 const SizedBox(height: 16),
-
-                // Reason dropdown
-                DropdownButtonFormField<String>(
-                  value: _selectedReason,
-                  decoration: InputDecoration(
-                    labelText: 'Reason *',
-                    prefixIcon: const Icon(Icons.info_outline),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  items: _reasons[_selectedOperation]!
-                      .map((reason) => DropdownMenuItem(
-                            value: reason,
-                            child: Text(_formatReason(reason)),
-                          ))
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedReason = value!;
-                    });
-                  },
-                ),
-
-                const SizedBox(height: 16),
-
-                // Cost price (optional, for ADD operation)
-                if (_selectedOperation == StockOperation.add)
-                  TextFormField(
-                    controller: _costPriceController,
-                    decoration: InputDecoration(
-                      labelText: 'Cost Price (optional)',
-                      hintText: 'Enter cost price per unit',
-                      prefixIcon: const Icon(Icons.attach_money),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
-
-                if (_selectedOperation == StockOperation.add) const SizedBox(height: 16),
-
-                // Notes
-                TextFormField(
-                  controller: _notesController,
-                  decoration: InputDecoration(
-                    labelText: 'Notes (optional)',
-                    hintText: 'Add any additional notes',
-                    prefixIcon: const Icon(Icons.note_outlined),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  maxLines: 2,
-                ),
-
-                const SizedBox(height: 20),
-
                 // Preview new stock level
                 if (_quantityController.text.isNotEmpty)
                   Container(
@@ -380,7 +548,8 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                     ),
                   ),
 
-                if (_quantityController.text.isNotEmpty) const SizedBox(height: 20),
+                if (_quantityController.text.isNotEmpty)
+                  const SizedBox(height: 20),
 
                 // Error message
                 if (_error != null)
@@ -393,12 +562,19 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: AppTheme.error, size: 20),
+                        const Icon(
+                          Icons.error_outline,
+                          color: AppTheme.error,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             _error!,
-                            style: const TextStyle(color: AppTheme.error, fontSize: 13),
+                            style: const TextStyle(
+                              color: AppTheme.error,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                       ],
@@ -410,7 +586,8 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: _isLoading ? null : () => Navigator.pop(context),
+                        onPressed:
+                            _isLoading ? null : () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
@@ -425,16 +602,17 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text('Confirm Adjustment'),
+                        child:
+                            _isLoading
+                                ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                                : const Text('Confirm'),
                       ),
                     ),
                   ],
@@ -447,4 +625,3 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
     );
   }
 }
-

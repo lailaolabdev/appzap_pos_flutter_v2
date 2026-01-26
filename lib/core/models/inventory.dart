@@ -14,9 +14,9 @@ class UnitOfMeasure extends Equatable {
 
   factory UnitOfMeasure.fromJson(Map<String, dynamic> json) {
     return UnitOfMeasure(
-      name: json['name'] as String? ?? '',
-      abbreviation: json['abbreviation'] as String? ?? '',
-      category: json['category'] as String? ?? 'count',
+      name: json['name']?.toString() ?? '',
+      abbreviation: json['abbreviation']?.toString() ?? '',
+      category: json['category']?.toString() ?? 'count',
     );
   }
 
@@ -31,6 +31,7 @@ class UnitOfMeasure extends Equatable {
 /// Inventory item model
 class InventoryItem extends Equatable {
   final String id;
+  final String? itemId; // ✅ Menu item ID (reference to the menu/product item)
   final String name;
   final String? description;
   final String? sku;
@@ -61,6 +62,7 @@ class InventoryItem extends Equatable {
 
   const InventoryItem({
     required this.id,
+    this.itemId, // ✅ Menu item ID (optional for backward compatibility)
     required this.name,
     this.description,
     this.sku,
@@ -91,7 +93,7 @@ class InventoryItem extends Equatable {
       );
     } else {
       // Fallback for legacy format
-      final unitStr = json['unit'] as String? ?? 'unit';
+      final unitStr = json['unit']?.toString() ?? 'unit';
       unitOfMeasure = UnitOfMeasure(
         name: unitStr,
         abbreviation: unitStr,
@@ -99,42 +101,59 @@ class InventoryItem extends Equatable {
       );
     }
 
+    // Debug parsing for minStockLevel
+    final minStockFromJson = (json['minStockLevel'] as num?)?.toInt();
+    final lowStockFromJson = (json['lowStockThreshold'] as num?)?.toInt();
+    final finalMinStock = minStockFromJson ?? lowStockFromJson ?? 10;
+
+    print('🔍 InventoryItem.fromJson for ${json['name']}:');
+    print('   - minStockLevel from JSON: $minStockFromJson');
+    print('   - lowStockThreshold from JSON: $lowStockFromJson');
+    print('   - Final minStockLevel: $finalMinStock');
+
     return InventoryItem(
-      id: json['_id'] as String? ?? json['id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      description: json['description'] as String?,
-      sku: json['sku'] as String?,
-      barcode: json['barcode'] as String?,
-      category: json['category'] as String? ?? 'ingredient',
+      id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
+      itemId: json['itemId']?.toString(), // ✅ Parse the menu item ID
+      name: json['name']?.toString() ?? '',
+      description: json['description']?.toString(),
+      sku: json['sku']?.toString(),
+      barcode: json['barcode']?.toString(),
+      category: json['category']?.toString() ?? 'ingredient',
       unitOfMeasure: unitOfMeasure,
-      currentStock: json['currentStock'] as int? ?? 0,
+      currentStock:
+          (json['currentStock'] as num?)?.toInt() ??
+          (json['availableStock'] as num?)?.toInt() ??
+          (json['totalStock'] as num?)?.toInt() ??
+          0,
       availableStock:
-          json['availableStock'] as int? ?? json['currentStock'] as int? ?? 0,
-      reservedStock: json['reservedStock'] as int? ?? 0,
+          (json['availableStock'] as num?)?.toInt() ??
+          (json['currentStock'] as num?)?.toInt() ??
+          0,
+      reservedStock: (json['reservedStock'] as num?)?.toInt() ?? 0,
       costPerUnit:
           (json['costPerUnit'] as num?)?.toDouble() ??
+          (json['standardCost'] as num?)?.toDouble() ??
+          (json['averageCost'] as num?)?.toDouble() ??
+          (json['lastPurchaseCost'] as num?)?.toDouble() ??
           (json['costPrice'] as num?)?.toDouble() ??
           0,
       sellingPrice: (json['sellingPrice'] as num?)?.toDouble(),
-      minStockLevel:
-          json['minStockLevel'] as int? ??
-          json['lowStockThreshold'] as int? ??
-          10,
-      maxStockLevel: json['maxStockLevel'] as int? ?? 500,
-      status: json['status'] as String? ?? 'active',
-      restaurantId: json['restaurantId'] as String? ?? '',
-      branchId: json['branchId'] as String? ?? '',
+      minStockLevel: finalMinStock,
+      maxStockLevel: (json['maxStockLevel'] as num?)?.toInt() ?? 500,
+      status: json['status']?.toString() ?? 'active',
+      restaurantId: json['restaurantId']?.toString() ?? '',
+      branchId: json['branchId']?.toString() ?? '',
       lastStockUpdate:
           json['lastStockUpdate'] != null
-              ? DateTime.tryParse(json['lastStockUpdate'] as String)
+              ? DateTime.tryParse(json['lastStockUpdate'].toString())
               : null,
       createdAt:
           json['createdAt'] != null
-              ? DateTime.tryParse(json['createdAt'] as String)
+              ? DateTime.tryParse(json['createdAt'].toString())
               : null,
       updatedAt:
           json['updatedAt'] != null
-              ? DateTime.tryParse(json['updatedAt'] as String)
+              ? DateTime.tryParse(json['updatedAt'].toString())
               : null,
     );
   }
@@ -142,6 +161,7 @@ class InventoryItem extends Equatable {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      if (itemId != null) 'itemId': itemId, // ✅ Include the menu item ID
       'name': name,
       if (description != null) 'description': description,
       if (sku != null) 'sku': sku,
@@ -168,6 +188,7 @@ class InventoryItem extends Equatable {
   @override
   List<Object?> get props => [
     id,
+    itemId, // ✅ Include the menu item ID in equality comparison
     name,
     description,
     sku,
@@ -199,7 +220,7 @@ enum StockOperation {
   String toUpperCase() => name.toUpperCase();
 }
 
-/// Stock adjustment request
+/// Stock adjustment request - Fixed for backend compatibility
 class StockAdjustment {
   final String inventoryItemId;
   final String branchId;
@@ -219,15 +240,16 @@ class StockAdjustment {
     this.costPrice,
   });
 
+  /// Fixed JSON format based on API documentation
   Map<String, dynamic> toJson() {
     return {
-      'inventoryItemId': inventoryItemId,
+      'inventoryItemId': inventoryItemId, // Direct field, not in items array
       'branchId': branchId,
-      'operation': operation.toUpperCase(),
+      'operation': operation.name.toUpperCase(),
       'quantity': quantity,
       'reason': reason,
       if (notes != null) 'notes': notes,
-      if (costPrice != null) 'costPrice': costPrice,
+      if (costPrice != null) 'unitCost': costPrice,
     };
   }
 }
@@ -250,11 +272,11 @@ class StockAdjustmentResult extends Equatable {
 
   factory StockAdjustmentResult.fromJson(Map<String, dynamic> json) {
     return StockAdjustmentResult(
-      transactionId: json['transactionId'] as String? ?? '',
-      previousStock: json['previousStock'] as int? ?? 0,
-      newStock: json['newStock'] as int? ?? 0,
-      operation: json['operation'] as String? ?? '',
-      quantity: json['quantity'] as int? ?? 0,
+      transactionId: json['transactionId']?.toString() ?? '',
+      previousStock: (json['previousStock'] as num?)?.toInt() ?? 0,
+      newStock: (json['newStock'] as num?)?.toInt() ?? 0,
+      operation: json['operation']?.toString() ?? '',
+      quantity: (json['quantity'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -292,16 +314,17 @@ class InventoryAlert extends Equatable {
 
   factory InventoryAlert.fromJson(Map<String, dynamic> json) {
     return InventoryAlert(
-      id: json['_id'] as String? ?? '',
-      inventoryItemId: json['inventoryItemId'] as String? ?? '',
-      itemName: json['itemName'] as String?, // Keep as null if not provided
-      alertType: json['alertType'] as String? ?? 'low_stock',
-      currentStock: json['currentStock'] as int? ?? 0,
-      threshold: json['threshold'] as int?,
-      severity: json['severity'] as String? ?? 'warning',
+      id: json['_id']?.toString() ?? '',
+      inventoryItemId: json['inventoryItemId']?.toString() ?? '',
+      itemName: json['itemName']?.toString(), // Keep as null if not provided
+      alertType: json['alertType']?.toString() ?? 'low_stock',
+      currentStock: (json['currentStock'] as num?)?.toInt() ?? 0,
+      threshold: (json['threshold'] as num?)?.toInt(),
+      severity: json['severity']?.toString() ?? 'warning',
       createdAt:
           json['createdAt'] != null
-              ? DateTime.parse(json['createdAt'] as String)
+              ? DateTime.tryParse(json['createdAt'].toString()) ??
+                  DateTime.now()
               : DateTime.now(),
     );
   }
@@ -386,17 +409,18 @@ class PurchaseOrder extends Equatable {
 
   factory PurchaseOrder.fromJson(Map<String, dynamic> json) {
     return PurchaseOrder(
-      id: json['_id'] as String? ?? '',
-      branchId: json['branchId'] as String? ?? '',
-      supplierId: json['supplierId'] as String?,
+      id: json['_id']?.toString() ?? '',
+      branchId: json['branchId']?.toString() ?? '',
+      supplierId: json['supplierId']?.toString(),
       items: json['items'] as List<dynamic>? ?? [],
-      expectedDeliveryDate: json['expectedDeliveryDate'] as String?,
-      status: json['status'] as String? ?? 'pending',
+      expectedDeliveryDate: json['expectedDeliveryDate']?.toString(),
+      status: json['status']?.toString() ?? 'pending',
       totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0,
-      notes: json['notes'] as String?,
+      notes: json['notes']?.toString(),
       createdAt:
           json['createdAt'] != null
-              ? DateTime.parse(json['createdAt'] as String)
+              ? DateTime.tryParse(json['createdAt'].toString()) ??
+                  DateTime.now()
               : DateTime.now(),
     );
   }
@@ -432,11 +456,12 @@ class InventoryValuation extends Equatable {
   factory InventoryValuation.fromJson(Map<String, dynamic> json) {
     return InventoryValuation(
       totalValue: (json['totalValue'] as num?)?.toDouble() ?? 0,
-      totalItems: json['totalItems'] as int? ?? 0,
-      currency: json['currency'] as String? ?? 'LAK',
+      totalItems: (json['totalItems'] as num?)?.toInt() ?? 0,
+      currency: json['currency']?.toString() ?? 'LAK',
       lastUpdated:
           json['lastUpdated'] != null
-              ? DateTime.parse(json['lastUpdated'] as String)
+              ? DateTime.tryParse(json['lastUpdated'].toString()) ??
+                  DateTime.now()
               : DateTime.now(),
     );
   }
@@ -447,6 +472,7 @@ class InventoryValuation extends Equatable {
 
 /// Request model for creating new inventory items
 class CreateInventoryItemRequest {
+  final String? itemId; // ✅ Menu item ID reference
   final String name;
   final String? description;
   final String? sku;
@@ -460,6 +486,7 @@ class CreateInventoryItemRequest {
   final String status;
 
   const CreateInventoryItemRequest({
+    this.itemId, // ✅ Menu item ID reference
     required this.name,
     this.description,
     this.sku,
@@ -475,6 +502,7 @@ class CreateInventoryItemRequest {
 
   Map<String, dynamic> toJson() {
     return {
+      if (itemId != null) 'itemId': itemId, // ✅ Include menu item ID
       'name': name,
       if (description != null) 'description': description,
       if (sku != null) 'sku': sku,
@@ -587,15 +615,16 @@ class StockTransferResult extends Equatable {
 
   factory StockTransferResult.fromJson(Map<String, dynamic> json) {
     return StockTransferResult(
-      transactionId: json['transactionId'] as String? ?? '',
-      itemId: json['itemId'] as String? ?? '',
-      fromBranchId: json['fromBranchId'] as String? ?? '',
-      toBranchId: json['toBranchId'] as String? ?? '',
-      quantity: json['quantity'] as int? ?? 0,
-      status: json['status'] as String? ?? 'completed',
+      transactionId: json['transactionId']?.toString() ?? '',
+      itemId: json['itemId']?.toString() ?? '',
+      fromBranchId: json['fromBranchId']?.toString() ?? '',
+      toBranchId: json['toBranchId']?.toString() ?? '',
+      quantity: (json['quantity'] as num?)?.toInt() ?? 0,
+      status: json['status']?.toString() ?? 'completed',
       transferredAt:
           json['transferredAt'] != null
-              ? DateTime.parse(json['transferredAt'] as String)
+              ? DateTime.tryParse(json['transferredAt'].toString()) ??
+                  DateTime.now()
               : DateTime.now(),
     );
   }
@@ -646,21 +675,22 @@ class StockTransaction extends Equatable {
 
   factory StockTransaction.fromJson(Map<String, dynamic> json) {
     return StockTransaction(
-      id: json['_id'] as String? ?? json['id'] as String? ?? '',
-      itemId: json['itemId'] as String? ?? '',
-      itemName: json['itemName'] as String?,
-      branchId: json['branchId'] as String? ?? '',
-      type: json['type'] as String? ?? 'ADJUSTMENT',
-      operation: json['operation'] as String? ?? 'SET',
-      quantity: json['quantity'] as int? ?? 0,
-      previousStock: json['previousStock'] as int?,
-      newStock: json['newStock'] as int?,
-      reason: json['reason'] as String? ?? '',
-      notes: json['notes'] as String?,
-      userId: json['userId'] as String?,
+      id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
+      itemId: json['itemId']?.toString() ?? '',
+      itemName: json['itemName']?.toString(),
+      branchId: json['branchId']?.toString() ?? '',
+      type: json['type']?.toString() ?? 'ADJUSTMENT',
+      operation: json['operation']?.toString() ?? 'SET',
+      quantity: (json['quantity'] as num?)?.toInt() ?? 0,
+      previousStock: (json['previousStock'] as num?)?.toInt(),
+      newStock: (json['newStock'] as num?)?.toInt(),
+      reason: json['reason']?.toString() ?? '',
+      notes: json['notes']?.toString(),
+      userId: json['userId']?.toString(),
       createdAt:
           json['createdAt'] != null
-              ? DateTime.parse(json['createdAt'] as String)
+              ? DateTime.tryParse(json['createdAt'].toString()) ??
+                  DateTime.now()
               : DateTime.now(),
     );
   }

@@ -42,8 +42,6 @@ class _SalesTrendsReportScreenState
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
-        drawer:
-            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
           title: const Text('Sales Trends Report'),
           backgroundColor: Colors.teal,

@@ -149,6 +149,19 @@ class AppSidebar extends ConsumerWidget {
                         if (isInDrawer) Navigator.of(context).pop();
                       },
                     ),
+                  // Settings - Show to admins only
+                  if (user?.isAdmin == true)
+                    _SidebarItem(
+                      icon: Icons.settings_outlined,
+                      label: 'Settings',
+                      route: AppRoutes.settings,
+                      isActive: currentRoute == AppRoutes.settings,
+                      isInDrawer: isInDrawer,
+                      onTap: () {
+                        context.go(AppRoutes.settings);
+                        if (isInDrawer) Navigator.of(context).pop();
+                      },
+                    ),
                 ],
               ),
             ),

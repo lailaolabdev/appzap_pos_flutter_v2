@@ -39,8 +39,6 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
-        drawer:
-            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
           title: const Text('Payment Methods Report'),
           backgroundColor: Colors.indigo,

@@ -41,8 +41,6 @@ class _CategoriesReportScreenState
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
-        drawer:
-            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
           title: const Text('Categories Report'),
           backgroundColor: Colors.orange,

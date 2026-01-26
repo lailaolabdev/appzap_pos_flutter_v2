@@ -246,22 +246,59 @@ DELETE /items/:id
 
 #### 📊 **Stock Management**
 
-##### Adjust Stock
+##### Adjust Stock (Bulk Operation)
 ```http
 POST /stock/adjust
 ```
 
-**Request Body:**
+**Request Body (Multiple Formats - Try These):**
+
+**Format 1 - Standard Format:**
 ```json
 {
-  "itemId": "item_id_123",
-  "operation": "ADD",
-  "quantity": 25,
-  "reason": "Purchase received",
-  "notes": "Weekly supplier delivery - Invoice #INV-2026-001",
-  "unitCost": 2.60,
-  "supplierReference": "SUP-001",
-  "expiryDate": "2026-02-15T00:00:00.000Z"
+  "items": [
+    {
+      "itemId": "item_id_123",
+      "operation": "ADD",
+      "quantity": 25,
+      "reason": "Purchase received",
+      "notes": "Weekly supplier delivery - Invoice #INV-2026-001",
+      "unitCost": 2.60,
+      "supplierReference": "SUP-001",
+      "expiryDate": "2026-02-15T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+**Format 2 - Alternative Field Names (Try if Format 1 fails):**
+```json
+{
+  "items": [
+    {
+      "inventoryItemId": "item_id_123",
+      "branchId": "branch_id_456", 
+      "operation": "ADD",
+      "quantity": 25,
+      "reason": "Purchase received",
+      "notes": "Weekly supplier delivery - Invoice #INV-2026-001",
+      "costPrice": 2.60
+    }
+  ]
+}
+```
+
+**Format 3 - Simplified Format (Minimal required fields):**
+```json
+{
+  "items": [
+    {
+      "itemId": "item_id_123",
+      "operation": "ADD", 
+      "quantity": 25,
+      "reason": "Purchase received"
+    }
+  ]
 }
 ```
 
@@ -692,10 +729,14 @@ class InventoryApiService {
     }
   }
 
-  // Adjust stock
-  Future<StockAdjustmentResult> adjustStock(StockAdjustmentRequest request) async {
+  // Adjust stock (supports single or multiple items)
+  Future<StockAdjustmentResult> adjustStock(List<StockAdjustmentRequest> items) async {
     try {
-      final response = await _dio.post('/stock/adjust', data: request.toJson());
+      final requestData = {
+        'items': items.map((item) => item.toJson()).toList(),
+      };
+      
+      final response = await _dio.post('/stock/adjust', data: requestData);
       
       if (response.data['success'] == true) {
         return StockAdjustmentResult.fromJson(response.data['data']);
@@ -705,6 +746,27 @@ class InventoryApiService {
     } catch (e) {
       throw _handleError(e);
     }
+  }
+
+  // Convenience method for single item adjustment
+  Future<StockAdjustmentResult> adjustSingleItem({
+    required String itemId,
+    required String operation,
+    required double quantity,
+    required String reason,
+    String? notes,
+    double? unitCost,
+  }) async {
+    final request = StockAdjustmentRequest(
+      itemId: itemId,
+      operation: operation,
+      quantity: quantity,
+      reason: reason,
+      notes: notes,
+      unitCost: unitCost,
+    );
+    
+    return adjustStock([request]); // Wrap single item in array
   }
 
   // Get low stock alerts

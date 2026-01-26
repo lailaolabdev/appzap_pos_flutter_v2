@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme.dart';
 import '../../../core/models/cart.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../core/utils/receipt_printer.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../providers/payment_provider.dart';
 
 /// Cash payment dialog
@@ -441,6 +443,30 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
                                   });
 
                                   try {
+                                    // 🖨️ Print receipt first (don't block payment if it fails)
+                                    print('🖨️ Printing receipt...');
+                                    try {
+                                      await _printReceipt();
+                                    } catch (printError) {
+                                      print(
+                                        '⚠️ Print failed but continuing with payment: $printError',
+                                      );
+                                      // Show warning but continue with payment
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Print failed, but payment will continue',
+                                            ),
+                                            backgroundColor: AppTheme.warning,
+                                            duration: Duration(seconds: 2),
+                                          ),
+                                        );
+                                      }
+                                    }
+
                                     // ✅ Process payment using captured notifier (stays alive!)
                                     print(
                                       '🔄 CashPaymentDialog: Processing payment: $finalAmount',
@@ -567,6 +593,36 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
         ),
       ),
     );
+  }
+
+  Future<void> _printReceipt() async {
+    try {
+      // Get printer service and settings
+      final printerService = ref.read(settingsProvider.notifier).printerService;
+      final settings = ref.read(settingsProvider);
+
+      // Create receipt printer utility
+      final receiptPrinter = ReceiptPrinter(
+        printerService: printerService,
+        receiptHeader: settings.receiptHeader,
+        receiptFooter: settings.receiptFooter,
+      );
+
+      // Print the receipt (without table and server info)
+      final success = await receiptPrinter.printCartReceipt(
+        cart: widget.cart,
+        totalAmount: widget.totalAmount,
+      );
+
+      if (!success) {
+        throw Exception('Failed to print receipt');
+      }
+
+      print('✅ Receipt printed successfully');
+    } catch (e) {
+      print('❌ Print error: $e');
+      rethrow; // Re-throw to let caller handle it
+    }
   }
 }
 
