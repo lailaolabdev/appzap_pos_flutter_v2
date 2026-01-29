@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
-import '../../../core/services/printer_service.dart';
+import '../../../core/constants/translations.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../providers/settings_provider.dart';
 import '../screens/printer_connection_screen.dart';
 
@@ -47,6 +48,8 @@ class _PrinterSettingsCardState extends ConsumerState<PrinterSettingsCard> {
     if (!_formKey.currentState!.validate()) return;
 
     final settings = ref.read(settingsProvider);
+    final localization = ref.read(localizationProvider);
+
     await ref
         .read(settingsProvider.notifier)
         .savePrinterSettings(
@@ -61,8 +64,13 @@ class _PrinterSettingsCardState extends ConsumerState<PrinterSettingsCard> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Printer settings saved successfully'),
+        SnackBar(
+          content: Text(
+            Translations.get(
+              'printer_settings_saved',
+              localization.languageCode,
+            ),
+          ),
           backgroundColor: AppTheme.success,
         ),
       );
@@ -78,12 +86,16 @@ class _PrinterSettingsCardState extends ConsumerState<PrinterSettingsCard> {
 
   Future<void> _disconnectPrinter() async {
     final printerService = ref.read(settingsProvider.notifier).printerService;
+    final localization = ref.read(localizationProvider);
+
     await printerService.disconnect();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Printer disconnected'),
+        SnackBar(
+          content: Text(
+            Translations.get('printer_disconnected', localization.languageCode),
+          ),
           backgroundColor: AppTheme.info,
         ),
       );
@@ -93,6 +105,7 @@ class _PrinterSettingsCardState extends ConsumerState<PrinterSettingsCard> {
   @override
   Widget build(BuildContext context) {
     final settingsState = ref.watch(settingsProvider);
+    final localization = ref.watch(localizationProvider);
 
     return Card(
       child: Padding(
@@ -102,9 +115,15 @@ class _PrinterSettingsCardState extends ConsumerState<PrinterSettingsCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Printer Configuration',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              Text(
+                Translations.get(
+                  'printer_configuration',
+                  localization.languageCode,
+                ),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 16),
 
@@ -141,8 +160,14 @@ class _PrinterSettingsCardState extends ConsumerState<PrinterSettingsCard> {
                         const SizedBox(width: 8),
                         Text(
                           settingsState.isPrinterConnected
-                              ? 'Connected'
-                              : 'Not Connected',
+                              ? Translations.get(
+                                'connected',
+                                localization.languageCode,
+                              )
+                              : Translations.get(
+                                'not_connected',
+                                localization.languageCode,
+                              ),
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color:
@@ -173,7 +198,12 @@ class _PrinterSettingsCardState extends ConsumerState<PrinterSettingsCard> {
                   child: ElevatedButton.icon(
                     onPressed: _navigateToConnectionScreen,
                     icon: const Icon(Icons.add_link),
-                    label: const Text('Connect Printer'),
+                    label: Text(
+                      Translations.get(
+                        'connect_printer',
+                        localization.languageCode,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primaryOrange,
                       padding: const EdgeInsets.all(16),
@@ -188,7 +218,12 @@ class _PrinterSettingsCardState extends ConsumerState<PrinterSettingsCard> {
                   child: OutlinedButton.icon(
                     onPressed: _disconnectPrinter,
                     icon: const Icon(Icons.link_off),
-                    label: const Text('Disconnect Printer'),
+                    label: Text(
+                      Translations.get(
+                        'connect_printer',
+                        localization.languageCode,
+                      ),
+                    ),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.all(16),
                     ),
@@ -202,9 +237,15 @@ class _PrinterSettingsCardState extends ConsumerState<PrinterSettingsCard> {
               // Printer Name
               TextFormField(
                 controller: _printerNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Printer Name',
-                  hintText: 'e.g., Kitchen Printer, Receipt Printer',
+                decoration: InputDecoration(
+                  labelText: Translations.get(
+                    'printer_name',
+                    localization.languageCode,
+                  ),
+                  hintText: Translations.get(
+                    'printer_name_hint',
+                    localization.languageCode,
+                  ),
                   border: OutlineInputBorder(),
                 ),
                 validator: (value) {
@@ -218,9 +259,17 @@ class _PrinterSettingsCardState extends ConsumerState<PrinterSettingsCard> {
 
               // Enable Receipt Printing
               SwitchListTile(
-                title: const Text('Enable Receipt Printing'),
-                subtitle: const Text(
-                  'Print receipts automatically after checkout',
+                title: Text(
+                  Translations.get(
+                    'enable_receipt_printing',
+                    localization.languageCode,
+                  ),
+                ),
+                subtitle: Text(
+                  Translations.get(
+                    'print_receipts_auto',
+                    localization.languageCode,
+                  ),
                 ),
                 value: _enableReceiptPrinting,
                 onChanged: (value) {
@@ -232,8 +281,18 @@ class _PrinterSettingsCardState extends ConsumerState<PrinterSettingsCard> {
 
               // Enable Barcode Printing
               SwitchListTile(
-                title: const Text('Enable Barcode Printing'),
-                subtitle: const Text('Print barcodes on receipts'),
+                title: Text(
+                  Translations.get(
+                    'enable_barcode_printing',
+                    localization.languageCode,
+                  ),
+                ),
+                subtitle: Text(
+                  Translations.get(
+                    'print_barcodes_receipts',
+                    localization.languageCode,
+                  ),
+                ),
                 value: _enableBarcodePrinting,
                 onChanged: (value) {
                   setState(() {
@@ -264,7 +323,12 @@ class _PrinterSettingsCardState extends ConsumerState<PrinterSettingsCard> {
                               color: Colors.white,
                             ),
                           )
-                          : const Text('Save Settings'),
+                          : Text(
+                            Translations.get(
+                              'save_settings',
+                              localization.languageCode,
+                            ),
+                          ),
                 ),
               ),
             ],

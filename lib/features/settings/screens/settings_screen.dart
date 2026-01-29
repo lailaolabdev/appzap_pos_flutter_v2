@@ -6,9 +6,11 @@ import '../../../app/theme.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/app_sidebar.dart';
 import '../../../shared/widgets/error_banner.dart';
+import '../../../core/constants/translations.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../providers/settings_provider.dart';
-import '../widgets/printer_settings_card.dart';
-import '../widgets/receipt_settings_card.dart';
+import 'printer_settings_page.dart';
+import 'language_settings_page.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -17,25 +19,12 @@ class SettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends ConsumerState<SettingsScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final settingsState = ref.watch(settingsProvider);
+    final localization = ref.watch(localizationProvider);
+    final lang = localization.languageCode;
     final isMobile = Responsive.isMobile(context);
 
     return AppShell(
@@ -54,35 +43,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         ),
                   )
                   : null,
-          title: const Text('Settings'),
-          bottom: TabBar(
-            controller: _tabController,
-            tabs: const [
-              Tab(text: 'Printer', icon: Icon(Icons.print)),
-              Tab(text: 'Receipt', icon: Icon(Icons.receipt)),
-            ],
-          ),
+          title: Text(Translations.get('settings', lang)),
         ),
         body: Column(
           children: [
             if (settingsState.error != null)
               ErrorBanner(message: settingsState.error!),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildPrinterTab(settingsState, isMobile),
-                  _buildReceiptTab(settingsState, isMobile),
-                ],
-              ),
-            ),
+            Expanded(child: _buildSettingsList(settingsState, lang)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPrinterTab(SettingsState settingsState, bool isMobile) {
+  Widget _buildSettingsList(SettingsState settingsState, String lang) {
     if (settingsState.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -91,77 +65,52 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Connection Status Card
+          // Printer Settings Card
           Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Icon(
-                    settingsState.isPrinterConnected
-                        ? Icons.check_circle
-                        : Icons.error_outline,
-                    color:
-                        settingsState.isPrinterConnected
-                            ? AppTheme.success
-                            : AppTheme.error,
-                    size: 32,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          settingsState.isPrinterConnected
-                              ? 'Printer Connected'
-                              : 'Printer Disconnected',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          settingsState.printerName.isNotEmpty
-                              ? settingsState.printerName
-                              : 'No printer configured',
-                          style: TextStyle(color: AppTheme.neutral600),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (settingsState.isPrinterConnected)
-                    ElevatedButton(
-                      onPressed:
-                          () =>
-                              ref
-                                  .read(settingsProvider.notifier)
-                                  .printTestReceipt(),
-                      child: const Text('Test Print'),
-                    ),
-                ],
+            child: ListTile(
+              leading: const Icon(Icons.print, size: 32),
+              title: Text(
+                Translations.get('printer', lang),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
+              trailing: const Icon(Icons.arrow_forward_ios),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const PrinterSettingsPage(),
+                  ),
+                );
+              },
             ),
           ),
+          const SizedBox(height: 12),
 
-          const SizedBox(height: 16),
-
-          // Printer Settings Card
-          const PrinterSettingsCard(),
+          // Language Settings Card
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.language, size: 32),
+              title: Text(
+                Translations.get('language', lang),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              trailing: const Icon(Icons.arrow_forward_ios),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const LanguageSettingsPage(),
+                  ),
+                );
+              },
+            ),
+          ),
         ],
       ),
-    );
-  }
-
-  Widget _buildReceiptTab(SettingsState settingsState, bool isMobile) {
-    if (settingsState.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return const SingleChildScrollView(
-      padding: EdgeInsets.all(16),
-      child: Column(children: [ReceiptSettingsCard()]),
     );
   }
 }

@@ -42,8 +42,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   }
 
   Future<void> _adjustStock(InventoryItem item) async {
-    final result = await showDialog<bool>(
+    final result = await showModalBottomSheet<bool>(
       context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (context) => AdjustStockDialog(item: item),
     );
 
@@ -57,12 +61,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         );
       }
     }
-  }
-
-  void _setStatusFilter(String? status) {
-    ref.read(inventoryProvider.notifier).setStatusFilter(status);
-    // Force refresh after applying filter to ensure data is loaded
-    ref.read(inventoryProvider.notifier).refresh();
   }
 
   @override

@@ -320,15 +320,6 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
     }
   }
 
-  String _formatReason(String reason) {
-    return reason
-        .split('_')
-        .map((word) {
-          return word[0].toUpperCase() + word.substring(1);
-        })
-        .join(' ');
-  }
-
   int get _newStockLevel {
     final quantity = int.tryParse(_quantityController.text) ?? 0;
     switch (_selectedOperation) {
@@ -343,11 +334,20 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       child: SingleChildScrollView(
         child: Container(
-          padding: const EdgeInsets.all(24),
-          constraints: const BoxConstraints(maxWidth: double.infinity),
+          padding: EdgeInsets.fromLTRB(
+            24,
+            24,
+            24,
+            MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
           child: Form(
             key: _formKey,
             child: Column(
@@ -389,9 +389,7 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 24),
-
                 // Current stock info
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -416,7 +414,7 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                           Text(
                             '${widget.item.currentStock} ${widget.item.unit}',
                             style: const TextStyle(
-                              fontSize: 24,
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -445,7 +443,7 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
                 // Operation selector
                 const Text(
@@ -480,7 +478,7 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                   },
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
 
                 // Quantity input
                 TextFormField(
@@ -514,7 +512,8 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                   onChanged:
                       (_) => setState(() {}), // Trigger rebuild for preview
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
+
                 // Preview new stock level
                 if (_quantityController.text.isNotEmpty)
                   Container(
@@ -617,6 +616,7 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
               ],
             ),
           ),

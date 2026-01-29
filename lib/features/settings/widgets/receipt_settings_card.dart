@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/constants/translations.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../providers/settings_provider.dart';
 
 class ReceiptSettingsCard extends ConsumerStatefulWidget {
@@ -42,6 +44,7 @@ class _ReceiptSettingsCardState extends ConsumerState<ReceiptSettingsCard> {
     if (!_formKey.currentState!.validate()) return;
 
     final currentSettings = ref.read(settingsProvider);
+    final localization = ref.read(localizationProvider);
 
     await ref
         .read(settingsProvider.notifier)
@@ -57,8 +60,13 @@ class _ReceiptSettingsCardState extends ConsumerState<ReceiptSettingsCard> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Receipt settings saved successfully'),
+        SnackBar(
+          content: Text(
+            Translations.get(
+              'receipt_settings_saved',
+              localization.languageCode,
+            ),
+          ),
           backgroundColor: AppTheme.success,
         ),
       );
@@ -68,6 +76,7 @@ class _ReceiptSettingsCardState extends ConsumerState<ReceiptSettingsCard> {
   @override
   Widget build(BuildContext context) {
     final settingsState = ref.watch(settingsProvider);
+    final localization = ref.watch(localizationProvider);
 
     return Card(
       child: Padding(
@@ -77,9 +86,15 @@ class _ReceiptSettingsCardState extends ConsumerState<ReceiptSettingsCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Receipt Customization',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              Text(
+                Translations.get(
+                  'receipt_customization',
+                  localization.languageCode,
+                ),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 16),
 
@@ -87,11 +102,20 @@ class _ReceiptSettingsCardState extends ConsumerState<ReceiptSettingsCard> {
               TextFormField(
                 controller: _receiptHeaderController,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Receipt Header',
-                  hintText: 'Restaurant Name\nAddress\nPhone Number',
-                  border: OutlineInputBorder(),
-                  helperText: 'Text to appear at the top of receipts',
+                decoration: InputDecoration(
+                  labelText: Translations.get(
+                    'receipt_header',
+                    localization.languageCode,
+                  ),
+                  hintText: Translations.get(
+                    'receipt_header_hint',
+                    localization.languageCode,
+                  ),
+                  border: const OutlineInputBorder(),
+                  helperText: Translations.get(
+                    'receipt_header_helper',
+                    localization.languageCode,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -100,15 +124,27 @@ class _ReceiptSettingsCardState extends ConsumerState<ReceiptSettingsCard> {
               TextFormField(
                 controller: _receiptFooterController,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Receipt Footer',
-                  hintText: 'Thank you for your business!\nVisit us again!',
-                  border: OutlineInputBorder(),
-                  helperText: 'Text to appear at the bottom of receipts',
+                decoration: InputDecoration(
+                  labelText: Translations.get(
+                    'receipt_footer',
+                    localization.languageCode,
+                  ),
+                  hintText: Translations.get(
+                    'receipt_footer_hint',
+                    localization.languageCode,
+                  ),
+                  border: const OutlineInputBorder(),
+                  helperText: Translations.get(
+                    'receipt_footer_helper',
+                    localization.languageCode,
+                  ),
                 ),
                 validator: (value) {
                   if (value?.isEmpty ?? true) {
-                    return 'Please enter a receipt footer';
+                    return Translations.get(
+                      'receipt_footer_required',
+                      localization.languageCode,
+                    );
                   }
                   return null;
                 },
@@ -124,9 +160,12 @@ class _ReceiptSettingsCardState extends ConsumerState<ReceiptSettingsCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Receipt Preview',
-                        style: TextStyle(
+                      Text(
+                        Translations.get(
+                          'receipt_preview',
+                          localization.languageCode,
+                        ),
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -157,15 +196,21 @@ class _ReceiptSettingsCardState extends ConsumerState<ReceiptSettingsCard> {
                             ],
 
                             // Sample content
-                            const Text(
-                              'Order #12345\nDate: Jan 6, 2026 10:30 AM',
+                            Text(
+                              Translations.get(
+                                'receipt_sample_date',
+                                localization.languageCode,
+                              ),
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 11),
+                              style: const TextStyle(fontSize: 11),
                             ),
                             const SizedBox(height: 8),
-                            const Text(
-                              'Item 1        \$10.00\nItem 2        \$15.00\n-------------------\nTotal         \$25.00',
-                              style: TextStyle(
+                            Text(
+                              Translations.get(
+                                'receipt_sample_items',
+                                localization.languageCode,
+                              ),
+                              style: const TextStyle(
                                 fontSize: 10,
                                 fontFamily: 'monospace',
                               ),
@@ -212,7 +257,12 @@ class _ReceiptSettingsCardState extends ConsumerState<ReceiptSettingsCard> {
                               color: Colors.white,
                             ),
                           )
-                          : const Text('Save Receipt Settings'),
+                          : Text(
+                            Translations.get(
+                              'save_receipt_settings',
+                              localization.languageCode,
+                            ),
+                          ),
                 ),
               ),
             ],

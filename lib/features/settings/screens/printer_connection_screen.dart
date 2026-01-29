@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/constants/translations.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../../../core/services/printer_service.dart';
 import '../providers/settings_provider.dart';
 
@@ -20,6 +22,7 @@ class _PrinterConnectionScreenState
   List<PrinterDevice> _bluetoothDevices = [];
   List<PrinterDevice> _wifiDevices = [];
   bool _isScanning = false;
+  String? _connectingDeviceId; // Track which device is currently connecting
   String? _errorMessage;
   final TextEditingController _ipController = TextEditingController();
   final TextEditingController _portController = TextEditingController(
@@ -66,7 +69,7 @@ class _PrinterConnectionScreenState
 
   Future<void> _connectBluetooth(PrinterDevice device) async {
     setState(() {
-      _isScanning = true;
+      _connectingDeviceId = device.id; // Set loading for this specific device
       _errorMessage = null;
     });
 
@@ -102,15 +105,19 @@ class _PrinterConnectionScreenState
       } else {
         setState(() {
           _errorMessage = 'Failed to connect to printer';
+          _connectingDeviceId = null; // Clear loading state
         });
       }
     } catch (e) {
       setState(() {
         _errorMessage = e.toString();
+        _connectingDeviceId = null; // Clear loading state
       });
     } finally {
       setState(() {
-        _isScanning = false;
+        if (_connectingDeviceId == device.id) {
+          _connectingDeviceId = null; // Clear loading state for this device
+        }
       });
     }
   }
@@ -181,14 +188,24 @@ class _PrinterConnectionScreenState
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
+    final localization = ref.watch(localizationProvider);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Connect Printer'),
+        title: Text(
+          Translations.get('connect_printer', localization.languageCode),
+        ),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: 'Bluetooth', icon: Icon(Icons.bluetooth)),
-            Tab(text: 'WiFi', icon: Icon(Icons.wifi)),
+          tabs: [
+            Tab(
+              text: Translations.get('bluetooth', localization.languageCode),
+              icon: const Icon(Icons.bluetooth),
+            ),
+            Tab(
+              text: Translations.get('wifi', localization.languageCode),
+              icon: const Icon(Icons.wifi),
+            ),
           ],
         ),
       ),
@@ -219,7 +236,10 @@ class _PrinterConnectionScreenState
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: [_buildBluetoothTab(), _buildWiFiTab()],
+              children: [
+                _buildBluetoothTab(localization),
+                _buildWiFiTab(localization),
+              ],
             ),
           ),
         ],
@@ -227,7 +247,7 @@ class _PrinterConnectionScreenState
     );
   }
 
-  Widget _buildBluetoothTab() {
+  Widget _buildBluetoothTab(LocalizationState localization) {
     return Column(
       children: [
         Padding(
@@ -235,9 +255,12 @@ class _PrinterConnectionScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Pair your Bluetooth printer in your device settings first, then scan for devices.',
-                style: TextStyle(color: AppTheme.neutral600),
+              Text(
+                Translations.get(
+                  'pair_bluetooth_first',
+                  localization.languageCode,
+                ),
+                style: const TextStyle(color: AppTheme.neutral600),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -252,7 +275,17 @@ class _PrinterConnectionScreenState
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                           : const Icon(Icons.bluetooth_searching),
-                  label: Text(_isScanning ? 'Scanning...' : 'Scan for Devices'),
+                  label: Text(
+                    _isScanning
+                        ? Translations.get(
+                          'scanning',
+                          localization.languageCode,
+                        )
+                        : Translations.get(
+                          'scan_for_devices',
+                          localization.languageCode,
+                        ),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryOrange,
                     padding: const EdgeInsets.all(16),
@@ -276,7 +309,10 @@ class _PrinterConnectionScreenState
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'No devices found',
+                          Translations.get(
+                            'no_devices_found',
+                            localization.languageCode,
+                          ),
                           style: TextStyle(
                             color: AppTheme.neutral500,
                             fontSize: 16,
@@ -284,7 +320,10 @@ class _PrinterConnectionScreenState
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Tap "Scan for Devices" to start',
+                          Translations.get(
+                            'tap_scan_to_start',
+                            localization.languageCode,
+                          ),
                           style: TextStyle(
                             color: AppTheme.neutral400,
                             fontSize: 14,
@@ -309,13 +348,25 @@ class _PrinterConnectionScreenState
                         subtitle: Text(device.address),
                         trailing: ElevatedButton(
                           onPressed:
-                              _isScanning
+                              _connectingDeviceId == device.id
                                   ? null
                                   : () => _connectBluetooth(device),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.success,
                           ),
-                          child: const Text('Connect'),
+                          child:
+                              _connectingDeviceId == device.id
+                                  ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                  : const Text('Connect'),
                         ),
                       );
                     },
@@ -325,19 +376,22 @@ class _PrinterConnectionScreenState
     );
   }
 
-  Widget _buildWiFiTab() {
+  Widget _buildWiFiTab(LocalizationState localization) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Enter your printer\'s IP address and port',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          Text(
+            Translations.get('enter_ip_address', localization.languageCode),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'You can find this information in your printer\'s network settings or configuration page.',
+          Text(
+            Translations.get(
+              'find_info_in_settings',
+              localization.languageCode,
+            ),
             style: TextStyle(color: AppTheme.neutral600),
           ),
           const SizedBox(height: 24),
@@ -349,9 +403,15 @@ class _PrinterConnectionScreenState
                 children: [
                   TextField(
                     controller: _ipController,
-                    decoration: const InputDecoration(
-                      labelText: 'IP Address',
-                      hintText: '192.168.1.100',
+                    decoration: InputDecoration(
+                      labelText: Translations.get(
+                        'ip_address',
+                        localization.languageCode,
+                      ),
+                      hintText: Translations.get(
+                        'ip_hint',
+                        localization.languageCode,
+                      ),
                       prefixIcon: Icon(Icons.router),
                       border: OutlineInputBorder(),
                     ),
@@ -362,9 +422,15 @@ class _PrinterConnectionScreenState
                   const SizedBox(height: 16),
                   TextField(
                     controller: _portController,
-                    decoration: const InputDecoration(
-                      labelText: 'Port',
-                      hintText: '9100',
+                    decoration: InputDecoration(
+                      labelText: Translations.get(
+                        'port',
+                        localization.languageCode,
+                      ),
+                      hintText: Translations.get(
+                        'port_hint',
+                        localization.languageCode,
+                      ),
                       prefixIcon: Icon(Icons.settings_ethernet),
                       border: OutlineInputBorder(),
                     ),
@@ -402,43 +468,55 @@ class _PrinterConnectionScreenState
           const SizedBox(height: 24),
           Card(
             color: AppTheme.info.withOpacity(0.1),
-            child: const Padding(
-              padding: EdgeInsets.all(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.info_outline, color: AppTheme.info),
-                      SizedBox(width: 8),
+                      const Icon(Icons.info_outline, color: AppTheme.info),
+                      const SizedBox(width: 8),
                       Text(
-                        'Connection Tips',
-                        style: TextStyle(
+                        Translations.get(
+                          'connection_tips',
+                          localization.languageCode,
+                        ),
+                        style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           color: AppTheme.info,
                         ),
                       ),
                     ],
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
                   Text(
-                    '• Make sure your printer and device are on the same WiFi network',
-                    style: TextStyle(color: AppTheme.neutral700),
+                    Translations.get(
+                      'same_wifi_network',
+                      localization.languageCode,
+                    ),
+                    style: const TextStyle(color: AppTheme.neutral700),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
-                    '• Default port for thermal printers is usually 9100',
-                    style: TextStyle(color: AppTheme.neutral700),
+                    Translations.get(
+                      'default_port_9100',
+                      localization.languageCode,
+                    ),
+                    style: const TextStyle(color: AppTheme.neutral700),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
-                    '• Check your printer\'s manual for network configuration',
-                    style: TextStyle(color: AppTheme.neutral700),
+                    Translations.get('check_manual', localization.languageCode),
+                    style: const TextStyle(color: AppTheme.neutral700),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
-                    '• For DKT-E830: Access printer settings via web interface',
-                    style: TextStyle(color: AppTheme.neutral700),
+                    Translations.get(
+                      'dkt_e830_tips',
+                      localization.languageCode,
+                    ),
+                    style: const TextStyle(color: AppTheme.neutral700),
                   ),
                 ],
               ),

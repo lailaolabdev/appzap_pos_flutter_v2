@@ -111,27 +111,42 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Amount input - Simple, full-width single outline box
+                      // Replace your Container with this FIXED version:
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 20,
-                          vertical: 20,
+                          vertical: 8, // Slightly more vertical padding
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(14),
                           border: Border.all(
                             color:
                                 _canComplete
                                     ? AppTheme.success
                                     : AppTheme.primaryOrange,
-                            width: 2,
+                            width: 1,
                           ),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
+                            // FIXED: Smaller currency symbol
+                            Text(
+                              '₭',
+                              style: Theme.of(
+                                context,
+                              ).textTheme.headlineMedium?.copyWith(
+                                // Smaller than headlineLarge
+                                fontWeight: FontWeight.w500, // Medium weight
+                                color: AppTheme.neutral400,
+                                fontSize: 24, // Explicit smaller size
+                                height: 1.1,
+                              ),
+                            ),
+                            const SizedBox(width: 12), // Proper spacing
+                            // FIXED: TextField with NO background + bigger placeholder
                             Expanded(
                               child: TextField(
                                 controller: _tenderedController,
@@ -148,14 +163,37 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
                                       _canComplete
                                           ? AppTheme.success
                                           : AppTheme.primaryOrange,
-                                  letterSpacing: -2,
-                                  fontSize: 48,
+                                  fontSize:
+                                      24, // Slightly bigger for better visibility
+                                  height: 1.1,
                                 ),
-                                textAlign: TextAlign.center,
-                                decoration: const InputDecoration(
+                                textAlign: TextAlign.start,
+                                decoration: InputDecoration(
                                   hintText: '0',
+                                  hintStyle: Theme.of(
+                                    context,
+                                  ).textTheme.displayLarge?.copyWith(
+                                    fontSize: 24, // FIXED: Bigger placeholder
+                                    fontWeight:
+                                        FontWeight.w300, // Lighter weight
+                                    color: AppTheme.neutral300, // Softer gray
+                                    height: 1.1,
+                                  ),
+                                  // FIXED: NO BACKGROUND, NO PADDING
+                                  fillColor:
+                                      Colors
+                                          .transparent, // Transparent background
+                                  filled: false, // Disable fill completely
                                   border: InputBorder.none,
-                                  contentPadding: EdgeInsets.zero,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  disabledBorder: InputBorder.none,
+                                  errorBorder: InputBorder.none,
+                                  focusedErrorBorder: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ), // Tiny padding only vertical
+                                  isDense: true, // Compact mode
                                 ),
                                 onChanged: (value) {
                                   final parsed = double.tryParse(value) ?? 0;
@@ -169,15 +207,6 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
                                     '✅ Updated _tenderedAmount=$_tenderedAmount, canComplete=$_canComplete',
                                   );
                                 },
-                              ),
-                            ),
-                            Text(
-                              ' ₭',
-                              style: Theme.of(
-                                context,
-                              ).textTheme.headlineLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.neutral400,
                               ),
                             ),
                           ],

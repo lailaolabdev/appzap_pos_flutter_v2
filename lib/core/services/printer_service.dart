@@ -52,7 +52,6 @@ class PrinterService {
   final _connectionStatusController = StreamController<bool>.broadcast();
   Stream<bool> get connectionStatus => _connectionStatusController.stream;
 
-  /// Request Bluetooth permissions
   Future<bool> requestBluetoothPermissions() async {
     if (Platform.isAndroid) {
       final bluetoothStatus = await Permission.bluetooth.request();
@@ -69,7 +68,6 @@ class PrinterService {
     return true;
   }
 
-  /// Check if Bluetooth is enabled
   Future<bool> isBluetoothEnabled() async {
     try {
       if (Platform.isAndroid) {
@@ -82,7 +80,6 @@ class PrinterService {
     }
   }
 
-  /// Enable Bluetooth
   Future<bool> enableBluetooth() async {
     try {
       if (Platform.isAndroid) {
@@ -96,7 +93,6 @@ class PrinterService {
     }
   }
 
-  /// Scan for Bluetooth devices
   Future<List<PrinterDevice>> scanBluetoothDevices() async {
     try {
       final hasPermission = await requestBluetoothPermissions();
@@ -115,9 +111,6 @@ class PrinterService {
       final devices = <PrinterDevice>[];
       final foundDeviceIds = <String>{};
 
-      print('=== Starting Bluetooth Scan ===');
-
-      // Get connected devices
       final connectedDevices = FlutterBluePlus.connectedDevices;
       for (var device in connectedDevices) {
         if (!foundDeviceIds.contains(device.remoteId.toString())) {
@@ -126,7 +119,6 @@ class PrinterService {
         }
       }
 
-      // Get paired devices
       final systemDevices = await FlutterBluePlus.systemDevices([]);
       for (var device in systemDevices) {
         if (!foundDeviceIds.contains(device.remoteId.toString())) {
@@ -135,7 +127,6 @@ class PrinterService {
         }
       }
 
-      // Quick scan for new devices (3 seconds)
       final scanSubscription = FlutterBluePlus.scanResults.listen((results) {
         for (var result in results) {
           final device = result.device;
@@ -156,7 +147,6 @@ class PrinterService {
       await scanSubscription.cancel();
       await FlutterBluePlus.stopScan();
 
-      print('Found ${devices.length} devices');
       return devices;
     } catch (e) {
       print('Error scanning Bluetooth devices: $e');
@@ -178,7 +168,6 @@ class PrinterService {
     );
   }
 
-  /// Connect to Bluetooth printer
   Future<bool> connectBluetooth(PrinterDevice device) async {
     try {
       await disconnect();
@@ -188,19 +177,12 @@ class PrinterService {
 
       final services = await bluetoothDevice.discoverServices();
 
-      print('=== Discovered Services ===');
       BluetoothCharacteristic? writeChar;
 
-      // Skip standard GATT services
-      final excludedServices = [
-        '00001800', // Generic Access
-        '00001801', // Generic Attribute
-        '0000180a', // Device Information
-      ];
+      final excludedServices = ['00001800', '00001801', '0000180a'];
 
       for (var service in services) {
         final serviceUuid = service.uuid.toString().toLowerCase();
-        print('Service: $serviceUuid');
 
         if (excludedServices.any((uuid) => serviceUuid.contains(uuid))) {
           continue;
@@ -208,18 +190,13 @@ class PrinterService {
 
         for (var char in service.characteristics) {
           final charUuid = char.uuid.toString().toLowerCase();
-          print(
-            '  Char: $charUuid (W:${char.properties.write}, WNR:${char.properties.writeWithoutResponse})',
-          );
 
-          // Skip device name/info characteristics
           if (charUuid.contains('2a00') || charUuid.contains('2a01')) {
             continue;
           }
 
           if (char.properties.writeWithoutResponse || char.properties.write) {
             writeChar = char;
-            print('  ✓ Using this characteristic for printing');
             break;
           }
         }
@@ -235,7 +212,6 @@ class PrinterService {
       _connectedDevice = device.copyWith(isConnected: true);
       _connectionStatusController.add(true);
 
-      print('Connected to Bluetooth printer');
       return true;
     } catch (e) {
       print('Error connecting to Bluetooth: $e');
@@ -244,12 +220,10 @@ class PrinterService {
     }
   }
 
-  /// Scan WiFi printers
   Future<List<PrinterDevice>> scanWiFiPrinters() async {
     return [];
   }
 
-  /// Connect to WiFi printer
   Future<bool> connectWiFi(String ipAddress, {int port = 9100}) async {
     try {
       final trimmedIp = ipAddress.trim();
@@ -275,7 +249,6 @@ class PrinterService {
         isConnected: true,
       );
       _connectionStatusController.add(true);
-      print('Connected to WiFi printer');
       return true;
     } catch (e) {
       print('Error connecting to WiFi: $e');
@@ -291,7 +264,6 @@ class PrinterService {
     return ipRegex.hasMatch(ip);
   }
 
-  /// Disconnect
   Future<void> disconnect() async {
     try {
       if (_bluetoothDevice != null) {
@@ -307,7 +279,6 @@ class PrinterService {
 
       _connectedDevice = null;
       _connectionStatusController.add(false);
-      print('Disconnected from printer');
     } catch (e) {
       print('Error disconnecting: $e');
     }
@@ -316,7 +287,6 @@ class PrinterService {
   PrinterDevice? get connectedDevice => _connectedDevice;
   bool get isConnected => _connectedDevice?.isConnected ?? false;
 
-  /// Test print
   Future<bool> testPrint() async {
     try {
       if (!isConnected) {
@@ -325,17 +295,16 @@ class PrinterService {
 
       final isWiFi = _connectedDevice?.type == PrinterConnectionType.wifi;
 
-      String content =
-          'TEST PRINT\n\n'
-          'AppZap POS System\n\n'
-          'Printer: ${_connectedDevice?.name}\n'
-          'Type: ${isWiFi ? "WIFI (80mm)" : "BLUETOOTH (58mm)"}\n\n'
-          'Connection Successful!\n'
-          '${DateTime.now().toString().substring(0, 19)}';
-
-      final bytes = await _convertTextToImageBytes(
-        content,
-        width: isWiFi ? 576 : 512, // 58mm = 512px FULL width
+      final bytes = await _renderReceiptImage(
+        header: 'TEST PRINT',
+        orderId: 'AppZap POS',
+        tableNumber: '',
+        serverName: 'Staff',
+        dateStr: DateTime.now().toString().substring(0, 19),
+        items: [],
+        total: 0,
+        footer: '',
+        isWiFi: isWiFi,
       );
 
       return await _sendToPrinter(bytes);
@@ -345,7 +314,6 @@ class PrinterService {
     }
   }
 
-  /// Print receipt
   Future<bool> printReceipt({
     required String header,
     required List<Map<String, dynamic>> items,
@@ -361,21 +329,20 @@ class PrinterService {
       }
 
       final isWiFi = _connectedDevice?.type == PrinterConnectionType.wifi;
+      final now = DateTime.now();
+      final dateStr =
+          'Jan ${now.day}, ${now.year}, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} ${now.hour >= 12 ? "PM" : "AM"}';
 
-      final receiptText = _buildReceiptText(
+      final bytes = await _renderReceiptImage(
         header: header,
+        orderId: orderId ?? '',
+        tableNumber: tableNumber ?? '',
+        serverName: serverName ?? 'Staff',
+        dateStr: dateStr,
         items: items,
         total: total,
-        orderId: orderId,
-        tableNumber: tableNumber,
-        serverName: serverName,
-        footer: footer,
+        footer: footer ?? '',
         isWiFi: isWiFi,
-      );
-
-      final bytes = await _convertTextToImageBytes(
-        receiptText,
-        width: isWiFi ? 576 : 512, // 58mm = 512px FULL width
       );
 
       return await _sendToPrinter(bytes);
@@ -385,226 +352,646 @@ class PrinterService {
     }
   }
 
-  String _buildReceiptText({
+  Future<List<int>> _renderReceiptImage({
     required String header,
+    required String orderId,
+    required String tableNumber,
+    required String serverName,
+    required String dateStr,
     required List<Map<String, dynamic>> items,
     required double total,
-    String? orderId,
-    String? tableNumber,
-    String? serverName,
-    String? footer,
+    required String footer,
     required bool isWiFi,
-  }) {
-    final buffer = StringBuffer();
-    final now = DateTime.now();
-    final dateStr =
-        '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}, '
-        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} '
-        '${now.hour >= 12 ? "PM" : "AM"}';
-
-    // Header
-    if (header.isNotEmpty) {
-      buffer.writeln(_centerText(header, isWiFi ? 48 : 32));
-      buffer.writeln();
-    }
-
-    // Order ID
-    if (orderId != null && orderId.isNotEmpty) {
-      buffer.writeln(_centerText(orderId, isWiFi ? 48 : 32));
-      buffer.writeln();
-    }
-
-    // Date and details
-    buffer.writeln(dateStr);
-    if (tableNumber != null && tableNumber.isNotEmpty) {
-      buffer.writeln('Table: $tableNumber');
-    }
-    if (serverName != null && serverName.isNotEmpty) {
-      buffer.writeln('Server: $serverName');
-    }
-    buffer.writeln();
-
-    // Items table
-    if (isWiFi) {
-      // 80mm format - Simple dashed lines
-      buffer.writeln('========================================');
-      buffer.writeln('No  Product              Qty      Price');
-      buffer.writeln('========================================');
-
-      int itemNo = 1;
-      for (final item in items) {
-        final name = (item['name'] ?? '').toString();
-        final qty = item['quantity'] ?? 1;
-        final price = item['price'] ?? 0.0;
-        final subtotal = qty * price;
-
-        final no = itemNo.toString().padLeft(2);
-        final product =
-            name.length > 20 ? name.substring(0, 20) : _padRight(name, 20);
-        final qtyText = 'x$qty'.padLeft(3);
-        final priceText = _formatPrice(subtotal).padLeft(10);
-
-        buffer.writeln('$no  $product  $qtyText  $priceText');
-        itemNo++;
-      }
-
-      buffer.writeln('========================================');
-    } else {
-      // 58mm format - Simple clean format
-      buffer.writeln('================================');
-      buffer.writeln('No Product          Qty   Price');
-      buffer.writeln('================================');
-
-      int itemNo = 1;
-      for (final item in items) {
-        final name = (item['name'] ?? '').toString();
-        final qty = item['quantity'] ?? 1;
-        final price = item['price'] ?? 0.0;
-        final subtotal = qty * price;
-
-        final no = itemNo.toString().padLeft(2);
-        final product =
-            name.length > 15 ? name.substring(0, 15) : _padRight(name, 15);
-        final qtyText = 'x$qty'.padLeft(3);
-        final priceText = _formatPrice(subtotal).padLeft(7);
-
-        buffer.writeln('$no $product $qtyText $priceText');
-        itemNo++;
-      }
-
-      buffer.writeln('================================');
-    }
-
-    buffer.writeln();
-
-    // Totals
-    buffer.writeln('Amount:');
-    final lakTotal = _formatPrice(total).padLeft(isWiFi ? 20 : 15);
-    buffer.writeln('(LAK):$lakTotal');
-
-    final usd = total / 23000;
-    final usdTotal = usd.toStringAsFixed(2).padLeft(isWiFi ? 20 : 15);
-    buffer.writeln('(USD):$usdTotal');
-    buffer.writeln();
-
-    // Exchange rate
-    buffer.writeln(_centerText('Exchange Rate:', isWiFi ? 48 : 32));
-    buffer.writeln(_centerText('USD 1 = LAK 23,000', isWiFi ? 48 : 32));
-    buffer.writeln();
-
-    // Footer
-    if (footer != null && footer.isNotEmpty) {
-      buffer.writeln(_centerText(footer, isWiFi ? 48 : 32));
-    }
-
-    return buffer.toString();
-  }
-
-  String _centerText(String text, int width) {
-    if (text.length >= width) return text;
-    final padding = (width - text.length) ~/ 2;
-    return ' ' * padding + text;
-  }
-
-  /// Convert text to image bytes (ESC/POS bitmap)
-  Future<List<int>> _convertTextToImageBytes(
-    String text, {
-    int width = 384,
   }) async {
     try {
-      print('Converting text to image (width: $width)...');
+      final width = isWiFi ? 576 : 512;
+      final renderWidth = width * 3;
 
-      // Render text as image
-      final image = await _renderTextToImage(text, width: width);
-      if (image == null) {
-        print('Failed to render text to image');
-        return [];
+      final baseHeight = 500;
+      final itemHeight = items.isEmpty ? 100 : items.length * 90;
+      final renderHeight = (baseHeight + itemHeight) * 3;
+
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+
+      final bgPaint = Paint()..color = Colors.white;
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, renderWidth.toDouble(), renderHeight.toDouble()),
+        bgPaint,
+      );
+
+      double currentY = 60.0;
+      final padding = 30.0;
+      final contentWidth = renderWidth - (padding * 2);
+
+      void drawText(
+        String text,
+        double y, {
+        double fontSize = 48.0,
+        FontWeight fontWeight = FontWeight.w600,
+        TextAlign align = TextAlign.left,
+      }) {
+        final paragraphBuilder =
+            ui.ParagraphBuilder(
+                ui.ParagraphStyle(
+                  textAlign: align,
+                  fontSize: fontSize,
+                  fontWeight: fontWeight,
+                  height: 1.15,
+                ),
+              )
+              ..pushStyle(
+                ui.TextStyle(
+                  color: Colors.black,
+                  fontSize: fontSize,
+                  fontWeight: fontWeight,
+                  letterSpacing: 1.5,
+                ),
+              )
+              ..addText(text);
+
+        final paragraph =
+            paragraphBuilder.build()
+              ..layout(ui.ParagraphConstraints(width: contentWidth));
+
+        final xPos =
+            align == TextAlign.center
+                ? padding + (contentWidth - paragraph.width) / 2
+                : padding;
+        canvas.drawParagraph(paragraph, Offset(xPos, y));
       }
 
-      print('Image rendered: ${image.width}x${image.height}');
+      // Header
+      if (header.isNotEmpty) {
+        drawText(
+          header,
+          currentY,
+          fontSize: 60,
+          fontWeight: FontWeight.w800,
+          align: TextAlign.center,
+        );
+        currentY += 90;
+      }
 
-      // Convert to ESC/POS bitmap
-      final escPosBytes = _imageToEscPosBitmap(image);
+      if (orderId.isNotEmpty) {
+        drawText(
+          orderId,
+          currentY,
+          fontSize: 48,
+          fontWeight: FontWeight.w600,
+          align: TextAlign.center,
+        );
+        currentY += 70;
+      }
 
-      print('ESC/POS bytes generated: ${escPosBytes.length}');
+      currentY += 10;
 
-      // Add init, feed and cut
+      if (tableNumber.isNotEmpty) {
+        drawText(
+          'Table: $tableNumber',
+          currentY,
+          fontSize: 42,
+          fontWeight: FontWeight.w500,
+        );
+        currentY += 55;
+      }
+
+      drawText(
+        'Date: $dateStr',
+        currentY,
+        fontSize: 42,
+        fontWeight: FontWeight.w500,
+      );
+      currentY += 55;
+
+      drawText(
+        'Server: $serverName',
+        currentY,
+        fontSize: 42,
+        fontWeight: FontWeight.w500,
+      );
+      currentY += 65;
+
+      // Dotted separator
+      final dotPaint =
+          Paint()
+            ..color = Colors.grey.shade700
+            ..strokeWidth = 4
+            ..strokeCap = StrokeCap.round;
+
+      for (double x = padding; x < renderWidth - padding; x += 24) {
+        canvas.drawCircle(Offset(x, currentY), 2, dotPaint);
+      }
+      currentY += 50;
+
+      // Items table - FIXED WITH 4 COLUMNS
+      if (items.isNotEmpty) {
+        final tableTop = currentY;
+        final tableWidth = contentWidth;
+        final rowHeight = 90.0;
+        final headerHeight = 80.0;
+        final tableHeight = headerHeight + (items.length * rowHeight);
+
+        final borderPaint =
+            Paint()
+              ..color = Colors.black
+              ..strokeWidth = 5
+              ..style = PaintingStyle.stroke;
+
+        final tableRect = RRect.fromRectAndRadius(
+          Rect.fromLTWH(padding, tableTop, tableWidth, tableHeight),
+          const Radius.circular(20),
+        );
+        canvas.drawRRect(tableRect, borderPaint);
+
+        final headerBgPaint = Paint()..color = Colors.grey.shade200;
+
+        final headerPath =
+            Path()..addRRect(
+              RRect.fromRectAndCorners(
+                Rect.fromLTWH(
+                  padding + 5,
+                  tableTop + 5,
+                  tableWidth - 10,
+                  headerHeight - 5,
+                ),
+                topLeft: const Radius.circular(15),
+                topRight: const Radius.circular(15),
+              ),
+            );
+        canvas.drawPath(headerPath, headerBgPaint);
+
+        // Column widths for 4 columns - ADJUSTED
+        final col1Width = tableWidth * 0.08; // ລ/ດ (No)
+        final col2Width = tableWidth * 0.30; // ລາຍການ (Product)
+        final col3Width = tableWidth * 0.10; // ຈຳນວນ (Qty)
+        final col4Width = tableWidth * 0.15; // ລາຄາ (Price) - INCREASED
+
+        // Vertical lines
+        final colLinePaint =
+            Paint()
+              ..color = Colors.grey.shade600
+              ..strokeWidth = 3;
+
+        canvas.drawLine(
+          Offset(padding + col1Width, tableTop + 5),
+          Offset(padding + col1Width, tableTop + tableHeight - 5),
+          colLinePaint,
+        );
+
+        canvas.drawLine(
+          Offset(padding + col1Width + col2Width, tableTop + 5),
+          Offset(padding + col1Width + col2Width, tableTop + tableHeight - 5),
+          colLinePaint,
+        );
+
+        canvas.drawLine(
+          Offset(padding + col1Width + col2Width + col3Width, tableTop + 5),
+          Offset(
+            padding + col1Width + col2Width + col3Width,
+            tableTop + tableHeight - 5,
+          ),
+          colLinePaint,
+        );
+
+        // Header text
+        final headerY = tableTop + 24;
+
+        // ລ/ດ header
+        final noHeader =
+            ui.ParagraphBuilder(
+                ui.ParagraphStyle(
+                  textAlign: TextAlign.center,
+                  fontSize: 42,
+                  fontWeight: FontWeight.w700,
+                ),
+              )
+              ..pushStyle(
+                ui.TextStyle(
+                  color: Colors.black,
+                  fontSize: 42,
+                  fontWeight: FontWeight.w700,
+                ),
+              )
+              ..addText('ລ/ດ');
+        final noPara =
+            noHeader.build()..layout(ui.ParagraphConstraints(width: col1Width));
+        canvas.drawParagraph(noPara, Offset(padding, headerY));
+
+        // ລາຍການ header
+        final productHeader =
+            ui.ParagraphBuilder(
+                ui.ParagraphStyle(
+                  textAlign: TextAlign.center,
+                  fontSize: 42,
+                  fontWeight: FontWeight.w700,
+                ),
+              )
+              ..pushStyle(
+                ui.TextStyle(
+                  color: Colors.black,
+                  fontSize: 42,
+                  fontWeight: FontWeight.w700,
+                ),
+              )
+              ..addText('ລາຍການ');
+        final productPara =
+            productHeader.build()
+              ..layout(ui.ParagraphConstraints(width: col2Width));
+        canvas.drawParagraph(productPara, Offset(padding + col1Width, headerY));
+
+        // ຈຳນວນ header
+        final qtyHeader =
+            ui.ParagraphBuilder(
+                ui.ParagraphStyle(
+                  textAlign: TextAlign.center,
+                  fontSize: 42,
+                  fontWeight: FontWeight.w700,
+                ),
+              )
+              ..pushStyle(
+                ui.TextStyle(
+                  color: Colors.black,
+                  fontSize: 42,
+                  fontWeight: FontWeight.w700,
+                ),
+              )
+              ..addText('ຈຳນວນ');
+        final qtyPara =
+            qtyHeader.build()
+              ..layout(ui.ParagraphConstraints(width: col3Width));
+        canvas.drawParagraph(
+          qtyPara,
+          Offset(padding + col1Width + col2Width, headerY),
+        );
+
+        // ລາຄາ header
+        final priceHeader =
+            ui.ParagraphBuilder(
+                ui.ParagraphStyle(
+                  textAlign: TextAlign.center,
+                  fontSize: 42,
+                  fontWeight: FontWeight.w700,
+                ),
+              )
+              ..pushStyle(
+                ui.TextStyle(
+                  color: Colors.black,
+                  fontSize: 42,
+                  fontWeight: FontWeight.w700,
+                ),
+              )
+              ..addText('ລາຄາ');
+        final pricePara =
+            priceHeader.build()
+              ..layout(ui.ParagraphConstraints(width: col4Width));
+        canvas.drawParagraph(
+          pricePara,
+          Offset(padding + col1Width + col2Width + col3Width, headerY),
+        );
+
+        // Horizontal line after header
+        final headerLinePaint =
+            Paint()
+              ..color = Colors.black
+              ..strokeWidth = 4;
+        canvas.drawLine(
+          Offset(padding + 5, tableTop + headerHeight),
+          Offset(padding + tableWidth - 5, tableTop + headerHeight),
+          headerLinePaint,
+        );
+
+        // Draw items
+        for (int i = 0; i < items.length; i++) {
+          final item = items[i];
+          final name = (item['name'] ?? '').toString();
+          final qty = item['quantity'] ?? 1;
+          final price = item['price'] ?? 0.0;
+          final subtotal = qty * price;
+
+          final rowY = tableTop + headerHeight + (i * rowHeight) + 28;
+
+          // Row number
+          final noBuilder =
+              ui.ParagraphBuilder(
+                  ui.ParagraphStyle(
+                    textAlign: TextAlign.center,
+                    fontSize: 40,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+                ..pushStyle(
+                  ui.TextStyle(
+                    color: Colors.black,
+                    fontSize: 40,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+                ..addText('${i + 1}');
+          final noItemPara =
+              noBuilder.build()
+                ..layout(ui.ParagraphConstraints(width: col1Width));
+          canvas.drawParagraph(noItemPara, Offset(padding, rowY));
+
+          // Product name
+          final productBuilder =
+              ui.ParagraphBuilder(
+                  ui.ParagraphStyle(
+                    textAlign: TextAlign.left,
+                    fontSize: 40,
+                    fontWeight: FontWeight.w500,
+                  ),
+                )
+                ..pushStyle(
+                  ui.TextStyle(
+                    color: Colors.black,
+                    fontSize: 40,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.8,
+                  ),
+                )
+                ..addText(name);
+          final productItemPara =
+              productBuilder.build()
+                ..layout(ui.ParagraphConstraints(width: col2Width - 20));
+          canvas.drawParagraph(
+            productItemPara,
+            Offset(padding + col1Width + 10, rowY),
+          );
+
+          // Quantity
+          final qtyBuilder =
+              ui.ParagraphBuilder(
+                  ui.ParagraphStyle(
+                    textAlign: TextAlign.center,
+                    fontSize: 40,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+                ..pushStyle(
+                  ui.TextStyle(
+                    color: Colors.black,
+                    fontSize: 40,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+                ..addText('$qty');
+          final qtyItemPara =
+              qtyBuilder.build()
+                ..layout(ui.ParagraphConstraints(width: col3Width));
+          canvas.drawParagraph(
+            qtyItemPara,
+            Offset(padding + col1Width + col2Width, rowY),
+          );
+
+          // Price - Right aligned in column
+          final priceBuilder =
+              ui.ParagraphBuilder(
+                  ui.ParagraphStyle(
+                    textAlign: TextAlign.right,
+                    fontSize: 40,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+                ..pushStyle(
+                  ui.TextStyle(
+                    color: Colors.black,
+                    fontSize: 40,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+                ..addText(_formatPrice(subtotal));
+          final priceItemPara =
+              priceBuilder.build()
+                ..layout(ui.ParagraphConstraints(width: col4Width - 30));
+          canvas.drawParagraph(
+            priceItemPara,
+            Offset(padding + col1Width + col2Width + col3Width + 15, rowY),
+          );
+
+          // Row separator
+          if (i < items.length - 1) {
+            final rowLinePaint =
+                Paint()
+                  ..color = Colors.grey.shade400
+                  ..strokeWidth = 2;
+            canvas.drawLine(
+              Offset(
+                padding + 5,
+                tableTop + headerHeight + ((i + 1) * rowHeight),
+              ),
+              Offset(
+                padding + tableWidth - 5,
+                tableTop + headerHeight + ((i + 1) * rowHeight),
+              ),
+              rowLinePaint,
+            );
+          }
+        }
+
+        currentY = tableTop + tableHeight + 60;
+      }
+
+      // Totals section
+      drawText('ຮວມ:', currentY, fontSize: 46, fontWeight: FontWeight.w700);
+
+      final totalBuilder =
+          ui.ParagraphBuilder(
+              ui.ParagraphStyle(
+                textAlign: TextAlign.right,
+                fontSize: 46,
+                fontWeight: FontWeight.w700,
+              ),
+            )
+            ..pushStyle(
+              ui.TextStyle(
+                color: Colors.black,
+                fontSize: 46,
+                fontWeight: FontWeight.w700,
+              ),
+            )
+            ..addText(_formatPrice(total));
+      final totalPara =
+          totalBuilder.build()
+            ..layout(ui.ParagraphConstraints(width: contentWidth));
+      canvas.drawParagraph(totalPara, Offset(padding, currentY));
+      currentY += 65;
+
+      currentY += 10;
+
+      drawText(
+        'ຍອດລວມ (LAK):',
+        currentY,
+        fontSize: 44,
+        fontWeight: FontWeight.w600,
+      );
+      final lakBuilder =
+          ui.ParagraphBuilder(
+              ui.ParagraphStyle(
+                textAlign: TextAlign.right,
+                fontSize: 44,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+            ..pushStyle(
+              ui.TextStyle(
+                color: Colors.black,
+                fontSize: 44,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+            ..addText(_formatPrice(total));
+      final lakPara =
+          lakBuilder.build()
+            ..layout(ui.ParagraphConstraints(width: contentWidth));
+      canvas.drawParagraph(lakPara, Offset(padding, currentY));
+      currentY += 60;
+
+      final usd = total / 23000;
+      drawText(
+        'ຍອດລວມ (USD):',
+        currentY,
+        fontSize: 44,
+        fontWeight: FontWeight.w600,
+      );
+      final usdBuilder =
+          ui.ParagraphBuilder(
+              ui.ParagraphStyle(
+                textAlign: TextAlign.right,
+                fontSize: 44,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+            ..pushStyle(
+              ui.TextStyle(
+                color: Colors.black,
+                fontSize: 44,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+            ..addText(usd.toStringAsFixed(2));
+      final usdPara =
+          usdBuilder.build()
+            ..layout(ui.ParagraphConstraints(width: contentWidth));
+      canvas.drawParagraph(usdPara, Offset(padding, currentY));
+      currentY += 75;
+
+      // Dotted separator
+      for (double x = padding; x < renderWidth - padding; x += 24) {
+        canvas.drawCircle(Offset(x, currentY), 2, dotPaint);
+      }
+      currentY += 50;
+
+      // Exchange rate box
+      final boxWidth = contentWidth * 0.85;
+      final boxHeight = 90.0;
+      final boxX = padding + (contentWidth - boxWidth) / 2;
+
+      final exchangeBoxPaint =
+          Paint()
+            ..color = Colors.black
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 4;
+
+      final exchangeRRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(boxX, currentY, boxWidth, boxHeight),
+        const Radius.circular(16),
+      );
+      canvas.drawRRect(exchangeRRect, exchangeBoxPaint);
+
+      final exchangeText =
+          ui.ParagraphBuilder(
+              ui.ParagraphStyle(
+                textAlign: TextAlign.center,
+                fontSize: 38,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+            ..pushStyle(
+              ui.TextStyle(
+                color: Colors.black,
+                fontSize: 38,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+            ..addText('ອັດຕາແລກປ່ຽນ = USD 1 = 23,000');
+      final exchangePara =
+          exchangeText.build()
+            ..layout(ui.ParagraphConstraints(width: boxWidth - 30));
+      canvas.drawParagraph(exchangePara, Offset(boxX + 15, currentY + 26));
+      currentY += boxHeight + 50;
+
+      if (footer.isNotEmpty) {
+        drawText(
+          footer,
+          currentY,
+          fontSize: 42,
+          fontWeight: FontWeight.w500,
+          align: TextAlign.center,
+        );
+        currentY += 65;
+      }
+
+      drawText(
+        'Thank you for your visit!',
+        currentY,
+        fontSize: 44,
+        fontWeight: FontWeight.w700,
+        align: TextAlign.center,
+      );
+
+      // Convert to image
+      final picture = recorder.endRecording();
+      final uiImage = await picture.toImage(renderWidth, renderHeight);
+      final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.png);
+      final pngBytes = byteData!.buffer.asUint8List();
+
+      var decodedImage = img.decodeImage(pngBytes);
+      if (decodedImage == null) return [];
+
+      decodedImage = img.copyResize(
+        decodedImage,
+        width: width,
+        interpolation: img.Interpolation.cubic,
+      );
+
+      final grayscaleImage = img.grayscale(decodedImage);
+      final finalImage = _applySharpContrast(grayscaleImage);
+
+      final escPosBytes = _imageToEscPosBitmap(finalImage);
+
       List<int> bytes = [];
-      bytes.addAll([0x1B, 0x40]); // Init
+      bytes.addAll([0x1B, 0x40]);
       bytes.addAll(escPosBytes);
-      bytes.addAll([0x0A, 0x0A, 0x0A]); // Feed
-      bytes.addAll([0x1D, 0x56, 0x00]); // Cut
+      bytes.addAll([0x0A, 0x0A, 0x0A]);
+      bytes.addAll([0x1D, 0x56, 0x00]);
 
       return bytes;
     } catch (e) {
-      print('Error converting text to image: $e');
+      print('Error rendering receipt: $e');
       return [];
     }
   }
 
-  /// Render text to image
-  Future<img.Image?> _renderTextToImage(String text, {int width = 384}) async {
-    try {
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder);
-
-      final lines = text.split('\n');
-      final lineHeight = 20.0;
-      final totalHeight = (lines.length * lineHeight + 40).toDouble();
-
-      // White background
-      final bgPaint = Paint()..color = Colors.white;
-      canvas.drawRect(
-        Rect.fromLTWH(0, 0, width.toDouble(), totalHeight),
-        bgPaint,
-      );
-
-      // Draw text with LARGER font for better readability
-      final textStyle = TextStyle(
-        color: Colors.black,
-        fontSize: width > 500 ? 22 : 20, // Much larger font
-        fontFamily: 'Roboto',
-        height: 1.2,
-        fontWeight: FontWeight.w500,
-      );
-
-      final textSpan = TextSpan(text: text, style: textStyle);
-      final textPainter = TextPainter(
-        text: textSpan,
-        textAlign: TextAlign.left,
-        textDirection: TextDirection.ltr,
-      );
-
-      textPainter.layout(maxWidth: width.toDouble() - 20);
-      textPainter.paint(canvas, const Offset(10, 20));
-
-      // Convert to image
-      final picture = recorder.endRecording();
-      final uiImage = await picture.toImage(width, totalHeight.toInt());
-      final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.png);
-      final pngBytes = byteData!.buffer.asUint8List();
-
-      // Decode
-      final decodedImage = img.decodeImage(pngBytes);
-      if (decodedImage == null) return null;
-
-      return img.grayscale(decodedImage);
-    } catch (e) {
-      print('Error rendering text: $e');
-      return null;
+  img.Image _applySharpContrast(img.Image image) {
+    for (int y = 0; y < image.height; y++) {
+      for (int x = 0; x < image.width; x++) {
+        final pixel = image.getPixel(x, y);
+        final gray = pixel.r.toInt();
+        final newGray = gray < 220 ? 0 : 255;
+        image.setPixelRgb(x, y, newGray, newGray, newGray);
+      }
     }
+    return image;
   }
 
-  /// Convert image to ESC/POS bitmap
   List<int> _imageToEscPosBitmap(img.Image image) {
     List<int> bytes = [];
-
     final width = image.width;
     final height = image.height;
 
-    // Process in 24-dot bands
     for (int y = 0; y < height; y += 24) {
-      bytes.addAll([0x1B, 0x2A, 33]); // ESC * 33
+      bytes.addAll([0x1B, 0x2A, 33]);
       bytes.addAll([width & 0xFF, (width >> 8) & 0xFF]);
 
       for (int x = 0; x < width; x++) {
@@ -634,44 +1021,27 @@ class PrinterService {
     return bytes;
   }
 
-  /// Send to printer (optimized)
   Future<bool> _sendToPrinter(List<int> bytes) async {
     try {
-      print('Sending ${bytes.length} bytes to printer...');
-
       if (_bluetoothDevice != null && _writeCharacteristic != null) {
-        // Bluetooth - use smaller chunks (BLE MTU limit is ~237 bytes)
-        // Use 200 bytes to be safe
         const chunkSize = 200;
-        int totalChunks = (bytes.length / chunkSize).ceil();
-
         for (var i = 0; i < bytes.length; i += chunkSize) {
           final end =
               (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
           final chunk = bytes.sublist(i, end);
-
-          int currentChunk = (i / chunkSize).floor() + 1;
-          if (currentChunk % 20 == 0) {
-            print('Progress: $currentChunk/$totalChunks chunks sent...');
-          }
-
           await _writeCharacteristic!.write(chunk, withoutResponse: true);
-          // Small delay to prevent buffer overflow
           await Future.delayed(const Duration(milliseconds: 5));
         }
-        print('✓ Bluetooth print complete ($totalChunks chunks)');
         return true;
       } else if (_networkSocket != null) {
-        // WiFi - send all at once
         _networkSocket!.add(bytes);
         await _networkSocket!.flush();
-        print('✓ WiFi print complete');
         return true;
       } else {
         throw Exception('No printer connection');
       }
     } catch (e) {
-      print('✗ Error sending to printer: $e');
+      print('Error sending to printer: $e');
       return false;
     }
   }
@@ -688,11 +1058,6 @@ class PrinterService {
       parts.insert(0, remaining);
     }
     return parts.join(',');
-  }
-
-  String _padRight(String text, int width) {
-    if (text.length >= width) return text;
-    return text + (' ' * (width - text.length));
   }
 
   void dispose() {
