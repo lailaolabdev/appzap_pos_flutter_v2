@@ -630,6 +630,18 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
       final printerService = ref.read(settingsProvider.notifier).printerService;
       final settings = ref.read(settingsProvider);
 
+      // Auto-connect for Sunmi devices before printing
+      final isSunmi = await printerService.isSunmiDevice();
+      if (isSunmi) {
+        print('🌞 Sunmi device detected, ensuring printer connection...');
+        final connected = await printerService.ensureSunmiConnected();
+        if (!connected) {
+          // Try one more time with force=true if standard check fails
+          print('⚠️ Standard connection failed, forcing Sunmi connection...');
+          await printerService.ensureSunmiConnected(force: true);
+        }
+      }
+
       // Create receipt printer utility
       final receiptPrinter = ReceiptPrinter(
         printerService: printerService,

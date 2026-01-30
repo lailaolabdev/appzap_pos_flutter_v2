@@ -133,14 +133,14 @@ class TransactionService {
         }
       }
 
-      if (response == null) throw Exception('No valid response received');
+      if (response.data == null) throw Exception('No valid response received');
 
       // ✅ Handle wrapped response format like the list endpoint
       final data = response.data;
 
       print('📊 Raw API Response: ${data.runtimeType}');
       print(
-        '📊 Response Keys: ${data is Map ? (data as Map).keys.toList() : 'Not a map'}',
+        '📊 Response Keys: ${data is Map ? data.keys.toList() : 'Not a map'}',
       );
 
       try {

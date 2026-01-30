@@ -241,15 +241,15 @@ class Product extends Equatable {
 
     // Determine if low stock (now that we have confirmed non-null values)
     if (!isLowStock) {
-      isLowStock = currentStock! <= lowStockThreshold!;
+      isLowStock = currentStock <= lowStockThreshold;
     }
 
     final result = ProductInventory(
       trackStock: true,
-      currentStock: currentStock!,
-      lowStockThreshold: lowStockThreshold!,
+      currentStock: currentStock,
+      lowStockThreshold: lowStockThreshold,
       isLowStock: isLowStock,
-      unit: unit!,
+      unit: unit,
     );
 
     print('   ✅ Final ProductInventory:');

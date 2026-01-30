@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../constants/api_constants.dart';
 import '../models/customer.dart';
-import '../models/customer.dart';
 
 final customerServiceProvider = Provider<CustomerService>((ref) {
   final apiClient = ref.watch(apiClientProvider);

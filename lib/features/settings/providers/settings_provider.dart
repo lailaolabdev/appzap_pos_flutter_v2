@@ -64,7 +64,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   final PrinterService _printerService;
 
   SettingsNotifier(this._storageService, this._printerService)
-      : super(const SettingsState()) {
+    : super(const SettingsState()) {
     _loadSettings();
     _listenToConnectionStatus();
   }
@@ -84,11 +84,34 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       final printerName = await _storageService.read('printer_name') ?? '';
       final printerAddress =
           await _storageService.read('printer_address') ?? '';
-      final printerTypeStr = await _storageService.read('printer_connection_type') ?? 'wifi';
-      final printerConnectionType = PrinterConnectionType.values.firstWhere(
-        (type) => type.name == printerTypeStr,
-        orElse: () => PrinterConnectionType.wifi,
+      final printerTypeStr = await _storageService.read(
+        'printer_connection_type',
       );
+
+      // Auto-detect Sunmi device if no printer is configured
+      var printerConnectionType = PrinterConnectionType.wifi;
+      if (printerTypeStr == null) {
+        final isSunmi = await _printerService.isSunmiDevice();
+        if (isSunmi) {
+          printerConnectionType = PrinterConnectionType.sunmi;
+          // Auto-save Sunmi defaults
+          await savePrinterSettings(
+            printerName: 'Sunmi Built-in Printer',
+            printerAddress: 'BUILT-IN',
+            connectionType: PrinterConnectionType.sunmi,
+            enableReceiptPrinting: true,
+            enableBarcodePrinting: false,
+            receiptHeader: '',
+            receiptFooter: 'Thank you for your business!',
+          );
+        }
+      } else {
+        printerConnectionType = PrinterConnectionType.values.firstWhere(
+          (type) => type.name == printerTypeStr,
+          orElse: () => PrinterConnectionType.wifi,
+        );
+      }
+
       final enableReceiptPrintingStr = await _storageService.read(
         'enable_receipt_printing',
       );
@@ -113,7 +136,31 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         isLoading: false,
       );
 
-      // Check if printer is already connected
+      // Auto-connect based on saved type
+      if (printerConnectionType == PrinterConnectionType.sunmi) {
+        final connected = await _printerService.connectSunmi();
+        if (connected) {
+          state = state.copyWith(isPrinterConnected: true);
+        }
+      } else if (printerConnectionType == PrinterConnectionType.wifi &&
+          printerAddress.isNotEmpty &&
+          printerAddress.contains(':')) {
+        try {
+          final parts = printerAddress.split(':');
+          if (parts.length == 2) {
+            final ip = parts[0];
+            final port = int.tryParse(parts[1]) ?? 9100;
+            final connected = await _printerService.connectWiFi(ip, port: port);
+            if (connected) {
+              state = state.copyWith(isPrinterConnected: true);
+            }
+          }
+        } catch (e) {
+          print('Error auto-connecting to WiFi printer: $e');
+        }
+      }
+
+      // Check if printer is already connected (e.g. from previous session if service stayed alive)
       if (_printerService.isConnected) {
         state = state.copyWith(isPrinterConnected: true);
       }
@@ -140,7 +187,10 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 
       await _storageService.write('printer_name', printerName);
       await _storageService.write('printer_address', printerAddress);
-      await _storageService.write('printer_connection_type', connectionType.name);
+      await _storageService.write(
+        'printer_connection_type',
+        connectionType.name,
+      );
       await _storageService.write(
         'enable_receipt_printing',
         enableReceiptPrinting.toString(),
@@ -176,7 +226,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       state = state.copyWith(isLoading: true, error: null);
 
       final result = await _printerService.testPrint();
-      
+
       state = state.copyWith(
         isPrinterConnected: result,
         isLoading: false,

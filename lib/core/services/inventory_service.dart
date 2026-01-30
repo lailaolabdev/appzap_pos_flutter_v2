@@ -852,7 +852,7 @@ class InventoryService {
     if (initialStock > 0) {
       await addStock(
         inventoryItemId: inventoryItem.id,
-        branchId: _branchId!,
+        branchId: _branchId,
         quantity: initialStock,
         reason: 'Initial stock for menu item',
         notes: 'Created from menu item: $name',
@@ -907,8 +907,8 @@ class InventoryService {
         try {
           print('🔍 Searching for inventory item...');
           final allItems = await getInventoryItems(
-            restaurantId: _restaurantId!,
-            branchId: _branchId!,
+            restaurantId: _restaurantId,
+            branchId: _branchId,
             limit: 1000, // Get all items
           );
 
@@ -951,7 +951,7 @@ class InventoryService {
             print('🔄 Calling removeStock API...');
             final result = await removeStock(
               inventoryItemId: inventoryItem.id,
-              branchId: _branchId!,
+              branchId: _branchId,
               quantity: quantity,
               reason: 'Sale - Order: $orderId',
               notes: 'Automatic stock deduction for order',
@@ -1003,8 +1003,8 @@ class InventoryService {
 
       // Get all inventory items for the branch
       final inventoryItems = await getInventoryItems(
-        restaurantId: _restaurantId!,
-        branchId: _branchId!,
+        restaurantId: _restaurantId,
+        branchId: _branchId,
         limit: 1000, // Get all items to search
       );
 
@@ -1053,8 +1053,8 @@ class InventoryService {
 
       // Get all inventory items for the branch
       final inventoryItems = await getInventoryItems(
-        restaurantId: _restaurantId!,
-        branchId: _branchId!,
+        restaurantId: _restaurantId,
+        branchId: _branchId,
         limit: 1000, // Get all items to search
       );
 
@@ -1117,8 +1117,8 @@ class InventoryService {
       }
 
       final inventoryItems = await getInventoryItems(
-        restaurantId: _restaurantId!,
-        branchId: _branchId!,
+        restaurantId: _restaurantId,
+        branchId: _branchId,
         limit: 1000,
       );
 

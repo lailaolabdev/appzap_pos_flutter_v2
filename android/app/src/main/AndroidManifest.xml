@@ -61,4 +61,7 @@
             <data android:mimeType="text/plain"/>
         </intent>
     </queries>
-</manifest>
+    <queries>
+        <package android:name="woyou.aidlservice.jiuiv5" />
+    </queries>
+</manifest> 

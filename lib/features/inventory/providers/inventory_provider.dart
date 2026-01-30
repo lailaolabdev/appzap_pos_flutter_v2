@@ -105,8 +105,8 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
 
     try {
       final items = await _inventoryService.getInventoryItems(
-        restaurantId: _restaurantId!,
-        branchId: _branchId!,
+        restaurantId: _restaurantId,
+        branchId: _branchId,
         search: state.searchQuery.isEmpty ? null : state.searchQuery,
         status: state.statusFilter,
         limit: 1000, // Increased limit to ensure all items are loaded

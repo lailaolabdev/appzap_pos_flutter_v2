@@ -8,8 +8,9 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image/image.dart' as img;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:sunmi_printer_plus/sunmi_printer_plus.dart';
 
-enum PrinterConnectionType { bluetooth, wifi, usb }
+enum PrinterConnectionType { bluetooth, wifi, usb, sunmi }
 
 class PrinterDevice {
   final String id;
@@ -48,6 +49,7 @@ class PrinterService {
   BluetoothCharacteristic? _writeCharacteristic;
   Socket? _networkSocket;
   PrinterDevice? _connectedDevice;
+  bool _sunmiConnected = false;
 
   final _connectionStatusController = StreamController<bool>.broadcast();
   Stream<bool> get connectionStatus => _connectionStatusController.stream;
@@ -168,12 +170,49 @@ class PrinterService {
     );
   }
 
+  PrinterDevice _createSunmiDevice() {
+    return PrinterDevice(
+      id: 'sunmi_builtin',
+      name: 'Sunmi Built-in Printer',
+      address: 'BUILT-IN',
+      type: PrinterConnectionType.sunmi,
+      isConnected: true,
+    );
+  }
+
   Future<bool> connectBluetooth(PrinterDevice device) async {
     try {
-      await disconnect();
+      // Only disconnect Bluetooth/WiFi, NOT Sunmi
+      if (_bluetoothDevice != null) {
+        await _bluetoothDevice!.disconnect();
+        _bluetoothDevice = null;
+        _writeCharacteristic = null;
+      }
+
+      if (_networkSocket != null) {
+        await _networkSocket!.close();
+        _networkSocket = null;
+      }
 
       final bluetoothDevice = BluetoothDevice.fromId(device.id);
-      await bluetoothDevice.connect(timeout: const Duration(seconds: 10));
+
+      // Explicitly disable auto-connect and MTU request (use null/default)
+      // Note: flutter_blue_plus 1.32.x connect() signature supports mtu: null
+      await bluetoothDevice.connect(
+        timeout: const Duration(seconds: 10),
+        mtu: null,
+        autoConnect: false,
+      );
+
+      // Request high MTU for faster transfer
+      // Standard BLE MTU is 23 (20 payload). We try to request 512.
+      if (Platform.isAndroid) {
+        try {
+          await bluetoothDevice.requestMtu(512);
+        } catch (e) {
+          print('Error requesting MTU: $e');
+        }
+      }
 
       final services = await bluetoothDevice.discoverServices();
 
@@ -209,7 +248,12 @@ class PrinterService {
 
       _bluetoothDevice = bluetoothDevice;
       _writeCharacteristic = writeChar;
-      _connectedDevice = device.copyWith(isConnected: true);
+
+      // Only update connected device if Sunmi is NOT active
+      if (!_sunmiConnected) {
+        _connectedDevice = device.copyWith(isConnected: true);
+      }
+
       _connectionStatusController.add(true);
 
       return true;
@@ -232,7 +276,17 @@ class PrinterService {
         throw Exception('Invalid IP address format');
       }
 
-      await disconnect();
+      // Only disconnect Bluetooth/WiFi, NOT Sunmi
+      if (_bluetoothDevice != null) {
+        await _bluetoothDevice!.disconnect();
+        _bluetoothDevice = null;
+        _writeCharacteristic = null;
+      }
+
+      if (_networkSocket != null) {
+        await _networkSocket!.close();
+        _networkSocket = null;
+      }
 
       final socket = await Socket.connect(
         trimmedIp,
@@ -241,13 +295,18 @@ class PrinterService {
       );
 
       _networkSocket = socket;
-      _connectedDevice = PrinterDevice(
-        id: ipAddress,
-        name: 'Network Printer',
-        address: '$ipAddress:$port',
-        type: PrinterConnectionType.wifi,
-        isConnected: true,
-      );
+
+      // Only update connected device if Sunmi is NOT active
+      if (!_sunmiConnected) {
+        _connectedDevice = PrinterDevice(
+          id: ipAddress,
+          name: 'Network Printer',
+          address: '$ipAddress:$port',
+          type: PrinterConnectionType.wifi,
+          isConnected: true,
+        );
+      }
+
       _connectionStatusController.add(true);
       return true;
     } catch (e) {
@@ -264,6 +323,135 @@ class PrinterService {
     return ipRegex.hasMatch(ip);
   }
 
+  Future<bool> isSunmiDevice() async {
+    try {
+      final bool? bound = await SunmiPrinter.bindingPrinter();
+      return bound == true;
+    } catch (e) {
+      print('Error checking Sunmi device: $e');
+      return false;
+    }
+  }
+
+  Future<void> _initializeSunmiPrinter({bool force = false}) async {
+    if (_sunmiConnected && !force) {
+      return;
+    }
+
+    print('[Sunmi V2] Attempting to bind printer service...');
+
+    // Always attempt to bind
+    final bool? bound = await SunmiPrinter.bindingPrinter();
+    if (bound != true) {
+      // If binding fails, it might already be bound or unavailable.
+      // We log it but proceed to try initialization which is the critical step
+      print(
+        '[Sunmi V2] Binding check returned false/null, but proceeding to init...',
+      );
+    } else {
+      print('[Sunmi V2] Printer service bound successfully');
+    }
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    print('[Sunmi V2] Initializing printer...');
+    try {
+      await SunmiPrinter.initPrinter();
+      print('[Sunmi V2] Printer initialized successfully');
+
+      _sunmiConnected = true;
+      _connectedDevice = _createSunmiDevice();
+      _connectionStatusController.add(true);
+      print('[Sunmi V2] Connection successful');
+    } catch (e) {
+      print('[Sunmi V2] Initialization failed: $e');
+      // If init fails, we can't consider it connected
+      _sunmiConnected = false;
+      throw Exception('Failed to initialize Sunmi printer: $e');
+    }
+  }
+
+  Future<bool> ensureSunmiConnected({bool force = false}) async {
+    try {
+      await _initializeSunmiPrinter(force: force);
+      return true;
+    } catch (e) {
+      print('Error ensuring Sunmi connection: $e');
+      return false;
+    }
+  }
+
+  Future<bool> connectSunmi() async {
+    try {
+      await _initializeSunmiPrinter(force: true);
+      return true;
+    } catch (e) {
+      print('Error connecting to Sunmi: $e');
+      _connectionStatusController.add(false);
+      return false;
+    }
+  }
+
+  /// Connect external Bluetooth printer while keeping Sunmi device active
+  Future<bool> connectBluetoothOnSunmi(PrinterDevice device) async {
+    try {
+      print('[Sunmi BT] Connecting to Bluetooth printer: ${device.name}');
+
+      final bluetoothDevice = BluetoothDevice.fromId(device.id);
+      await bluetoothDevice.connect(timeout: const Duration(seconds: 10));
+
+      if (Platform.isAndroid) {
+        try {
+          await bluetoothDevice.requestMtu(512);
+        } catch (e) {
+          print('[Sunmi BT] Error requesting MTU: $e');
+        }
+      }
+
+      final services = await bluetoothDevice.discoverServices();
+      BluetoothCharacteristic? writeChar;
+      final excludedServices = ['00001800', '00001801', '0000180a'];
+
+      for (var service in services) {
+        final serviceUuid = service.uuid.toString().toLowerCase();
+        if (excludedServices.any((uuid) => serviceUuid.contains(uuid))) {
+          continue;
+        }
+
+        for (var char in service.characteristics) {
+          final charUuid = char.uuid.toString().toLowerCase();
+          if (charUuid.contains('2a00') || charUuid.contains('2a01')) {
+            continue;
+          }
+
+          if (char.properties.writeWithoutResponse || char.properties.write) {
+            writeChar = char;
+            break;
+          }
+        }
+        if (writeChar != null) break;
+      }
+
+      if (writeChar == null) {
+        throw Exception('No printer characteristic found');
+      }
+
+      // Store Bluetooth device but keep Sunmi active
+      _bluetoothDevice = bluetoothDevice;
+      _writeCharacteristic = writeChar;
+
+      // Update connected device to Bluetooth (you can override or add dual mode)
+      _connectedDevice = device.copyWith(isConnected: true);
+      _connectionStatusController.add(true);
+
+      print('[Sunmi BT] Bluetooth printer connected successfully');
+      return true;
+    } catch (e) {
+      print('[Sunmi BT] Error connecting to Bluetooth: $e');
+      return false;
+    }
+  }
+
   Future<void> disconnect() async {
     try {
       if (_bluetoothDevice != null) {
@@ -277,6 +465,7 @@ class PrinterService {
         _networkSocket = null;
       }
 
+      _sunmiConnected = false;
       _connectedDevice = null;
       _connectionStatusController.add(false);
     } catch (e) {
@@ -289,7 +478,32 @@ class PrinterService {
 
   Future<bool> testPrint() async {
     try {
+      // Prefer Sunmi SDK on Sunmi devices regardless of other connections
+      final onSunmiDevice = await isSunmiDevice();
+      if (onSunmiDevice) {
+        final ready = await ensureSunmiConnected(force: true);
+        if (ready) {
+          return await _testPrintSunmi();
+        }
+      }
+
+      if (_sunmiConnected ||
+          _connectedDevice?.type == PrinterConnectionType.sunmi) {
+        final ready = await ensureSunmiConnected();
+        if (!ready) {
+          throw Exception('Sunmi printer not ready');
+        }
+        return await _testPrintSunmi();
+      }
+
       if (!isConnected) {
+        // Attempt to auto-connect to Sunmi as a fallback
+        print('Printer not connected. Attempting to auto-connect Sunmi...');
+        final sunmiConnected = await ensureSunmiConnected();
+        if (sunmiConnected) {
+          return await _testPrintSunmi();
+        }
+
         throw Exception('Printer not connected');
       }
 
@@ -314,6 +528,33 @@ class PrinterService {
     }
   }
 
+  Future<bool> _testPrintSunmi() async {
+    try {
+      await SunmiPrinter.printText(
+        'TEST PRINT',
+        style: SunmiTextStyle(
+          fontSize: 32,
+          align: SunmiPrintAlign.CENTER,
+          bold: true,
+        ),
+      );
+
+      await SunmiPrinter.lineWrap(1);
+
+      await SunmiPrinter.printText('AppZap POS');
+      await SunmiPrinter.printText('Staff');
+      await SunmiPrinter.printText(DateTime.now().toString().substring(0, 19));
+
+      await SunmiPrinter.lineWrap(2);
+      await SunmiPrinter.cutPaper();
+
+      return true;
+    } catch (e) {
+      print('Error test print Sunmi: $e');
+      return false;
+    }
+  }
+
   Future<bool> printReceipt({
     required String header,
     required List<Map<String, dynamic>> items,
@@ -323,9 +564,46 @@ class PrinterService {
     String? serverName,
     String? footer,
   }) async {
+    print('🖨️ PrinterService.printReceipt called'); // Debug log
     try {
+      // Prefer Sunmi SDK on Sunmi devices regardless of other connections
+      final onSunmiDevice = await isSunmiDevice();
+      if (onSunmiDevice) {
+        final ready = await ensureSunmiConnected(force: true);
+        if (ready) {
+          return await _printReceiptSunmi(
+            header: header,
+            items: items,
+            total: total,
+            orderId: orderId ?? '',
+            tableNumber: tableNumber ?? '',
+            serverName: serverName ?? 'Staff',
+            footer: footer ?? '',
+          );
+        }
+      }
+
       if (!isConnected) {
-        throw Exception('Printer not connected');
+        // Attempt to auto-connect to Sunmi as a fallback
+        print(
+          'Printer not connected. Attempting to auto-connect Sunmi/InnerPrinter...',
+        );
+        final sunmiConnected = await ensureSunmiConnected();
+        if (!sunmiConnected) {
+          throw Exception('Printer not connected');
+        }
+      }
+
+      if (_sunmiConnected) {
+        return await _printReceiptSunmi(
+          header: header,
+          items: items,
+          total: total,
+          orderId: orderId ?? '',
+          tableNumber: tableNumber ?? '',
+          serverName: serverName ?? 'Staff',
+          footer: footer ?? '',
+        );
       }
 
       final isWiFi = _connectedDevice?.type == PrinterConnectionType.wifi;
@@ -348,6 +626,121 @@ class PrinterService {
       return await _sendToPrinter(bytes);
     } catch (e) {
       print('Error printing receipt: $e');
+      return false;
+    }
+  }
+
+  Future<bool> _printReceiptSunmi({
+    required String header,
+    required List<Map<String, dynamic>> items,
+    required double total,
+    required String orderId,
+    required String tableNumber,
+    required String serverName,
+    required String footer,
+  }) async {
+    try {
+      // Header
+      await SunmiPrinter.printText(
+        header,
+        style: SunmiTextStyle(
+          fontSize: 36,
+          align: SunmiPrintAlign.CENTER,
+          bold: true,
+        ),
+      );
+
+      // Order ID
+      if (orderId.isNotEmpty) {
+        await SunmiPrinter.printText(
+          orderId,
+          style: SunmiTextStyle(align: SunmiPrintAlign.CENTER),
+        );
+      }
+
+      await SunmiPrinter.lineWrap(1);
+
+      // Details
+      if (tableNumber.isNotEmpty) {
+        await SunmiPrinter.printText('ຕະຕ: $tableNumber');
+      }
+
+      final now = DateTime.now();
+      final dateStr =
+          '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+      await SunmiPrinter.printText('ວັນທີ: $dateStr');
+      await SunmiPrinter.printText('ເຊີບເວີ: $serverName');
+
+      await SunmiPrinter.lineWrap(1);
+
+      // Items table header
+      if (items.isNotEmpty) {
+        await SunmiPrinter.printText(
+          'ລາຍການ | ຈຳນວນ | ລາຄາ',
+          style: SunmiTextStyle(fontSize: 24, bold: true),
+        );
+        await SunmiPrinter.line();
+
+        // Items
+        for (var item in items) {
+          final name = item['name'] ?? '';
+          final quantity = item['quantity'] ?? 1;
+          final price = item['price'] ?? 0.0;
+          final itemTotal = (price * quantity).toStringAsFixed(0);
+
+          await SunmiPrinter.printText('$name x$quantity');
+          await SunmiPrinter.printText(
+            'ລາຄາ: ${_formatPrice(double.parse(itemTotal))}',
+          );
+        }
+
+        await SunmiPrinter.line();
+      }
+
+      await SunmiPrinter.lineWrap(1);
+
+      // Totals
+      await SunmiPrinter.printText(
+        'ຮວມ: ${_formatPrice(total)} LAK',
+        style: SunmiTextStyle(
+          fontSize: 24,
+          align: SunmiPrintAlign.CENTER,
+          bold: true,
+        ),
+      );
+
+      final usd = total / 23000;
+      await SunmiPrinter.printText(
+        'ຮວມ: \$${usd.toStringAsFixed(2)}',
+        style: SunmiTextStyle(align: SunmiPrintAlign.CENTER),
+      );
+
+      await SunmiPrinter.lineWrap(1);
+
+      // Exchange rate
+      await SunmiPrinter.printText(
+        'ອັດຕາແລກປ່ຽນ = USD 1 = 23,000',
+        style: SunmiTextStyle(align: SunmiPrintAlign.CENTER),
+      );
+
+      // Footer
+      if (footer.isNotEmpty) {
+        await SunmiPrinter.lineWrap(1);
+        await SunmiPrinter.printText(footer);
+      }
+
+      await SunmiPrinter.lineWrap(1);
+      await SunmiPrinter.printText(
+        'ຂອບໃຈທີ່ໄປກິນອາຫານ',
+        style: SunmiTextStyle(align: SunmiPrintAlign.CENTER, bold: true),
+      );
+
+      await SunmiPrinter.lineWrap(2);
+      await SunmiPrinter.cutPaper();
+
+      return true;
+    } catch (e) {
+      print('Error printing receipt on Sunmi: $e');
       return false;
     }
   }
@@ -1024,13 +1417,48 @@ class PrinterService {
   Future<bool> _sendToPrinter(List<int> bytes) async {
     try {
       if (_bluetoothDevice != null && _writeCharacteristic != null) {
-        const chunkSize = 200;
+        // Check if characteristic supports write without response
+        final canWriteWithoutResponse =
+            _writeCharacteristic!.properties.writeWithoutResponse;
+
+        // Get current MTU (default is 23, which means 20 bytes payload)
+        // If we successfully requested a larger MTU (e.g. 512), this will be higher.
+        int mtu = 23;
+        try {
+          mtu = _bluetoothDevice!.mtuNow;
+        } catch (e) {
+          print('Error reading MTU: $e');
+        }
+
+        // Calculate safe chunk size (MTU - 3 bytes overhead)
+        // If write without response is supported, we can sometimes go higher, but safe is MTU-3.
+        // If write WITH response (our case), we MUST respect MTU-3.
+        final safeChunkSize = (mtu > 3) ? mtu - 3 : 20;
+
+        // If we can write without response, we might force a larger chunk if MTU is small but the device handles it.
+        // But usually sticking to MTU is safest.
+        // For the user's Sunmi V2, we know it requires WITH response, so we depend on MTU.
+        final chunkSize = canWriteWithoutResponse ? 200 : safeChunkSize;
+
+        print(
+          'Sending to printer: MTU=$mtu, ChunkSize=$chunkSize, Mode=${canWriteWithoutResponse ? "NoResponse" : "WithResponse"}',
+        );
+
         for (var i = 0; i < bytes.length; i += chunkSize) {
           final end =
               (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
           final chunk = bytes.sublist(i, end);
-          await _writeCharacteristic!.write(chunk, withoutResponse: true);
-          await Future.delayed(const Duration(milliseconds: 5));
+
+          await _writeCharacteristic!.write(
+            chunk,
+            withoutResponse: canWriteWithoutResponse,
+          );
+
+          // Small delay to prevent UI thread freezing and buffer overflow
+          // If with response, we need to wait for the ack, but a small delay helps stability.
+          await Future.delayed(
+            Duration(milliseconds: canWriteWithoutResponse ? 5 : 2),
+          );
         }
         return true;
       } else if (_networkSocket != null) {
