@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -5,7 +7,6 @@ import 'package:intl/intl.dart';
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
 import '../../../core/utils/responsive.dart';
-import '../../../shared/widgets/app_sidebar.dart';
 import '../providers/reports_provider.dart';
 
 /// Sales Trends Report Screen
@@ -38,19 +39,20 @@ class _SalesTrendsReportScreenState
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
     final reportsState = ref.watch(reportsProvider);
+    final languageCode = ref.read(localizationProvider).languageCode;
 
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
         appBar: AppBar(
-          title: const Text('Sales Trends Report'),
+          title: Text(Translations.get('sales_trends_report', languageCode)),
           backgroundColor: Colors.teal,
           foregroundColor: Colors.white,
           elevation: 2,
           actions: [
             PopupMenuButton<String>(
               icon: const Icon(Icons.timeline),
-              tooltip: 'Time Period',
+              tooltip: Translations.get('time_period', languageCode),
               onSelected: (value) => setState(() => period = value),
               itemBuilder:
                   (context) => [
@@ -64,12 +66,12 @@ class _SalesTrendsReportScreenState
             ),
             IconButton(
               icon: const Icon(Icons.date_range),
-              tooltip: 'Date Range',
+              tooltip: Translations.get('date_range', languageCode),
               onPressed: () => _selectDateRange(context),
             ),
             IconButton(
               icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh',
+              tooltip: Translations.get('refresh', languageCode),
               onPressed: () => ref.read(reportsProvider.notifier).refresh(),
             ),
             const SizedBox(width: 8),
@@ -93,11 +95,11 @@ class _SalesTrendsReportScreenState
 
                 // Error state
                 if (reportsState.error != null)
-                  _buildErrorCard(reportsState.error!),
+                  _buildErrorCard(reportsState.error!, languageCode),
 
                 // Success state
                 if (!reportsState.isLoading && reportsState.error == null)
-                  _buildTrendsReport(reportsState, isMobile),
+                  _buildTrendsReport(reportsState, isMobile, languageCode),
               ],
             ),
           ),
@@ -107,6 +109,7 @@ class _SalesTrendsReportScreenState
   }
 
   Widget _buildHeader() {
+    final languageCode = ref.read(localizationProvider).languageCode;
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -144,7 +147,7 @@ class _SalesTrendsReportScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Sales Trends Report',
+                        Translations.get('sales_trends_report', languageCode),
                         style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
@@ -184,12 +187,16 @@ class _SalesTrendsReportScreenState
     );
   }
 
-  Widget _buildTrendsReport(dynamic reportsState, bool isMobile) {
+  Widget _buildTrendsReport(
+    dynamic reportsState,
+    bool isMobile,
+    String languageCode,
+  ) {
     // Generate trend data based on available reports data
     final trendsData = _generateTrendsData(reportsState);
 
     if (trendsData.isEmpty) {
-      return _buildNoDataCard();
+      return _buildNoDataCard(context, languageCode);
     }
 
     return Column(
@@ -209,7 +216,7 @@ class _SalesTrendsReportScreenState
                   children: [
                     Expanded(
                       child: _buildSummaryItem(
-                        'Data Points',
+                        Translations.get('data_points', languageCode),
                         '${trendsData.length}',
                         Icons.data_usage,
                         Colors.teal,
@@ -218,7 +225,7 @@ class _SalesTrendsReportScreenState
                     const SizedBox(width: 16),
                     Expanded(
                       child: _buildSummaryItem(
-                        'Peak Sales',
+                        Translations.get('peak_sales', languageCode),
                         'LAK ${NumberFormat('#,##0').format(_getPeakSales(trendsData))}',
                         Icons.trending_up,
                         Colors.green,
@@ -228,7 +235,7 @@ class _SalesTrendsReportScreenState
                       const SizedBox(width: 16),
                       Expanded(
                         child: _buildSummaryItem(
-                          'Growth Rate',
+                          Translations.get('growth_rate', languageCode),
                           '${_getGrowthRate(trendsData).toStringAsFixed(1)}%',
                           Icons.analytics,
                           Colors.orange,
@@ -244,11 +251,11 @@ class _SalesTrendsReportScreenState
         const SizedBox(height: 20),
 
         // Trend visualization
-        _buildTrendChart(trendsData, isMobile),
+        _buildTrendChart(trendsData, isMobile, languageCode),
         const SizedBox(height: 20),
 
         // Trends analysis
-        _buildTrendsAnalysis(trendsData, isMobile),
+        _buildTrendsAnalysis(trendsData, isMobile, languageCode),
       ],
     );
   }
@@ -328,7 +335,11 @@ class _SalesTrendsReportScreenState
     return ((lastValue - firstValue) / firstValue) * 100;
   }
 
-  Widget _buildTrendChart(List<Map<String, dynamic>> data, bool isMobile) {
+  Widget _buildTrendChart(
+    List<Map<String, dynamic>> data,
+    bool isMobile,
+    String languageCode,
+  ) {
     final maxSales = _getPeakSales(data);
 
     return Card(
@@ -343,7 +354,7 @@ class _SalesTrendsReportScreenState
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Sales Trend Chart',
+                  Translations.get('sales_trend_chart', languageCode),
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -399,7 +410,12 @@ class _SalesTrendsReportScreenState
                               const SizedBox(height: 8),
                               if (!isMobile)
                                 Text(
-                                  shortDateFormat.format(item['date']),
+                                  shortDateFormat.format(
+                                    item[Translations.get(
+                                      'date',
+                                      languageCode,
+                                    )],
+                                  ),
                                   style: Theme.of(context).textTheme.bodySmall,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -417,7 +433,11 @@ class _SalesTrendsReportScreenState
     );
   }
 
-  Widget _buildTrendsAnalysis(List<Map<String, dynamic>> data, bool isMobile) {
+  Widget _buildTrendsAnalysis(
+    List<Map<String, dynamic>> data,
+    bool isMobile,
+    String languageCode,
+  ) {
     final growthRate = _getGrowthRate(data);
     final peakSales = _getPeakSales(data);
     final averageSales =
@@ -427,7 +447,7 @@ class _SalesTrendsReportScreenState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Trends Analysis',
+          Translations.get('trends_analysis', languageCode),
           style: Theme.of(
             context,
           ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -465,7 +485,7 @@ class _SalesTrendsReportScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Growth Rate',
+                        Translations.get('growth_rate', languageCode),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: AppTheme.neutral600,
                         ),
@@ -500,14 +520,14 @@ class _SalesTrendsReportScreenState
                   child: Column(
                     children: [
                       Text(
-                        'Average Sales',
+                        Translations.get('average_sales', languageCode),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppTheme.neutral600,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'LAK ${NumberFormat('#,##0').format(averageSales)}',
+                        '${Translations.get('lak', languageCode)} ${NumberFormat('#,##0').format(averageSales)}',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -530,14 +550,14 @@ class _SalesTrendsReportScreenState
                   child: Column(
                     children: [
                       Text(
-                        'Peak Sales',
+                        Translations.get('peak_sales', languageCode),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppTheme.neutral600,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'LAK ${NumberFormat('#,##0').format(peakSales)}',
+                        '${Translations.get('lak', languageCode)} ${NumberFormat('#,##0').format(peakSales)}',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -591,7 +611,7 @@ class _SalesTrendsReportScreenState
     );
   }
 
-  Widget _buildErrorCard(String error) {
+  Widget _buildErrorCard(String error, String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -603,7 +623,7 @@ class _SalesTrendsReportScreenState
             const Icon(Icons.error_outline, size: 48, color: Colors.red),
             const SizedBox(height: 16),
             Text(
-              'Error Loading Trends',
+              Translations.get('error_loading_trends', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -619,7 +639,7 @@ class _SalesTrendsReportScreenState
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => ref.read(reportsProvider.notifier).refresh(),
-              child: const Text('Retry'),
+              child: Text(Translations.get('retry', languageCode)),
             ),
           ],
         ),
@@ -627,7 +647,7 @@ class _SalesTrendsReportScreenState
     );
   }
 
-  Widget _buildNoDataCard() {
+  Widget _buildNoDataCard(BuildContext context, String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -643,14 +663,17 @@ class _SalesTrendsReportScreenState
             ),
             const SizedBox(height: 16),
             Text(
-              'No Trends Data',
+              Translations.get('no_trends_data', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'No sales trends data found for the selected period',
+              Translations.get(
+                'no_sales_trends_data_found_for_the_selected_period',
+                languageCode,
+              ),
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),

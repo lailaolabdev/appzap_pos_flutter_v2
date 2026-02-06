@@ -1,22 +1,23 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/models/transaction.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/responsive.dart';
 
-class TransactionSummaryCards extends StatelessWidget {
+class TransactionSummaryCards extends ConsumerWidget {
   final TransactionSummary summary;
 
-  const TransactionSummaryCards({
-    super.key,
-    required this.summary,
-  });
+  const TransactionSummaryCards({super.key, required this.summary});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isMobile = Responsive.isMobile(context);
     final crossAxisCount = isMobile ? 2 : 4;
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return GridView.count(
       shrinkWrap: true,
@@ -28,27 +29,28 @@ class TransactionSummaryCards extends StatelessWidget {
       children: [
         _buildSummaryCard(
           context,
-          title: 'Total Sales',
+          title: Translations.get('total_sales', languageCode),
           value: CurrencyFormatter.formatLAKWithSymbol(summary.salesAmount),
-          subtitle: '${summary.salesCount} transactions',
+          subtitle:
+              '${summary.salesCount} ${Translations.get('transactions', languageCode)}',
           icon: Icons.attach_money,
           color: AppTheme.success,
         ),
         _buildSummaryCard(
           context,
-          title: 'Average Value',
+          title: Translations.get('average_value', languageCode),
           value: CurrencyFormatter.formatLAKWithSymbol(
             summary.salesCount > 0
                 ? summary.salesAmount / summary.salesCount
                 : 0,
           ),
-          subtitle: 'per transaction',
+          subtitle: Translations.get('per_transaction', languageCode),
           icon: Icons.trending_up,
           color: Colors.blue,
         ),
         _buildSummaryCard(
           context,
-          title: 'Void Count',
+          title: Translations.get('void_count', languageCode),
           value: summary.voidCount.toString(),
           subtitle: CurrencyFormatter.formatLAKWithSymbol(summary.voidAmount),
           icon: Icons.cancel,
@@ -56,11 +58,15 @@ class TransactionSummaryCards extends StatelessWidget {
         ),
         _buildSummaryCard(
           context,
-          title: 'Payment Methods',
+          title: Translations.get('payment_methods', languageCode),
           value: summary.paymentMethodBreakdown.length.toString(),
-          subtitle: summary.paymentMethodBreakdown.isNotEmpty
-              ? _getMostUsedMethod(summary.paymentMethodBreakdown)
-              : 'No data',
+          subtitle:
+              summary.paymentMethodBreakdown.isNotEmpty
+                  ? _getMostUsedMethod(
+                    summary.paymentMethodBreakdown,
+                    languageCode,
+                  )
+                  : Translations.get('no_data', languageCode),
           icon: Icons.payment,
           color: AppTheme.primaryOrange,
         ),
@@ -94,10 +100,7 @@ class TransactionSummaryCards extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppTheme.neutral600,
-              ),
+              style: const TextStyle(fontSize: 11, color: AppTheme.neutral600),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 4),
@@ -116,10 +119,7 @@ class TransactionSummaryCards extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               subtitle,
-              style: TextStyle(
-                fontSize: 10,
-                color: AppTheme.neutral500,
-              ),
+              style: TextStyle(fontSize: 10, color: AppTheme.neutral500),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -130,7 +130,10 @@ class TransactionSummaryCards extends StatelessWidget {
     );
   }
 
-  String _getMostUsedMethod(List<PaymentMethodBreakdown> methods) {
+  String _getMostUsedMethod(
+    List<PaymentMethodBreakdown> methods,
+    String languageCode,
+  ) {
     if (methods.isEmpty) return 'N/A';
 
     // Find method with highest count (assuming it's available in the breakdown)
@@ -144,22 +147,21 @@ class TransactionSummaryCards extends StatelessWidget {
       }
     }
 
-    return _formatMethodName(mostUsed);
+    return _formatMethodName(mostUsed, languageCode);
   }
 
-  String _formatMethodName(String method) {
+  String _formatMethodName(String method, String languageCode) {
     switch (method) {
       case 'cash':
-        return 'Cash';
+        return Translations.get('cash', languageCode);
       case 'card':
-        return 'Card';
+        return Translations.get('card', languageCode);
       case 'bank_qr_jdb':
-        return 'JDB QR';
+        return Translations.get('payment_method_bank_qr_jdb', languageCode);
       case 'bank_qr_bcel':
-        return 'BCEL QR';
+        return Translations.get('payment_method_bank_qr_bcel', languageCode);
       default:
         return method.replaceAll('_', ' ').toUpperCase();
     }
   }
 }
-

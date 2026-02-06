@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -33,6 +35,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
   Widget build(BuildContext context) {
     final ordersState = ref.watch(ordersProvider);
     final isMobile = Responsive.isMobile(context);
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return AppShell(
       child: Scaffold(
@@ -42,16 +45,16 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
         appBar: AppBar(
           backgroundColor: AppTheme.scaffoldBackground,
           surfaceTintColor: AppTheme.scaffoldBackground,
-          title: const Text('Orders'),
+          title: Text(Translations.get('orders', languageCode)),
           actions: [
             IconButton(
               icon: const Icon(Icons.filter_list),
-              tooltip: 'Filter',
+              tooltip: Translations.get('filter', languageCode),
               onPressed: () => _showFilterBottomSheet(context),
             ),
             IconButton(
               icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh',
+              tooltip: Translations.get('refresh', languageCode),
               onPressed: () {
                 ref.read(ordersProvider.notifier).loadOrders();
               },
@@ -82,7 +85,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                         onPressed: () {
                           ref.read(ordersProvider.notifier).loadOrders();
                         },
-                        child: const Text('Retry'),
+                        child: Text(Translations.get('retry', languageCode)),
                       ),
                     ],
                   ),
@@ -99,7 +102,10 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                             itemCount: ordersState.filteredOrders.length,
                             itemBuilder: (context, index) {
                               final order = ordersState.filteredOrders[index];
-                              return _OrderCard(order: order);
+                              return _OrderCard(
+                                order: order,
+                                languageCode: languageCode,
+                              );
                             },
                           ),
                 ),
@@ -108,6 +114,8 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
   }
 
   Widget _buildEmptyState() {
+    final languageCode = ref.watch(localizationProvider).languageCode;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -119,7 +127,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'No Orders Found',
+            Translations.get('no_orders_found', languageCode),
             style: Theme.of(
               context,
             ).textTheme.headlineSmall?.copyWith(color: AppTheme.neutral600),
@@ -127,8 +135,8 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
           const SizedBox(height: 8),
           Text(
             _selectedStatus == 'all'
-                ? 'Start selling to see orders here'
-                : 'No orders with ${_selectedStatus} status',
+                ? Translations.get('start_selling_to_see_orders', languageCode)
+                : '${Translations.get('no_orders_with_status', languageCode)} ${_selectedStatus} ${Translations.get('status', languageCode)}',
             style: Theme.of(
               context,
             ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral500),
@@ -139,6 +147,8 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
   }
 
   void _showFilterBottomSheet(BuildContext context) {
+    final languageCode = ref.watch(localizationProvider).languageCode;
+
     showModalBottomSheet(
       context: context,
       builder:
@@ -148,7 +158,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.all_inclusive),
-                  title: const Text('All Orders'),
+                  title: Text(Translations.get('all_order', languageCode)),
                   selected: _selectedStatus == 'all',
                   onTap: () {
                     setState(() => _selectedStatus = 'all');
@@ -161,7 +171,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                     Icons.hourglass_empty,
                     color: Colors.orange,
                   ),
-                  title: const Text('Pending'),
+                  title: Text(Translations.get('pending', languageCode)),
                   selected: _selectedStatus == 'pending',
                   onTap: () {
                     setState(() => _selectedStatus = 'pending');
@@ -171,7 +181,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.check_circle, color: Colors.green),
-                  title: const Text('Completed'),
+                  title: Text(Translations.get('completed', languageCode)),
                   selected: _selectedStatus == 'completed',
                   onTap: () {
                     setState(() => _selectedStatus = 'completed');
@@ -183,7 +193,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.cancel, color: Colors.red),
-                  title: const Text('Cancelled'),
+                  title: Text(Translations.get('cancelled', languageCode)),
                   selected: _selectedStatus == 'cancelled',
                   onTap: () {
                     setState(() => _selectedStatus = 'cancelled');
@@ -202,8 +212,8 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
 
 class _OrderCard extends StatelessWidget {
   final order_model.Order order;
-
-  const _OrderCard({required this.order});
+  final String languageCode;
+  const _OrderCard({required this.order, required this.languageCode});
 
   @override
   Widget build(BuildContext context) {
@@ -242,7 +252,10 @@ class _OrderCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  _OrderStatusChip(status: order.status.name),
+                  _OrderStatusChip(
+                    status: order.status.name,
+                    languageCode: languageCode,
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -306,7 +319,7 @@ class _OrderCard extends StatelessWidget {
                   Expanded(
                     flex: 2,
                     child: Text(
-                      '${order.items.length} ${order.items.length == 1 ? 'item' : 'items'}',
+                      '${order.items.length} ${order.items.length == 1 ? Translations.get('item', languageCode) : Translations.get('items', languageCode)}',
                       style: TextStyle(color: AppTheme.neutral700),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
@@ -341,8 +354,8 @@ class _OrderCard extends StatelessWidget {
 
 class _OrderStatusChip extends StatelessWidget {
   final String status;
-
-  const _OrderStatusChip({required this.status});
+  final String languageCode;
+  const _OrderStatusChip({required this.status, required this.languageCode});
 
   @override
   Widget build(BuildContext context) {
@@ -352,37 +365,37 @@ class _OrderStatusChip extends StatelessWidget {
 
     switch (status.toLowerCase()) {
       case 'pending':
-        backgroundColor = Colors.orange.withOpacity(0.1);
+        backgroundColor = Colors.orange.withValues(alpha: 0.1);
         textColor = Colors.orange.shade700;
-        label = 'Pending';
+        label = Translations.get('pending', languageCode);
         break;
       case 'confirmed':
-        backgroundColor = Colors.blue.withOpacity(0.1);
+        backgroundColor = Colors.blue.withValues(alpha: 0.1);
         textColor = Colors.blue.shade700;
-        label = 'Confirmed';
+        label = Translations.get('confirmed', languageCode);
         break;
       case 'preparing':
-        backgroundColor = Colors.purple.withOpacity(0.1);
+        backgroundColor = Colors.purple.withValues(alpha: .1);
         textColor = Colors.purple.shade700;
-        label = 'Preparing';
+        label = Translations.get('preparing', languageCode);
         break;
       case 'ready':
-        backgroundColor = Colors.teal.withOpacity(0.1);
+        backgroundColor = Colors.teal.withValues(alpha: 0.1);
         textColor = Colors.teal.shade700;
-        label = 'Ready';
+        label = Translations.get('ready', languageCode);
         break;
       case 'completed':
-        backgroundColor = Colors.green.withOpacity(0.1);
+        backgroundColor = Colors.green.withValues(alpha: 0.1);
         textColor = Colors.green.shade700;
-        label = 'Completed';
+        label = Translations.get('completed', languageCode);
         break;
       case 'cancelled':
-        backgroundColor = Colors.red.withOpacity(0.1);
+        backgroundColor = Colors.red.withValues(alpha: 0.1);
         textColor = Colors.red.shade700;
-        label = 'Cancelled';
+        label = Translations.get('cancelled', languageCode);
         break;
       default:
-        backgroundColor = Colors.grey.withOpacity(0.1);
+        backgroundColor = Colors.grey.withValues(alpha: 0.1);
         textColor = Colors.grey.shade700;
         label = status;
     }

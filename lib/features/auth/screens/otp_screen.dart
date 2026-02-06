@@ -8,6 +8,8 @@ import 'package:pin_code_fields/pin_code_fields.dart';
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
 import '../../../core/api/api_exception.dart';
+import '../../../core/constants/translations.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/error_banner.dart';
 import '../providers/auth_provider.dart';
@@ -60,23 +62,33 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     });
   }
 
-  String _getErrorMessage(dynamic error) {
+  String _getErrorMessage(dynamic error, String languageCode) {
     if (error is ApiException) {
       if (error.isNetworkError) {
-        return 'No internet connection. Please check your network.';
+        return Translations.get(
+          'no_internet_connection_please_check_your_network',
+          languageCode,
+        );
       }
       if (error.isServerError) {
-        return 'Server is temporarily unavailable. Please try again later.';
+        return Translations.get(
+          'server_is_temporarily_unavailable_please_try_again_later',
+          languageCode,
+        );
       }
       if (error.isRateLimited) {
-        return 'Too many attempts. Please wait a moment.';
+        return Translations.get(
+          'too_many_attempts_please_wait_a_moment',
+          languageCode,
+        );
       }
       return error.message;
     }
-    return 'Invalid OTP. Please try again.';
+    return Translations.get('invalid_otp_please_try_again', languageCode);
   }
 
   Future<void> _resendOtp() async {
+    final languageCode = ref.read(localizationProvider).languageCode;
     if (mounted) setState(() => _isLoading = true);
 
     try {
@@ -88,8 +100,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('OTP sent successfully'),
+          SnackBar(
+            content: Text(
+              Translations.get('otp_sent_successfully', languageCode),
+            ),
             backgroundColor: AppTheme.success,
           ),
         );
@@ -99,7 +113,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_getErrorMessage(e)),
+            content: Text(_getErrorMessage(e, languageCode)),
             backgroundColor: AppTheme.error,
           ),
         );
@@ -108,6 +122,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   }
 
   Future<void> _handleVerify() async {
+    final languageCode = ref.read(localizationProvider).languageCode;
     final otp = _otpController.text.trim();
     final error = Validators.otp(otp);
 
@@ -141,7 +156,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
             if (result.hasPIN == false) {
               Future.delayed(const Duration(seconds: 2), () {
                 if (mounted) {
-                  _showPINSetupSuggestion();
+                  _showPINSetupSuggestion(languageCode);
                 }
               });
             }
@@ -178,7 +193,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = _getErrorMessage(e);
+          _error = _getErrorMessage(e, languageCode);
           _isLoading = false;
         });
         _otpController.clear();
@@ -186,38 +201,41 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     }
   }
 
-  void _showPINSetupSuggestion() {
+  void _showPINSetupSuggestion(String languageCode) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.flash_on, color: AppTheme.primaryOrange),
-            const SizedBox(width: 8),
-            const Text('Setup PIN for Faster Login?'),
-          ],
-        ),
-        content: const Text(
-          'Setup a 4-digit PIN for quicker logins in the future. '
-          'You can always login with OTP if you forget your PIN.\n\n'
-          '⚡ PIN login takes only 2 seconds!',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Skip'),
+      builder:
+          (context) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.flash_on, color: AppTheme.primaryOrange),
+                const SizedBox(width: 8),
+                Text(
+                  Translations.get('setup_pin_for_faster_login', languageCode),
+                ),
+              ],
+            ),
+            content: Text(
+              '${Translations.get('setup_a_4_digit_pin_for_quicker_logins_in_the_future', languageCode)} '
+              '${Translations.get('you_can_always_login_with_otp_if_you_forget_your_pin', languageCode)}\n\n'
+              '${Translations.get('⚡_pin_login_takes_only_2_seconds!', languageCode)}',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(Translations.get('skip', languageCode)),
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  // Navigate to settings where user can setup PIN
+                  context.push(AppRoutes.settings);
+                },
+                icon: const Icon(Icons.security, size: 20),
+                label: Text(Translations.get('setup_pin', languageCode)),
+              ),
+            ],
           ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              // Navigate to settings where user can setup PIN
-              context.push(AppRoutes.settings);
-            },
-            icon: const Icon(Icons.security, size: 20),
-            label: const Text('Setup PIN'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -225,6 +243,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   Widget build(BuildContext context) {
     // Use local loading state to avoid disposed widget issues
     final isLoading = _isLoading;
+
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackground,
@@ -263,7 +283,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
               // Title
               Text(
-                'Verify your phone',
+                Translations.get('verify_your_phone', languageCode),
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -271,7 +291,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'We sent a 6-digit code to',
+                Translations.get('we_sent_a_6_digit_code_to', languageCode),
                 style: Theme.of(
                   context,
                 ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
@@ -323,7 +343,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 ErrorBanner(
                   key: ValueKey(_error),
                   message: _error!,
-                  title: 'Verification Failed',
+                  title: Translations.get('verification_failed', languageCode),
                   onDismiss: () {
                     if (mounted) setState(() => _error = null);
                   },
@@ -353,7 +373,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                               color: Colors.white,
                             ),
                           )
-                          : const Text('Verify'),
+                          : Text(Translations.get('verify', languageCode)),
                 ),
               ),
               const SizedBox(height: 24),
@@ -363,14 +383,14 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    "Didn't receive the code? ",
+                    Translations.get('didnt_receive_the_code', languageCode),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppTheme.neutral500,
                     ),
                   ),
                   if (_resendCountdown > 0)
                     Text(
-                      'Resend in ${_resendCountdown}s',
+                      '${Translations.get('resend_in', languageCode)} ${_resendCountdown}s',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppTheme.neutral400,
                       ),
@@ -383,7 +403,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      child: const Text('Resend'),
+                      child: Text(Translations.get('resend', languageCode)),
                     ),
                 ],
               ),

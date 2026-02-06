@@ -65,7 +65,7 @@ class _CategoryChip extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: GestureDetector(
-        onTap: onTap,  // ✅ Always fire the callback, even if already selected
+        onTap: onTap, // ✅ Always fire the callback, even if already selected
         child: FilterChip(
           label: Row(
             mainAxisSize: MainAxisSize.min,
@@ -74,11 +74,15 @@ class _CategoryChip extends StatelessWidget {
               if (itemCount != null) ...[
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: isSelected
-                        ? Colors.white.withValues(alpha: 0.2)
-                        : AppTheme.neutral200,
+                    color:
+                        isSelected
+                            ? Colors.white.withValues(alpha: 0.2)
+                            : AppTheme.neutral200,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
@@ -93,7 +97,8 @@ class _CategoryChip extends StatelessWidget {
             ],
           ),
           selected: isSelected,
-          onSelected: null,  // ✅ Disable FilterChip's built-in handler, use GestureDetector instead
+          onSelected:
+              null, // ✅ Disable FilterChip's built-in handler, use GestureDetector instead
           backgroundColor: AppTheme.neutral100,
           selectedColor: AppTheme.primaryOrange,
           labelStyle: TextStyle(
@@ -111,4 +116,3 @@ class _CategoryChip extends StatelessWidget {
     );
   }
 }
-

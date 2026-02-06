@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/constants/translations.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../providers/menu_provider.dart';
 
 class CategoryFormDialog extends ConsumerStatefulWidget {
@@ -46,7 +48,9 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
     super.initState();
 
     _nameController = TextEditingController(text: widget.category?.name ?? '');
-    _descriptionController = TextEditingController(text: widget.category?.description ?? '');
+    _descriptionController = TextEditingController(
+      text: widget.category?.description ?? '',
+    );
     _displayOrderController = TextEditingController(
       text: widget.category?.displayOrder?.toString() ?? '0',
     );
@@ -64,6 +68,7 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
   }
 
   Future<void> _save() async {
+    final languageCode = ref.read(localizationProvider).languageCode;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
@@ -71,22 +76,28 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
     final bool success;
     if (widget.category == null) {
       // Create new category
-      success = await ref.read(menuProvider.notifier).createCategory(
+      success = await ref
+          .read(menuProvider.notifier)
+          .createCategory(
             name: _nameController.text,
-            description: _descriptionController.text.isEmpty
-                ? null
-                : _descriptionController.text,
+            description:
+                _descriptionController.text.isEmpty
+                    ? null
+                    : _descriptionController.text,
             displayOrder: int.parse(_displayOrderController.text),
             color: _selectedColor,
           );
     } else {
       // Update existing category
-      success = await ref.read(menuProvider.notifier).updateCategory(
+      success = await ref
+          .read(menuProvider.notifier)
+          .updateCategory(
             categoryId: widget.category!.id,
             name: _nameController.text,
-            description: _descriptionController.text.isEmpty
-                ? null
-                : _descriptionController.text,
+            description:
+                _descriptionController.text.isEmpty
+                    ? null
+                    : _descriptionController.text,
             displayOrder: int.parse(_displayOrderController.text),
             isActive: _isActive,
             color: _selectedColor,
@@ -100,16 +111,28 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(widget.category == null
-                ? 'Category created successfully'
-                : 'Category updated successfully'),
+            content: Text(
+              widget.category == null
+                  ? Translations.get(
+                    'category_created_successfully',
+                    languageCode,
+                  )
+                  : Translations.get(
+                    'category_updated_successfully',
+                    languageCode,
+                  ),
+            ),
             backgroundColor: AppTheme.success,
           ),
         );
       } else {
+        final errorMessage = ref.read(menuProvider).error;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(ref.read(menuProvider).error ?? 'Operation failed'),
+            content: Text(
+              errorMessage ??
+                  Translations.get('operation_failed', languageCode),
+            ),
             backgroundColor: AppTheme.error,
           ),
         );
@@ -119,6 +142,8 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final localization = ref.watch(localizationProvider);
+    final languageCode = localization.languageCode;
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     if (isMobile) {
@@ -126,12 +151,19 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
       return Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: false,
-          title: Text(widget.category == null ? 'Add Category' : 'Edit Category'),
+          title: Text(
+            Translations.get(
+              widget.category == null
+                  ? 'add_category_dialog_title'
+                  : 'edit_category_dialog_title',
+              languageCode,
+            ),
+          ),
           actions: [
             IconButton(
               icon: const Icon(Icons.close),
               onPressed: () => Navigator.pop(context),
-              tooltip: 'Close',
+              tooltip: Translations.get('close', languageCode),
             ),
           ],
         ),
@@ -142,157 +174,201 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
               ListView(
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
                 children: [
-                // Name
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name *',
-                    hintText: 'e.g., Beverages',
-                    border: OutlineInputBorder(),
+                  // Name
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: InputDecoration(
+                      labelText: Translations.get('name', languageCode),
+                      hintText: Translations.get('name_hint', languageCode),
+                      border: const OutlineInputBorder(),
+                    ),
+                    validator:
+                        (value) =>
+                            value?.isEmpty ?? true
+                                ? Translations.get(
+                                  'name_required',
+                                  languageCode,
+                                )
+                                : null,
+                    onChanged: (_) => setState(() {}),
                   ),
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Name is required' : null,
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-                // Description
-                TextFormField(
-                  controller: _descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
-                    hintText: 'Soft drinks, juices, water',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 16),
-
-                // Display Order
-                TextFormField(
-                  controller: _displayOrderController,
-                  decoration: const InputDecoration(
-                    labelText: 'Display Order',
-                    hintText: '0',
-                    border: OutlineInputBorder(),
-                    helperText: 'Lower numbers appear first',
-                  ),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                ),
-                const SizedBox(height: 16),
-
-                // Color Picker
-                const Text(
-                  'Category Color',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: _colorOptions.map((color) {
-                    final isSelected = _selectedColor == color;
-                    return InkWell(
-                      onTap: () {
-                        setState(() => _selectedColor = color);
-                      },
-                      child: Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: Color(int.parse(color.replaceAll('#', '0xFF'))),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isSelected ? AppTheme.primaryOrange : Colors.transparent,
-                            width: 3,
-                          ),
-                          boxShadow: [
-                            if (isSelected)
-                              BoxShadow(
-                                color: AppTheme.primaryOrange.withOpacity(0.3),
-                                blurRadius: 8,
-                                spreadRadius: 2,
-                              ),
-                          ],
-                        ),
-                        child: isSelected
-                            ? const Icon(Icons.check, color: Colors.white)
-                            : null,
+                  // Description
+                  TextFormField(
+                    controller: _descriptionController,
+                    decoration: InputDecoration(
+                      labelText: Translations.get('description', languageCode),
+                      hintText: Translations.get(
+                        'description_hint',
+                        languageCode,
                       ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 24),
+                      border: const OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 16),
 
-                // Active Status
-                if (widget.category != null)
-                  SwitchListTile(
-                    title: const Text('Active'),
-                    subtitle: const Text('Category is visible in menu'),
-                    value: _isActive,
-                    onChanged: (value) {
-                      setState(() => _isActive = value);
-                    },
-                  ),
-            ],
-          ),
-          // Floating Save Button at Bottom
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: SafeArea(
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isLoading || !_isFormValid ? null : _save,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryOrange,
-                      disabledBackgroundColor: AppTheme.neutral300,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  // Display Order
+                  TextFormField(
+                    controller: _displayOrderController,
+                    decoration: InputDecoration(
+                      labelText: Translations.get(
+                        'display_order',
+                        languageCode,
+                      ),
+                      hintText: Translations.get(
+                        'display_order_hint',
+                        languageCode,
+                      ),
+                      border: const OutlineInputBorder(),
+                      helperText: Translations.get(
+                        'display_order_helper',
+                        languageCode,
                       ),
                     ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Color Picker
+                  Text(
+                    Translations.get('category_color', languageCode),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children:
+                        _colorOptions.map((color) {
+                          final isSelected = _selectedColor == color;
+                          return InkWell(
+                            onTap: () {
+                              setState(() => _selectedColor = color);
+                            },
+                            child: Container(
+                              width: 50,
+                              height: 50,
+                              decoration: BoxDecoration(
+                                color: Color(
+                                  int.parse(color.replaceAll('#', '0xFF')),
+                                ),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color:
+                                      isSelected
+                                          ? AppTheme.primaryOrange
+                                          : Colors.transparent,
+                                  width: 3,
+                                ),
+                                boxShadow: [
+                                  if (isSelected)
+                                    BoxShadow(
+                                      color: AppTheme.primaryOrange.withOpacity(
+                                        0.3,
+                                      ),
+                                      blurRadius: 8,
+                                      spreadRadius: 2,
+                                    ),
+                                ],
+                              ),
+                              child:
+                                  isSelected
+                                      ? const Icon(
+                                        Icons.check,
+                                        color: Colors.white,
+                                      )
+                                      : null,
                             ),
-                          )
-                        : Text(
-                            widget.category == null ? 'Add Category' : 'Save Changes',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
+                          );
+                        }).toList(),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Active Status
+                  if (widget.category != null)
+                    SwitchListTile(
+                      title: Text(Translations.get('active', languageCode)),
+                      subtitle: Text(
+                        Translations.get('active_subtitle', languageCode),
+                      ),
+                      value: _isActive,
+                      onChanged: (value) {
+                        setState(() => _isActive = value);
+                      },
+                    ),
+                ],
+              ),
+              // Floating Save Button at Bottom
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, -2),
+                      ),
+                    ],
+                  ),
+                  child: SafeArea(
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: _isLoading || !_isFormValid ? null : _save,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryOrange,
+                          disabledBackgroundColor: AppTheme.neutral300,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
+                        ),
+                        child:
+                            _isLoading
+                                ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                                : Text(
+                                  widget.category == null
+                                      ? Translations.get(
+                                        'add_category',
+                                        languageCode,
+                                      )
+                                      : Translations.get(
+                                        'save_changes',
+                                        languageCode,
+                                      ),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
     }
 
     // Dialog for tablet/desktop
@@ -302,7 +378,14 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
         constraints: const BoxConstraints(maxHeight: 600),
         child: Scaffold(
           appBar: AppBar(
-            title: Text(widget.category == null ? 'Add Category' : 'Edit Category'),
+            title: Text(
+              widget.category == null
+                  ? Translations.get('add_category_dialog_title', languageCode)
+                  : Translations.get(
+                    'edit_category_dialog_title',
+                    languageCode,
+                  ),
+            ),
             leading: IconButton(
               icon: const Icon(Icons.close),
               onPressed: () => Navigator.pop(context),
@@ -320,7 +403,10 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
               else
                 TextButton(
                   onPressed: _save,
-                  child: const Text('Save', style: TextStyle(color: Colors.white)),
+                  child: Text(
+                    Translations.get('save', languageCode),
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
             ],
           ),
@@ -332,21 +418,22 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
                 // Name
                 TextFormField(
                   controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name *',
+                  decoration: InputDecoration(
+                    labelText: Translations.get('name', languageCode),
                     hintText: 'e.g., Beverages',
                     border: OutlineInputBorder(),
                   ),
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Name is required' : null,
+                  validator:
+                      (value) =>
+                          value?.isEmpty ?? true ? 'Name is required' : null,
                 ),
                 const SizedBox(height: 16),
 
                 // Description
                 TextFormField(
                   controller: _descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
+                  decoration: InputDecoration(
+                    labelText: Translations.get('description', languageCode),
                     hintText: 'Soft drinks, juices, water',
                     border: OutlineInputBorder(),
                   ),
@@ -357,8 +444,8 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
                 // Display Order
                 TextFormField(
                   controller: _displayOrderController,
-                  decoration: const InputDecoration(
-                    labelText: 'Display Order',
+                  decoration: InputDecoration(
+                    labelText: Translations.get('display_order', languageCode),
                     hintText: '0',
                     border: OutlineInputBorder(),
                     helperText: 'Lower numbers appear first',
@@ -369,53 +456,67 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
                 const SizedBox(height: 16),
 
                 // Color Picker
-                const Text(
-                  'Category Color',
+                Text(
+                  Translations.get('category_color', languageCode),
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
-                  children: _colorOptions.map((color) {
-                    final isSelected = _selectedColor == color;
-                    return InkWell(
-                      onTap: () {
-                        setState(() => _selectedColor = color);
-                      },
-                      child: Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: Color(int.parse(color.replaceAll('#', '0xFF'))),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isSelected ? AppTheme.primaryOrange : Colors.transparent,
-                            width: 3,
-                          ),
-                          boxShadow: [
-                            if (isSelected)
-                              BoxShadow(
-                                color: AppTheme.primaryOrange.withOpacity(0.3),
-                                blurRadius: 8,
-                                spreadRadius: 2,
+                  children:
+                      _colorOptions.map((color) {
+                        final isSelected = _selectedColor == color;
+                        return InkWell(
+                          onTap: () {
+                            setState(() => _selectedColor = color);
+                          },
+                          child: Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: Color(
+                                int.parse(color.replaceAll('#', '0xFF')),
                               ),
-                          ],
-                        ),
-                        child: isSelected
-                            ? const Icon(Icons.check, color: Colors.white)
-                            : null,
-                      ),
-                    );
-                  }).toList(),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color:
+                                    isSelected
+                                        ? AppTheme.primaryOrange
+                                        : Colors.transparent,
+                                width: 3,
+                              ),
+                              boxShadow: [
+                                if (isSelected)
+                                  BoxShadow(
+                                    color: AppTheme.primaryOrange.withOpacity(
+                                      0.3,
+                                    ),
+                                    blurRadius: 8,
+                                    spreadRadius: 2,
+                                  ),
+                              ],
+                            ),
+                            child:
+                                isSelected
+                                    ? const Icon(
+                                      Icons.check,
+                                      color: Colors.white,
+                                    )
+                                    : null,
+                          ),
+                        );
+                      }).toList(),
                 ),
                 const SizedBox(height: 24),
 
                 // Active Status
                 if (widget.category != null)
                   SwitchListTile(
-                    title: const Text('Active'),
-                    subtitle: const Text('Category is visible in menu'),
+                    title: Text(Translations.get('active', languageCode)),
+                    subtitle: Text(
+                      Translations.get('active_subtitle', languageCode),
+                    ),
                     value: _isActive,
                     onChanged: (value) {
                       setState(() => _isActive = value);

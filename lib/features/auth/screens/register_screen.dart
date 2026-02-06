@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -132,6 +134,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget build(BuildContext context) {
     // Use local loading state to avoid disposed widget issues
     final isLoading = _isLoading;
+    final languageCode = ref.read(localizationProvider).languageCode;
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackground,
@@ -141,7 +144,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: _previousStep,
         ),
-        title: Text('Step ${_currentStep + 1} of 3'),
+        title: Text(
+          Translations.get('step ${_currentStep + 1}', languageCode) +
+              Translations.get('of 3', languageCode),
+        ),
       ),
       body: SafeArea(
         child: Form(
@@ -160,7 +166,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
-                  child: _buildCurrentStep(isLoading),
+                  child: _buildCurrentStep(isLoading, languageCode),
                 ),
               ),
             ],
@@ -170,20 +176,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 
-  Widget _buildCurrentStep(bool isLoading) {
+  Widget _buildCurrentStep(bool isLoading, String languageCode) {
     switch (_currentStep) {
       case 0:
-        return _buildNameStep(isLoading);
+        return _buildNameStep(isLoading, languageCode);
       case 1:
-        return _buildRestaurantStep(isLoading);
+        return _buildRestaurantStep(isLoading, languageCode);
       case 2:
-        return _buildPinStep(isLoading);
+        return _buildPinStep(isLoading, languageCode);
       default:
         return const SizedBox.shrink();
     }
   }
 
-  Widget _buildNameStep(bool isLoading) {
+  Widget _buildNameStep(bool isLoading, String languageCode) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -208,7 +214,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         const SizedBox(height: 32),
 
         Text(
-          'What\'s your name?',
+          Translations.get('what_s_your_name', languageCode),
           style: Theme.of(
             context,
           ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -216,7 +222,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'This will be displayed on receipts',
+          Translations.get('this_will_be_displayed_on_receipts', languageCode),
           style: Theme.of(
             context,
           ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
@@ -227,9 +233,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         TextFormField(
           controller: _nameController,
           textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(
-            labelText: 'Full Name',
-            hintText: 'Enter your full name',
+          decoration: InputDecoration(
+            labelText: Translations.get('full_name', languageCode),
+            hintText: Translations.get('enter_your_full_name', languageCode),
             prefixIcon: Icon(Icons.person_outline),
           ),
           validator: Validators.name,
@@ -241,14 +247,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           height: 56,
           child: ElevatedButton(
             onPressed: isLoading ? null : _nextStep,
-            child: const Text('Continue'),
+            child: Text(Translations.get('continue', languageCode)),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildRestaurantStep(bool isLoading) {
+  Widget _buildRestaurantStep(bool isLoading, String languageCode) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -273,7 +279,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         const SizedBox(height: 32),
 
         Text(
-          'Enter your store ID',
+          Translations.get('enter_your_store_id', languageCode),
           style: Theme.of(
             context,
           ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -281,7 +287,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Ask your manager for the store ID',
+          Translations.get('ask_your_manager_for_the_store_id', languageCode),
           style: Theme.of(
             context,
           ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
@@ -291,9 +297,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
         TextFormField(
           controller: _restaurantIdController,
-          decoration: const InputDecoration(
-            labelText: 'Store/Restaurant ID',
-            hintText: 'Enter store ID',
+          decoration: InputDecoration(
+            labelText: Translations.get('store_restaurant_id', languageCode),
+            hintText: Translations.get('enter_store_id', languageCode),
             prefixIcon: Icon(Icons.tag),
           ),
           enabled: !isLoading,
@@ -304,14 +310,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           height: 56,
           child: ElevatedButton(
             onPressed: isLoading ? null : _nextStep,
-            child: const Text('Continue'),
+            child: Text(Translations.get('continue', languageCode)),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildPinStep(bool isLoading) {
+  Widget _buildPinStep(bool isLoading, String languageCode) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -336,7 +342,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         const SizedBox(height: 32),
 
         Text(
-          'Create your PIN',
+          Translations.get('create_your_pin', languageCode),
           style: Theme.of(
             context,
           ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -344,7 +350,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'You\'ll use this PIN to login quickly',
+          Translations.get(
+            'you_ll_use_this_pin_to_login_quickly',
+            languageCode,
+          ),
           style: Theme.of(
             context,
           ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
@@ -354,7 +363,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
         // PIN Input
         Text(
-          'Enter PIN',
+          Translations.get('enter_pin', languageCode),
           style: Theme.of(
             context,
           ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
@@ -392,7 +401,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
         // Confirm PIN
         Text(
-          'Confirm PIN',
+          Translations.get('confirm_pin', languageCode),
           style: Theme.of(
             context,
           ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
@@ -435,8 +444,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             message: _registrationError ?? _pinError!,
             title:
                 _registrationError != null
-                    ? 'Registration Failed'
-                    : 'Invalid PIN',
+                    ? Translations.get('registration_failed', languageCode)
+                    : Translations.get('invalid_pin', languageCode),
             onDismiss: () {
               if (mounted) {
                 setState(() {
@@ -470,7 +479,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         color: Colors.white,
                       ),
                     )
-                    : const Text('Create Account'),
+                    : Text(Translations.get('create_account', languageCode)),
           ),
         ),
       ],

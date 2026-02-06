@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -61,6 +63,8 @@ class _CustomerDetailDialogState extends ConsumerState<CustomerDetailDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final languageCode = ref.read(localizationProvider).languageCode;
+
     return Dialog(
       child: Container(
         width: 500,
@@ -128,7 +132,7 @@ class _CustomerDetailDialogState extends ConsumerState<CustomerDetailDialog> {
                   Icon(Icons.stars, color: _getTierColor(widget.customer.tier)),
                   const SizedBox(width: 8),
                   Text(
-                    '${widget.customer.tier.displayName} Member',
+                    '${widget.customer.tier.displayName} ${Translations.get('member', languageCode)}',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -147,16 +151,15 @@ class _CustomerDetailDialogState extends ConsumerState<CustomerDetailDialog> {
               _StatCard(
                 icon: Icons.stars,
                 iconColor: AppTheme.primaryOrange,
-                title: 'Loyalty Points',
+                title: Translations.get('loyalty_points', languageCode),
                 value: '${_points!.currentPoints}',
                 subtitle:
                     _points!.nextTier != null
-                        ? '${_points!.pointsToNextTier} more to ${_points!.nextTier!.displayName}'
-                        : 'Top tier achieved!',
+                        ? '${_points!.pointsToNextTier} ${Translations.get('more_to_reach', languageCode)} ${_points!.nextTier!.displayName}'
+                        : Translations.get('top_tier_achieved', languageCode),
               ),
               const SizedBox(height: 12),
             ],
-
             // Statistics
             Row(
               children: [
@@ -164,49 +167,40 @@ class _CustomerDetailDialogState extends ConsumerState<CustomerDetailDialog> {
                   child: _StatCard(
                     icon: Icons.shopping_bag_outlined,
                     iconColor: AppTheme.success,
-                    title: 'Total Spent',
+                    title: Translations.get('total_spent', languageCode),
                     value: CurrencyFormatter.formatLAKWithSymbol(
                       widget.customer.totalSpent,
                     ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    icon: Icons.event,
-                    iconColor: AppTheme.info,
-                    title: 'Visits',
-                    value: '${widget.customer.visitCount}',
                   ),
                 ),
               ],
             ),
 
             // Actions
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      // TODO: View purchase history
-                    },
-                    icon: const Icon(Icons.history),
-                    label: const Text('History'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      // TODO: Redeem points
-                    },
-                    icon: const Icon(Icons.redeem),
-                    label: const Text('Redeem'),
-                  ),
-                ),
-              ],
-            ),
+            // const SizedBox(height: 24),
+            // Row(
+            //   children: [
+            //     Expanded(
+            //       child: OutlinedButton.icon(
+            //         onPressed: () {
+            //           // TODO: View purchase history
+            //         },
+            //         icon: const Icon(Icons.history),
+            //         label: Text(Translations.get('history', languageCode)),
+            //       ),
+            //     ),
+            //     const SizedBox(width: 12),
+            //     Expanded(
+            //       child: ElevatedButton.icon(
+            //         onPressed: () {
+            //           // TODO: Redeem points
+            //         },
+            //         icon: const Icon(Icons.redeem),
+            //         label: Text(Translations.get('redeem', languageCode)),
+            //       ),
+            //     ),
+            //   ],
+            // ),
           ],
         ),
       ),

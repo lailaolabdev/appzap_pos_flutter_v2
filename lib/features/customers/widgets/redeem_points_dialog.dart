@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -67,9 +69,14 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
   }
 
   Future<void> _redeemPoints() async {
+    final languageCode = ref.read(localizationProvider).languageCode;
+
     if (_pointsToRedeem <= 0) {
       setState(() {
-        _redeemError = 'Please select points to redeem';
+        _redeemError = Translations.get(
+          'please_select_points_to_redeem',
+          languageCode,
+        );
       });
       return;
     }
@@ -77,7 +84,7 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
     if (_customerPoints == null ||
         _pointsToRedeem > _customerPoints!.currentPoints) {
       setState(() {
-        _redeemError = 'Insufficient points';
+        _redeemError = Translations.get('insufficient_points', languageCode);
       });
       return;
     }
@@ -111,6 +118,7 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final languageCode = ref.read(localizationProvider).languageCode;
     return Dialog(
       child: Container(
         width: 500,
@@ -138,9 +146,9 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Redeem Loyalty Points',
-                        style: TextStyle(
+                      Text(
+                        Translations.get('redeem_loyalty_points', languageCode),
+                        style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
@@ -209,8 +217,8 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Available Points',
+                        Text(
+                          Translations.get('available_points', languageCode),
                           style: TextStyle(
                             fontSize: 12,
                             color: AppTheme.neutral600,
@@ -218,7 +226,7 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${_customerPoints?.currentPoints ?? 0} points',
+                          '${_customerPoints?.currentPoints ?? 0} ${Translations.get('points', languageCode)}',
                           style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -252,8 +260,8 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
               const SizedBox(height: 24),
 
               // Points to redeem
-              const Text(
-                'Points to Redeem',
+              Text(
+                Translations.get('points_to_redeem', languageCode),
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 12),
@@ -282,7 +290,8 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
                       divisions: ((_customerPoints?.currentPoints ?? 0) / 10)
                           .ceil()
                           .clamp(1, 100),
-                      label: '$_pointsToRedeem points',
+                      label:
+                          '$_pointsToRedeem ${Translations.get('points', languageCode)}',
                       onChanged: (value) {
                         setState(() {
                           _pointsToRedeem = value.toInt();
@@ -311,7 +320,7 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
               // Points display
               Center(
                 child: Text(
-                  '$_pointsToRedeem points',
+                  '$_pointsToRedeem ${Translations.get('points', languageCode)}',
                   style: const TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
@@ -332,8 +341,8 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Discount Amount:',
+                    Text(
+                      Translations.get('discount_amount', languageCode),
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -365,7 +374,10 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Order Total:'),
+                        Text(
+                          Translations.get('order_total', languageCode),
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
                         Text(
                           CurrencyFormatter.format(widget.orderTotal),
                           style: const TextStyle(fontWeight: FontWeight.w500),
@@ -376,7 +388,10 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Points Discount:'),
+                        Text(
+                          Translations.get('points_discount', languageCode),
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
                         Text(
                           '- ${CurrencyFormatter.format(_discountAmount)}',
                           style: const TextStyle(
@@ -390,8 +405,8 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'New Total:',
+                        Text(
+                          Translations.get('new_total', languageCode),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -458,7 +473,7 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
-                      child: const Text('Cancel'),
+                      child: Text(Translations.get('cancel', languageCode)),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -482,7 +497,9 @@ class _RedeemPointsDialogState extends ConsumerState<RedeemPointsDialog> {
                                   color: Colors.white,
                                 ),
                               )
-                              : const Text('Redeem Points'),
+                              : Text(
+                                Translations.get('redeem_points', languageCode),
+                              ),
                     ),
                   ),
                 ],

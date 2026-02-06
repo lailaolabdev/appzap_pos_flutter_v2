@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/app_shell.dart';
@@ -42,6 +44,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   }
 
   Future<void> _adjustStock(InventoryItem item) async {
+    final languageCode = ref.read(localizationProvider).languageCode;
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -51,15 +54,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       builder: (context) => AdjustStockDialog(item: item),
     );
 
-    if (result == true) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Stock adjusted successfully!'),
-            backgroundColor: AppTheme.success,
-          ),
-        );
-      }
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(Translations.get('stock_adjust_succ', languageCode)),
+          backgroundColor: AppTheme.success,
+        ),
+      );
     }
   }
 
@@ -69,6 +70,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final productsState = ref.watch(productsProvider);
     final valuationAsync = ref.watch(inventoryValuationProvider);
     final isMobile = Responsive.isMobile(context);
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return AppShell(
       child: Scaffold(
@@ -78,11 +80,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         appBar: AppBar(
           backgroundColor: AppTheme.scaffoldBackground,
           surfaceTintColor: AppTheme.scaffoldBackground,
-          title: const Text('Inventory Management'),
+          title: Text(Translations.get('inventory_manage', languageCode)),
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh',
+              tooltip: Translations.get('refresh', languageCode),
               onPressed: () {
                 // Refresh both inventory and products data
                 ref.read(inventoryProvider.notifier).refresh();
@@ -104,9 +106,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     data: (valuation) {
                       if (valuation == null) return const SizedBox.shrink();
                       return _buildSummaryCard(
-                        'Total Inventory Value',
+                        Translations.get('total_inventory_value', languageCode),
                         CurrencyFormatter.format(valuation.totalValue),
-                        '${valuation.totalItems} items',
+                        '${valuation.totalItems} ${Translations.get('items', languageCode)}',
                         Icons.attach_money,
                         AppTheme.success,
                       );
@@ -135,7 +137,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                 })
                                 .length
                                 .toString(),
-                            'Low Stock',
+                            Translations.get('low_stock', languageCode),
                             Icons.warning_amber,
                             Colors.orange,
                           ),
@@ -160,7 +162,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                 })
                                 .length
                                 .toString(),
-                            'Out of Stock',
+                            Translations.get('out_of_stock', languageCode),
                             Icons.error,
                             Colors.red,
                           ),
@@ -173,7 +175,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                               () => _showAlertsModal(context, inventoryState),
                           child: _buildAlertCard(
                             inventoryState.totalAlerts.toString(),
-                            'Total Alerts',
+                            Translations.get('total_alert', languageCode),
                             Icons.notifications_active,
                             AppTheme.primaryOrange,
                           ),
@@ -191,7 +193,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               child: TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
-                  hintText: 'Search by name, SKU, or barcode...',
+                  hintText: Translations.get(
+                    'search_name_sku_barcode',
+                    languageCode,
+                  ),
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon:
                       _searchController.text.isNotEmpty
@@ -370,6 +375,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   }
 
   Widget _buildInventoryCard(InventoryItem item, Product? product) {
+    final languageCode = ref.watch(localizationProvider).languageCode;
     final stockColor =
         item.currentStock == 0
             ? Colors.red
@@ -403,7 +409,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     Icon(Icons.restaurant_menu, size: 14, color: Colors.blue),
                     const SizedBox(width: 4),
                     Text(
-                      'Product Stock: ${item.currentStock}',
+                      '${Translations.get('product_stock', languageCode)}: ${item.currentStock}',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.blue,
@@ -419,7 +425,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         color: AppTheme.success,
                       ),
                       Text(
-                        'Tracked',
+                        Translations.get('tracked', languageCode),
                         style: TextStyle(
                           fontSize: 10,
                           color: AppTheme.success,
@@ -434,8 +440,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             if (item.sku != null || item.barcode != null)
               Text(
                 [
-                  if (item.sku != null) 'SKU: ${item.sku}',
-                  if (item.barcode != null) 'Barcode: ${item.barcode}',
+                  if (item.sku != null)
+                    '${Translations.get('sku', languageCode)}: ${item.sku}',
+                  if (item.barcode != null)
+                    '${Translations.get('barcode', languageCode)}: ${item.barcode}',
                 ].join(' • '),
                 style: const TextStyle(fontSize: 11),
               ),
@@ -459,10 +467,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       Flexible(
                         child: Text(
                           item.currentStock == 0
-                              ? 'Out of Stock'
+                              ? Translations.get('out_of_stock', languageCode)
                               : item.isLowStock
-                              ? 'Low Stock (${item.lowStockThreshold})'
-                              : 'In Stock',
+                              ? '${Translations.get('low_stock', languageCode)} (${item.lowStockThreshold})'
+                              : Translations.get('in_stock', languageCode),
                           style: TextStyle(
                             fontSize: 12,
                             color: stockColor,
@@ -491,6 +499,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       _getStockSyncStatus(
                         item.currentStock,
                         product.inventory?.currentStock ?? 0,
+                        languageCode,
                       ),
                       style: TextStyle(
                         fontSize: 10,
@@ -506,7 +515,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             ),
             if (item.lastStockUpdate != null)
               Text(
-                'Updated: ${DateFormatter.formatRelative(item.lastStockUpdate!)}',
+                '${Translations.get('updated', languageCode)}: ${DateFormatter.formatRelative(item.lastStockUpdate!)}',
                 style: const TextStyle(
                   fontSize: 10,
                   color: AppTheme.neutral500,
@@ -519,7 +528,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           children: [
             IconButton(
               icon: const Icon(Icons.trending_up, size: 20),
-              tooltip: 'Adjust Stock',
+              tooltip: Translations.get('adjust_stock', languageCode),
               onPressed: () => _adjustStock(item),
             ),
           ],
@@ -529,6 +538,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   }
 
   Widget _buildEmptyState() {
+    final languageCode = ref.watch(localizationProvider).languageCode;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -541,8 +552,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           const SizedBox(height: 16),
           Text(
             _searchController.text.isEmpty
-                ? 'No inventory items found.'
-                : 'No matching items found for "${_searchController.text}".',
+                ? Translations.get('no_inventory_items', languageCode)
+                : '${Translations.get('no_matching_items', languageCode)} "${_searchController.text}".',
             style: Theme.of(
               context,
             ).textTheme.titleMedium?.copyWith(color: AppTheme.neutral500),
@@ -555,6 +566,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   // Show Low Stock Items Modal
   void _showLowStockModal(BuildContext context, InventoryState state) {
+    final languageCode = ref.watch(localizationProvider).languageCode;
     final lowStockItems =
         state.items
             .where((item) => item.isLowStock && item.currentStock > 0)
@@ -562,11 +574,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final isMobile = Responsive.isMobile(context);
 
     final content = _buildInventoryListModal(
-      title: 'Low Stock Items',
+      title: Translations.get('low_stock_item', languageCode),
       icon: Icons.warning_amber,
       iconColor: Colors.orange,
       items: lowStockItems,
-      emptyMessage: 'No low stock items',
+      emptyMessage: Translations.get('no_low_stock_items', languageCode),
     );
 
     if (isMobile) {
@@ -589,16 +601,17 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   // Show Out of Stock Items Modal
   void _showOutOfStockModal(BuildContext context, InventoryState state) {
+    final languageCode = ref.watch(localizationProvider).languageCode;
     final outOfStockItems =
         state.items.where((item) => item.currentStock == 0).toList();
     final isMobile = Responsive.isMobile(context);
 
     final content = _buildInventoryListModal(
-      title: 'Out of Stock Items',
+      title: Translations.get('out_of_stock_items', languageCode),
       icon: Icons.error,
       iconColor: Colors.red,
       items: outOfStockItems,
-      emptyMessage: 'No out of stock items',
+      emptyMessage: Translations.get('no_out_of_stock_items', languageCode),
     );
 
     if (isMobile) {
@@ -621,10 +634,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   // Show All Alerts Modal
   void _showAlertsModal(BuildContext context, InventoryState state) {
+    final languageCode = ref.watch(localizationProvider).languageCode;
     final isMobile = Responsive.isMobile(context);
 
     final content = _buildAlertsDetailsModal(
-      title: 'Inventory Alerts',
+      title: Translations.get('inventory_alerts', languageCode),
       icon: Icons.notifications_active,
       iconColor: AppTheme.primaryOrange,
       alerts: state.alerts,
@@ -656,6 +670,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     required List<InventoryItem> items,
     required String emptyMessage,
   }) {
+    final languageCode = ref.watch(localizationProvider).languageCode;
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -670,7 +685,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           IconButton(
             icon: const Icon(Icons.close),
             onPressed: () => Navigator.of(context).pop(),
-            tooltip: 'Close',
+            tooltip: Translations.get('close', languageCode),
           ),
         ],
       ),
@@ -728,7 +743,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           const SizedBox(height: 4),
                           if (item.sku != null)
                             Text(
-                              'SKU: ${item.sku}',
+                              '${Translations.get('sku', languageCode)}: ${item.sku}',
                               style: const TextStyle(fontSize: 12),
                             ),
                           const SizedBox(height: 4),
@@ -752,7 +767,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           ),
                           if (item.lowStockThreshold > 0)
                             Text(
-                              'Threshold: ${item.lowStockThreshold}',
+                              '${Translations.get('threshold', languageCode)}: ${item.lowStockThreshold}',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: AppTheme.neutral600,
@@ -760,7 +775,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                             ),
                           const SizedBox(height: 2),
                           Text(
-                            'Value: ${CurrencyFormatter.format(item.totalValue)}',
+                            '${Translations.get('value', languageCode)}: ${CurrencyFormatter.format(item.totalValue)}',
                             style: const TextStyle(
                               fontSize: 12,
                               color: AppTheme.neutral600,
@@ -774,7 +789,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           _adjustStock(item);
                         },
                         icon: const Icon(Icons.edit, size: 16),
-                        label: const Text('Adjust'),
+                        label: Text(Translations.get('Adjust', languageCode)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: iconColor,
                           foregroundColor: Colors.white,
@@ -798,6 +813,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     required Color iconColor,
     required List<InventoryAlert> alerts,
   }) {
+    final languageCode = ref.watch(localizationProvider).languageCode;
+
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -812,7 +829,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           IconButton(
             icon: const Icon(Icons.close),
             onPressed: () => Navigator.of(context).pop(),
-            tooltip: 'Close',
+            tooltip: Translations.get('close', languageCode),
           ),
         ],
       ),
@@ -829,14 +846,17 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'No active alerts',
+                      Translations.get('no_active_alerts', languageCode),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: AppTheme.neutral500,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Your inventory is in good shape!',
+                      Translations.get(
+                        'your_inventory_is_in_good_shape',
+                        languageCode,
+                      ),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppTheme.neutral400,
                       ),
@@ -884,7 +904,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           const SizedBox(height: 4),
                           if (alert.inventoryItemId.isNotEmpty)
                             Text(
-                              'Item ID: ${alert.inventoryItemId}',
+                              Translations.get('item_id', languageCode) +
+                                  ': ${alert.inventoryItemId}',
                               style: const TextStyle(
                                 fontSize: 11,
                                 color: AppTheme.neutral500,
@@ -919,7 +940,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                'Current: ${alert.currentStock}',
+                                '${Translations.get('current', languageCode)}: ${alert.currentStock}',
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: alertColor,
@@ -935,7 +956,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  'Threshold: ${alert.threshold}',
+                                  '${Translations.get('threshold', languageCode)}: ${alert.threshold}',
                                   style: const TextStyle(
                                     fontSize: 13,
                                     color: AppTheme.neutral600,
@@ -946,7 +967,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Alert created: ${DateFormatter.formatRelative(alert.createdAt)}',
+                            '${Translations.get('alert_created', languageCode)}: ${DateFormatter.formatRelative(alert.createdAt)}',
                             style: const TextStyle(
                               fontSize: 11,
                               color: AppTheme.neutral500,
@@ -1012,13 +1033,17 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   }
 
   // Helper method to get stock sync status
-  String _getStockSyncStatus(int inventoryStock, int menuStock) {
+  String _getStockSyncStatus(
+    int inventoryStock,
+    int menuStock,
+    String languageCode,
+  ) {
     if (inventoryStock == menuStock) {
-      return 'SYNCED';
+      return Translations.get('synced', languageCode);
     } else if (inventoryStock > menuStock) {
-      return 'INV HIGH';
+      return Translations.get('inventory_high', languageCode);
     } else {
-      return 'MENU HIGH';
+      return Translations.get('menu_high', languageCode);
     }
   }
 

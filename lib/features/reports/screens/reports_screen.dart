@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +16,7 @@ class ReportsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isMobile = Responsive.isMobile(context);
+    final languageCode = ref.read(localizationProvider).languageCode;
 
     return AppShell(
       child: Scaffold(
@@ -22,27 +25,36 @@ class ReportsScreen extends ConsumerWidget {
             isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
           surfaceTintColor: AppTheme.scaffoldBackground,
-          title: const Text('Reports & Analytics'),
+          title: Text(Translations.get('reports_analytics', languageCode)),
           actions: [
             IconButton(
               icon: const Icon(Icons.calendar_today),
-              tooltip: 'Date Range',
+              tooltip: Translations.get('date_range', languageCode),
               onPressed: () {
                 // TODO: Show date range picker
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Date range selector coming soon'),
+                  SnackBar(
+                    content: Text(
+                      Translations.get(
+                        'date_range_selector_coming_soon',
+                        languageCode,
+                      ),
+                    ),
                   ),
                 );
               },
             ),
             IconButton(
               icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh',
+              tooltip: Translations.get('refresh', languageCode),
               onPressed: () {
                 // TODO: Refresh reports
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Reports refreshed')),
+                  SnackBar(
+                    content: Text(
+                      Translations.get('reports_refreshed', languageCode),
+                    ),
+                  ),
                 );
               },
             ),
@@ -56,14 +68,14 @@ class ReportsScreen extends ConsumerWidget {
             children: [
               // Title
               Text(
-                'Choose a Report',
+                Translations.get('choose_report', languageCode),
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                'Select a report to view detailed insights',
+                Translations.get('select_report', languageCode),
                 style: Theme.of(
                   context,
                 ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),
@@ -84,8 +96,11 @@ class ReportsScreen extends ConsumerWidget {
                 children: [
                   _ReportCard(
                     icon: Icons.assessment,
-                    title: 'Daily Sales',
-                    description: 'View today\'s performance',
+                    title: Translations.get('daily_sales', languageCode),
+                    description: Translations.get(
+                      'view_today_performance',
+                      languageCode,
+                    ),
                     color: AppTheme.primaryOrange,
                     onTap:
                         () =>
@@ -93,31 +108,43 @@ class ReportsScreen extends ConsumerWidget {
                   ),
                   _ReportCard(
                     icon: Icons.inventory_2,
-                    title: 'Products',
-                    description: 'Sales by products',
+                    title: Translations.get('products', languageCode),
+                    description: Translations.get(
+                      'sales_by_products',
+                      languageCode,
+                    ),
                     color: Colors.blue,
                     onTap:
                         () => _navigateToReport(context, '/reports/products'),
                   ),
                   _ReportCard(
                     icon: Icons.people,
-                    title: 'Staff',
-                    description: 'Performance by staff',
+                    title: Translations.get('staff', languageCode),
+                    description: Translations.get(
+                      'performance_by_staff',
+                      languageCode,
+                    ),
                     color: Colors.green,
                     onTap: () => _navigateToReport(context, '/reports/staff'),
                   ),
                   _ReportCard(
                     icon: Icons.nightlight_round,
-                    title: 'End of Day',
-                    description: 'Daily closing report',
+                    title: Translations.get('end_of_day', languageCode),
+                    description: Translations.get(
+                      'daily_closing_report',
+                      languageCode,
+                    ),
                     color: Colors.purple,
                     onTap:
                         () => _navigateToReport(context, '/reports/end-of-day'),
                   ),
                   _ReportCard(
                     icon: Icons.trending_up,
-                    title: 'Sales Trends',
-                    description: 'Historical trends',
+                    title: Translations.get('sales_trends', languageCode),
+                    description: Translations.get(
+                      'historical_trends',
+                      languageCode,
+                    ),
                     color: Colors.teal,
                     onTap:
                         () =>
@@ -125,24 +152,33 @@ class ReportsScreen extends ConsumerWidget {
                   ),
                   _ReportCard(
                     icon: Icons.category,
-                    title: 'Categories',
-                    description: 'Sales by category',
+                    title: Translations.get('categories', languageCode),
+                    description: Translations.get(
+                      'sales_by_category',
+                      languageCode,
+                    ),
                     color: Colors.orange,
                     onTap:
                         () => _navigateToReport(context, '/reports/categories'),
                   ),
                   _ReportCard(
                     icon: Icons.payment,
-                    title: 'Payments',
-                    description: 'Payment methods breakdown',
+                    title: Translations.get('payments', languageCode),
+                    description: Translations.get(
+                      'payment_methods_breakdown',
+                      languageCode,
+                    ),
                     color: Colors.indigo,
                     onTap:
                         () => _navigateToReport(context, '/reports/payments'),
                   ),
                   _ReportCard(
                     icon: Icons.schedule,
-                    title: 'Hourly Sales',
-                    description: 'Sales by hour',
+                    title: Translations.get('hourly_sales', languageCode),
+                    description: Translations.get(
+                      'sales_by_hour',
+                      languageCode,
+                    ),
                     color: Colors.pink,
                     onTap:
                         () =>

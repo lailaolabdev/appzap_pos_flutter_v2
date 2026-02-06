@@ -1,12 +1,15 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/models/product.dart';
 import '../../../core/utils/currency_formatter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Product grid for POS display
-class ProductGrid extends StatelessWidget {
+class ProductGrid extends ConsumerWidget {
   final List<Product> products;
   final ValueChanged<Product> onProductTap;
 
@@ -17,7 +20,9 @@ class ProductGrid extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final languageCode = ref.watch(localizationProvider).languageCode;
+
     if (products.isEmpty) {
       return Center(
         child: Column(
@@ -30,7 +35,7 @@ class ProductGrid extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'No products found',
+              Translations.get('noProductsFound', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(color: AppTheme.neutral500),
@@ -83,16 +88,17 @@ class ProductGrid extends StatelessWidget {
   }
 }
 
-class _ProductCard extends StatelessWidget {
+class _ProductCard extends ConsumerWidget {
   final Product product;
   final VoidCallback onTap;
 
   const _ProductCard({required this.product, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isOutOfStock = !product.isInStock;
     final isLowStock = product.isLowStock;
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return Material(
       color: Colors.white,
@@ -153,10 +159,10 @@ class _ProductCard extends StatelessWidget {
                             top: Radius.circular(11),
                           ),
                         ),
-                        child: const Center(
+                        child: Center(
                           child: Text(
-                            'OUT OF STOCK',
-                            style: TextStyle(
+                            Translations.get('outOfStock', languageCode),
+                            style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
                               fontSize: 11,
@@ -180,7 +186,7 @@ class _ProductCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            'Low: ${product.inventory?.currentStock}',
+                            '${Translations.get('lowStock', languageCode)}: ${product.inventory?.currentStock}',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 10,

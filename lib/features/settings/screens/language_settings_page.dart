@@ -18,7 +18,9 @@ class _LanguageSettingsPageState extends ConsumerState<LanguageSettingsPage> {
   @override
   void initState() {
     super.initState();
-    _selectedLanguage = ref.read(localizationProvider).languageCode;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _selectedLanguage = ref.read(localizationProvider).languageCode;
+    });
   }
 
   @override
@@ -99,8 +101,8 @@ class _LanguageSettingsPageState extends ConsumerState<LanguageSettingsPage> {
     );
   }
 
-  void _changeLanguage(String languageCode) {
-    ref.read(localizationProvider.notifier).setLanguage(languageCode);
-    setState(() => _selectedLanguage = languageCode);
+  void _changeLanguage(String languageCode) async {
+    await ref.read(localizationProvider.notifier).setLanguage(languageCode);
+    if (mounted) setState(() => _selectedLanguage = languageCode);
   }
 }

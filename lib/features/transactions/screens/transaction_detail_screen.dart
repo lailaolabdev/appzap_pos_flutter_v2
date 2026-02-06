@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/constants/translations.dart';
 import '../../../core/models/transaction.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../providers/transaction_provider.dart';
 
@@ -35,6 +37,7 @@ class _TransactionDetailScreenState
     final transaction = transactionState.selectedTransaction;
     final isLoading = transactionState.isLoading;
     final error = transactionState.error;
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackground,
@@ -45,8 +48,8 @@ class _TransactionDetailScreenState
           if (transaction != null && transaction.isCompleted)
             IconButton(
               icon: const Icon(Icons.receipt),
-              tooltip: 'View Receipt',
-              onPressed: () => _viewReceipt(transaction),
+              tooltip: Translations.get('view_receipt', languageCode),
+              onPressed: () => _viewReceipt(transaction, languageCode),
             ),
         ],
       ),
@@ -68,45 +71,49 @@ class _TransactionDetailScreenState
                             .read(transactionProvider.notifier)
                             .loadTransaction(widget.transactionId);
                       },
-                      child: const Text('Retry'),
+                      child: Text(Translations.get('retry', languageCode)),
                     ),
                   ],
                 ),
               )
               : transaction == null
-              ? const Center(child: Text('Transaction not found'))
+              ? Center(
+                child: Text(
+                  Translations.get('transaction_not_found', languageCode),
+                ),
+              )
               : SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Header Card
-                    _buildHeaderCard(transaction),
+                    _buildHeaderCard(transaction, languageCode),
                     const SizedBox(height: 16),
 
                     // Amount Summary Card
-                    _buildAmountSummaryCard(transaction),
+                    _buildAmountSummaryCard(transaction, languageCode),
                     const SizedBox(height: 16),
 
                     // Payment Info Card
                     if (transaction.payments.isNotEmpty)
-                      _buildPaymentInfoCard(transaction),
+                      _buildPaymentInfoCard(transaction, languageCode),
                     if (transaction.payments.isNotEmpty)
                       const SizedBox(height: 16),
 
                     // Line Items
-                    _buildLineItemsCard(transaction),
+                    _buildLineItemsCard(transaction, languageCode),
                     const SizedBox(height: 16),
 
                     // Additional Info
-                    _buildAdditionalInfoCard(transaction),
+                    _buildAdditionalInfoCard(transaction, languageCode),
                   ],
                 ),
               ),
     );
   }
 
-  Widget _buildHeaderCard(Transaction transaction) {
+  Widget _buildHeaderCard(Transaction transaction, String languageCode) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -119,8 +126,8 @@ class _TransactionDetailScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Transaction ID',
+                      Text(
+                        Translations.get('transaction_id', languageCode),
                         style: TextStyle(
                           color: AppTheme.neutral600,
                           fontSize: 12,
@@ -130,14 +137,14 @@ class _TransactionDetailScreenState
                       Text(
                         transaction.transactionId,
                         style: const TextStyle(
-                          fontSize: 20,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
                   ),
                 ),
-                _buildStatusBadge(transaction.transactionStatus),
+                _buildStatusBadge(transaction.transactionStatus, languageCode),
               ],
             ),
             const SizedBox(height: 16),
@@ -168,7 +175,7 @@ class _TransactionDetailScreenState
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Completed: ${DateFormat('h:mm a').format(transaction.timing.completedAt!)}',
+                    '${Translations.get('completed', languageCode)}: ${DateFormat('h:mm a').format(transaction.timing.completedAt!)}',
                     style: const TextStyle(color: AppTheme.neutral600),
                   ),
                 ],
@@ -180,7 +187,7 @@ class _TransactionDetailScreenState
     );
   }
 
-  Widget _buildAmountSummaryCard(Transaction transaction) {
+  Widget _buildAmountSummaryCard(Transaction transaction, String languageCode) {
     final totals = transaction.consolidatedTotals;
 
     return Card(
@@ -189,29 +196,38 @@ class _TransactionDetailScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Amount Summary',
+            Text(
+              Translations.get('amount_summary', languageCode),
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            _buildAmountRow('Subtotal', totals.subtotal.amount),
+            _buildAmountRow(
+              Translations.get('subtotal', languageCode),
+              totals.subtotal.amount,
+            ),
             const SizedBox(height: 8),
-            _buildAmountRow('Tax', totals.tax.amount),
+            _buildAmountRow(
+              Translations.get('tax', languageCode),
+              totals.tax.amount,
+            ),
             if (totals.discounts.amount > 0) ...[
               const SizedBox(height: 8),
               _buildAmountRow(
-                'Discounts',
+                Translations.get('discount', languageCode),
                 -totals.discounts.amount,
                 color: AppTheme.error,
               ),
             ],
             if (totals.serviceCharge.amount > 0) ...[
               const SizedBox(height: 8),
-              _buildAmountRow('Service Charge', totals.serviceCharge.amount),
+              _buildAmountRow(
+                Translations.get('service_charge', languageCode),
+                totals.serviceCharge.amount,
+              ),
             ],
             const Divider(height: 24),
             _buildAmountRow(
-              'Grand Total',
+              Translations.get('grand_total', languageCode),
               totals.grandTotal.amount,
               isTotal: true,
             ),
@@ -221,7 +237,7 @@ class _TransactionDetailScreenState
     );
   }
 
-  Widget _buildPaymentInfoCard(Transaction transaction) {
+  Widget _buildPaymentInfoCard(Transaction transaction, String languageCode) {
     final payment = transaction.payments.first;
 
     return Card(
@@ -230,8 +246,8 @@ class _TransactionDetailScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Payment Information',
+            Text(
+              Translations.get('payment_information', languageCode),
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
@@ -281,8 +297,8 @@ class _TransactionDetailScreenState
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Change Given',
+                    Text(
+                      Translations.get('change_given', languageCode),
                       style: TextStyle(
                         color: AppTheme.success,
                         fontWeight: FontWeight.w600,
@@ -308,7 +324,7 @@ class _TransactionDetailScreenState
     );
   }
 
-  Widget _buildLineItemsCard(Transaction transaction) {
+  Widget _buildLineItemsCard(Transaction transaction, String languageCode) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -316,7 +332,7 @@ class _TransactionDetailScreenState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Items (${transaction.lineItems.length})',
+              '${Translations.get('items', languageCode)} (${transaction.lineItems.length})',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
@@ -373,28 +389,31 @@ class _TransactionDetailScreenState
     );
   }
 
-  Widget _buildAdditionalInfoCard(Transaction transaction) {
+  Widget _buildAdditionalInfoCard(
+    Transaction transaction,
+    String languageCode,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Additional Information',
+            Text(
+              Translations.get('additional', languageCode),
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             if (transaction.customer != null) ...[
               _buildInfoRow(
-                'Customer',
+                Translations.get('customer', languageCode),
                 transaction.customer!.name ?? 'Unknown',
                 icon: Icons.person,
               ),
               if (transaction.customer!.phone != null) ...[
                 const SizedBox(height: 8),
                 _buildInfoRow(
-                  'Phone',
+                  Translations.get('phone', languageCode),
                   transaction.customer!.phone!,
                   icon: Icons.phone,
                 ),
@@ -403,7 +422,7 @@ class _TransactionDetailScreenState
             ],
             if (transaction.staff?.processedBy != null) ...[
               _buildInfoRow(
-                'Processed By',
+                Translations.get('processed_by', languageCode),
                 transaction.staff!.processedBy!.name,
                 icon: Icons.person_outline,
               ),
@@ -411,15 +430,15 @@ class _TransactionDetailScreenState
             ],
             if (transaction.tableInfo != null) ...[
               _buildInfoRow(
-                'Table',
-                'Table ${transaction.tableInfo!.tableNumber} - ${transaction.tableInfo!.zoneName}',
+                Translations.get('table', languageCode),
+                '${Translations.get('table', languageCode)} ${transaction.tableInfo!.tableNumber} - ${transaction.tableInfo!.zoneName}',
                 icon: Icons.table_restaurant,
               ),
               const SizedBox(height: 8),
             ],
             if (transaction.receiptId != null)
               _buildInfoRow(
-                'Receipt ID',
+                Translations.get('receipt_id', languageCode),
                 transaction.receiptId!,
                 icon: Icons.receipt,
               ),
@@ -485,27 +504,30 @@ class _TransactionDetailScreenState
     );
   }
 
-  Widget _buildStatusBadge(String status) {
+  Widget _buildStatusBadge(String status, String languageCode) {
     Color color;
     String label;
 
     switch (status) {
       case 'completed':
         color = AppTheme.success;
-        label = 'Completed';
+        label = Translations.get('completed', languageCode);
         break;
       case 'pending':
         color = AppTheme.warning;
-        label = 'Pending';
+        label = Translations.get('pending', languageCode);
         break;
       case 'voided':
         color = AppTheme.error;
-        label = 'Voided';
+        label = Translations.get('voided', languageCode);
         break;
       case 'refunded':
       case 'partially_refunded':
         color = Colors.purple;
-        label = status == 'refunded' ? 'Refunded' : 'Partial Refund';
+        label =
+            status == 'refunded'
+                ? Translations.get('refunded', languageCode)
+                : Translations.get('partial_refund', languageCode);
         break;
       default:
         color = AppTheme.neutral500;
@@ -566,9 +588,13 @@ class _TransactionDetailScreenState
     }
   }
 
-  void _viewReceipt(Transaction transaction) {
+  void _viewReceipt(Transaction transaction, String languageCode) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Receipt viewing coming soon')),
+      SnackBar(
+        content: Text(
+          Translations.get('receipt_viewing_coming_soon', languageCode),
+        ),
+      ),
     );
   }
 }

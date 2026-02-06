@@ -4,8 +4,9 @@ import 'package:intl/intl.dart';
 
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
+import '../../../core/constants/translations.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../../../core/utils/responsive.dart';
-import '../../../shared/widgets/app_sidebar.dart';
 import '../providers/reports_provider.dart';
 
 /// Payment Methods Report Screen
@@ -35,24 +36,25 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
     final reportsState = ref.watch(reportsProvider);
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
         appBar: AppBar(
-          title: const Text('Payment Methods Report'),
+          title: Text(Translations.get('payment_methods_report', languageCode)),
           backgroundColor: Colors.indigo,
           foregroundColor: Colors.white,
           elevation: 2,
           actions: [
             IconButton(
               icon: const Icon(Icons.date_range),
-              tooltip: 'Date Range',
+              tooltip: Translations.get('date_range', languageCode),
               onPressed: () => _selectDateRange(context),
             ),
             IconButton(
               icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh',
+              tooltip: Translations.get('refresh', languageCode),
               onPressed: () => ref.read(reportsProvider.notifier).refresh(),
             ),
             const SizedBox(width: 8),
@@ -67,7 +69,7 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header
-                _buildHeader(),
+                _buildHeader(languageCode),
                 const SizedBox(height: 20),
 
                 // Loading state
@@ -76,13 +78,17 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
 
                 // Error state
                 if (reportsState.error != null)
-                  _buildErrorCard(reportsState.error!),
+                  _buildErrorCard(reportsState.error!, languageCode),
 
                 // Success state
                 if (!reportsState.isLoading &&
                     reportsState.error == null &&
                     reportsState.summary != null)
-                  _buildPaymentMethodsReport(reportsState.summary!, isMobile),
+                  _buildPaymentMethodsReport(
+                    reportsState.summary!,
+                    isMobile,
+                    languageCode,
+                  ),
               ],
             ),
           ),
@@ -91,7 +97,7 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -129,7 +135,10 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Payment Methods Report',
+                        Translations.get(
+                          'payment_methods_report',
+                          languageCode,
+                        ),
                         style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
@@ -151,7 +160,11 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
     );
   }
 
-  Widget _buildPaymentMethodsReport(dynamic summary, bool isMobile) {
+  Widget _buildPaymentMethodsReport(
+    dynamic summary,
+    bool isMobile,
+    String languageCode,
+  ) {
     try {
       // Extract payment methods data from the available data structure
       final paymentMethods = <String, double>{};
@@ -192,7 +205,7 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
       }
 
       if (paymentMethods.isEmpty) {
-        return _buildNoDataCard();
+        return _buildNoDataCard(languageCode);
       }
 
       final totalAmount = paymentMethods.values.fold<double>(
@@ -215,7 +228,7 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
                 children: [
                   Expanded(
                     child: _buildSummaryItem(
-                      'Payment Methods',
+                      Translations.get('payment_methods', languageCode),
                       '${paymentMethods.length}',
                       Icons.payment,
                       Colors.indigo,
@@ -224,7 +237,7 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: _buildSummaryItem(
-                      'Total Amount',
+                      Translations.get('total_amount', languageCode),
                       'LAK ${NumberFormat('#,##0').format(totalAmount)}',
                       Icons.monetization_on,
                       Colors.green,
@@ -234,7 +247,7 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: _buildSummaryItem(
-                        'Most Used',
+                        Translations.get('most_used', languageCode),
                         paymentMethods.entries
                             .reduce((a, b) => a.value > b.value ? a : b)
                             .key,
@@ -254,14 +267,16 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Payment Method Breakdown',
+                Translations.get('payment_method_breakdown', languageCode),
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                 ),
               ),
               Chip(
-                label: Text('${paymentMethods.length} Methods'),
+                label: Text(
+                  '${paymentMethods.length} ${Translations.get('methods', languageCode)}',
+                ),
                 backgroundColor: Colors.indigo.withOpacity(0.1),
                 labelStyle: const TextStyle(color: Colors.indigo),
               ),
@@ -278,26 +293,20 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
               entry.value,
               percentage,
               isMobile,
+              languageCode,
             );
           }).toList(),
         ],
       );
     } catch (e) {
-      return _buildErrorCard('Error processing payment data: $e');
+      return _buildErrorCard(
+        Translations.get(
+          'error_processing_payment_data',
+          languageCode,
+        ).replaceAll('{error}', e.toString()),
+        languageCode,
+      );
     }
-  }
-
-  double _extractAmount(dynamic value) {
-    if (value is num) {
-      return value.toDouble();
-    }
-    if (value is Map && value.containsKey('amount')) {
-      final amount = value['amount'];
-      if (amount is num) {
-        return amount.toDouble();
-      }
-    }
-    return 0.0;
   }
 
   Widget _buildSummaryItem(
@@ -346,6 +355,7 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
     double amount,
     double percentage,
     bool isMobile,
+    String languageCode,
   ) {
     return Card(
       elevation: 2,
@@ -413,7 +423,7 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Amount',
+                  Translations.get('amount', languageCode),
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),
@@ -473,7 +483,7 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
     );
   }
 
-  Widget _buildErrorCard(String error) {
+  Widget _buildErrorCard(String error, String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -485,7 +495,7 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
             const Icon(Icons.error_outline, size: 48, color: Colors.red),
             const SizedBox(height: 16),
             Text(
-              'Error Loading Payment Data',
+              Translations.get('error_loading_payment_data', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -501,7 +511,7 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => ref.read(reportsProvider.notifier).refresh(),
-              child: const Text('Retry'),
+              child: Text(Translations.get('retry', languageCode)),
             ),
           ],
         ),
@@ -509,7 +519,7 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
     );
   }
 
-  Widget _buildNoDataCard() {
+  Widget _buildNoDataCard(String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -525,14 +535,17 @@ class _PaymentsReportScreenState extends ConsumerState<PaymentsReportScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'No Payment Data',
+              Translations.get('no_payment_data', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'No payment method data found for the selected period',
+              Translations.get(
+                'no_payment_method_data_found_for_the_selectedperiod',
+                languageCode,
+              ),
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),

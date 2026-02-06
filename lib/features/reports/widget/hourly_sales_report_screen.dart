@@ -4,8 +4,9 @@ import 'package:intl/intl.dart';
 
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
+import '../../../core/constants/translations.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../../../core/utils/responsive.dart';
-import '../../../shared/widgets/app_sidebar.dart';
 import '../providers/reports_provider.dart';
 
 /// Hourly Sales Report Screen
@@ -38,24 +39,25 @@ class _HourlySalesReportScreenState
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
     final reportsState = ref.watch(reportsProvider);
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
         appBar: AppBar(
-          title: const Text('Hourly Sales Report'),
+          title: Text(Translations.get('hourly_sales_report', languageCode)),
           backgroundColor: Colors.pink,
           foregroundColor: Colors.white,
           elevation: 2,
           actions: [
             IconButton(
               icon: const Icon(Icons.calendar_today),
-              tooltip: 'Select Date',
+              tooltip: Translations.get('select_date', languageCode),
               onPressed: () => _selectDate(context),
             ),
             IconButton(
               icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh',
+              tooltip: Translations.get('refresh', languageCode),
               onPressed: () => ref.read(reportsProvider.notifier).refresh(),
             ),
             const SizedBox(width: 8),
@@ -70,7 +72,7 @@ class _HourlySalesReportScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header
-                _buildHeader(),
+                _buildHeader(languageCode),
                 const SizedBox(height: 20),
 
                 // Loading state
@@ -79,11 +81,11 @@ class _HourlySalesReportScreenState
 
                 // Error state
                 if (reportsState.error != null)
-                  _buildErrorCard(reportsState.error!),
+                  _buildErrorCard(reportsState.error!, languageCode),
 
                 // Success state
                 if (!reportsState.isLoading && reportsState.error == null)
-                  _buildHourlySalesReport(reportsState, isMobile),
+                  _buildHourlySalesReport(reportsState, isMobile, languageCode),
               ],
             ),
           ),
@@ -92,7 +94,7 @@ class _HourlySalesReportScreenState
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -130,7 +132,7 @@ class _HourlySalesReportScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Hourly Sales Report',
+                        Translations.get('hourly_sales_report', languageCode),
                         style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
@@ -152,12 +154,16 @@ class _HourlySalesReportScreenState
     );
   }
 
-  Widget _buildHourlySalesReport(dynamic reportsState, bool isMobile) {
+  Widget _buildHourlySalesReport(
+    dynamic reportsState,
+    bool isMobile,
+    String languageCode,
+  ) {
     // Generate hourly data based on available data
     final hourlyData = _generateHourlyData(reportsState);
 
     if (hourlyData.isEmpty) {
-      return _buildNoDataCard();
+      return _buildNoDataCard(languageCode);
     }
 
     final totalSales = hourlyData.fold<double>(
@@ -189,7 +195,7 @@ class _HourlySalesReportScreenState
                   children: [
                     Expanded(
                       child: _buildSummaryItem(
-                        'Total Sales',
+                        Translations.get('total_sales', languageCode),
                         'LAK ${NumberFormat('#,##0').format(totalSales)}',
                         Icons.monetization_on,
                         Colors.green,
@@ -198,7 +204,7 @@ class _HourlySalesReportScreenState
                     const SizedBox(width: 16),
                     Expanded(
                       child: _buildSummaryItem(
-                        'Total Orders',
+                        Translations.get('total_orders', languageCode),
                         '$totalOrders',
                         Icons.shopping_cart,
                         Colors.blue,
@@ -208,7 +214,7 @@ class _HourlySalesReportScreenState
                       const SizedBox(width: 16),
                       Expanded(
                         child: _buildSummaryItem(
-                          'Peak Hour',
+                          Translations.get('peak_hour', languageCode),
                           '${peakHour['hour']}:00',
                           Icons.trending_up,
                           Colors.pink,
@@ -224,15 +230,15 @@ class _HourlySalesReportScreenState
         const SizedBox(height: 20),
 
         // Hourly chart
-        _buildHourlyChart(hourlyData, totalSales, isMobile),
+        _buildHourlyChart(hourlyData, totalSales, isMobile, languageCode),
         const SizedBox(height: 20),
 
         // Peak hours analysis
-        _buildPeakHoursAnalysis(hourlyData, isMobile),
+        _buildPeakHoursAnalysis(hourlyData, isMobile, languageCode),
         const SizedBox(height: 20),
 
         // Hourly breakdown
-        _buildHourlyBreakdown(hourlyData, isMobile),
+        _buildHourlyBreakdown(hourlyData, isMobile, languageCode),
       ],
     );
   }
@@ -303,6 +309,7 @@ class _HourlySalesReportScreenState
     List<Map<String, dynamic>> data,
     double totalSales,
     bool isMobile,
+    String languageCode,
   ) {
     final maxSales = data.fold<double>(
       0,
@@ -318,7 +325,7 @@ class _HourlySalesReportScreenState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Sales Distribution by Hour',
+              Translations.get('sales_distribution_by_hour', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -373,6 +380,7 @@ class _HourlySalesReportScreenState
   Widget _buildPeakHoursAnalysis(
     List<Map<String, dynamic>> data,
     bool isMobile,
+    String languageCode,
   ) {
     // Find top 3 peak hours
     final sortedData = List<Map<String, dynamic>>.from(data)
@@ -383,7 +391,7 @@ class _HourlySalesReportScreenState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Peak Hours Analysis',
+          Translations.get('peak_hours_analysis', languageCode),
           style: Theme.of(
             context,
           ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -449,7 +457,11 @@ class _HourlySalesReportScreenState
     );
   }
 
-  Widget _buildHourlyBreakdown(List<Map<String, dynamic>> data, bool isMobile) {
+  Widget _buildHourlyBreakdown(
+    List<Map<String, dynamic>> data,
+    bool isMobile,
+    String languageCode,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -457,13 +469,15 @@ class _HourlySalesReportScreenState
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Hourly Breakdown',
+              Translations.get('hourly_breakdown', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             Chip(
-              label: Text('${data.length} Hours'),
+              label: Text(
+                '${data.length} ${Translations.get('hours', languageCode)}',
+              ),
               backgroundColor: Colors.pink.withOpacity(0.1),
               labelStyle: const TextStyle(color: Colors.pink),
             ),
@@ -472,13 +486,19 @@ class _HourlySalesReportScreenState
         const SizedBox(height: 12),
 
         ...data
-            .map((hourData) => _buildHourlyCard(hourData, isMobile))
+            .map(
+              (hourData) => _buildHourlyCard(hourData, isMobile, languageCode),
+            )
             .toList(),
       ],
     );
   }
 
-  Widget _buildHourlyCard(Map<String, dynamic> hourData, bool isMobile) {
+  Widget _buildHourlyCard(
+    Map<String, dynamic> hourData,
+    bool isMobile,
+    String languageCode,
+  ) {
     return Card(
       elevation: 1,
       margin: const EdgeInsets.only(bottom: 8),
@@ -508,7 +528,7 @@ class _HourlySalesReportScreenState
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
-                            '${hourData['orders']} orders',
+                            '${hourData['orders']} ${Translations.get('orders', languageCode)}',
                             style: const TextStyle(
                               color: Colors.pink,
                               fontSize: 12,
@@ -554,7 +574,7 @@ class _HourlySalesReportScreenState
                     Expanded(
                       flex: 2,
                       child: Text(
-                        '${hourData['orders']} orders',
+                        '${hourData['orders']} ${Translations.get('orders', languageCode)}',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ),
@@ -614,7 +634,7 @@ class _HourlySalesReportScreenState
     );
   }
 
-  Widget _buildErrorCard(String error) {
+  Widget _buildErrorCard(String error, String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -626,7 +646,7 @@ class _HourlySalesReportScreenState
             const Icon(Icons.error_outline, size: 48, color: Colors.red),
             const SizedBox(height: 16),
             Text(
-              'Error Loading Hourly Data',
+              Translations.get('error_loading_hourly_data', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -642,7 +662,7 @@ class _HourlySalesReportScreenState
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => ref.read(reportsProvider.notifier).refresh(),
-              child: const Text('Retry'),
+              child: Text(Translations.get('retry', languageCode)),
             ),
           ],
         ),
@@ -650,7 +670,7 @@ class _HourlySalesReportScreenState
     );
   }
 
-  Widget _buildNoDataCard() {
+  Widget _buildNoDataCard(String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -666,14 +686,17 @@ class _HourlySalesReportScreenState
             ),
             const SizedBox(height: 16),
             Text(
-              'No Hourly Data',
+              Translations.get('no_hourly_data', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'No hourly sales data found for ${displayFormat.format(selectedDate)}',
+              Translations.get(
+                'no_hourly_data_for_selected_period',
+                languageCode,
+              ).replaceAll('{date}', displayFormat.format(selectedDate)),
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),

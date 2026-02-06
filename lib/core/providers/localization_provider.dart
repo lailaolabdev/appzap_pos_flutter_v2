@@ -17,30 +17,17 @@ class LocalizationState {
 }
 
 class LocalizationNotifier extends StateNotifier<LocalizationState> {
-  LocalizationNotifier() : super(LocalizationState(languageCode: 'en')) {
-    _loadLanguagePreference();
-  }
+  LocalizationNotifier() : super(LocalizationState(languageCode: 'en'));
 
-  Future<void> _loadLanguagePreference() async {
-    try {
-      final savedLanguage = await storage.read(key: 'app_language') ?? 'en';
-      state = state.copyWith(languageCode: savedLanguage);
-    } catch (e) {
-      print('Error loading language preference: $e');
-    }
+  Future<void> loadFromStorage() async {
+    final savedLanguage = await storage.read(key: 'app_language') ?? 'en';
+    state = LocalizationState(languageCode: savedLanguage);
   }
 
   Future<void> setLanguage(String languageCode) async {
-    try {
-      await storage.write(key: 'app_language', value: languageCode);
-      state = state.copyWith(languageCode: languageCode);
-    } catch (e) {
-      print('Error saving language preference: $e');
-    }
+    await storage.write(key: 'app_language', value: languageCode);
+    state = LocalizationState(languageCode: languageCode);
   }
-
-  String getLanguageCode() => state.languageCode;
-  Locale getLocale() => state.locale;
 }
 
 final localizationProvider =

@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,6 +19,7 @@ class CustomerLookupDialog extends ConsumerStatefulWidget {
 
 class _CustomerLookupDialogState extends ConsumerState<CustomerLookupDialog> {
   final _searchController = TextEditingController();
+
   List<Customer> _searchResults = [];
   bool _isSearching = false;
   String? _searchError;
@@ -28,6 +31,7 @@ class _CustomerLookupDialogState extends ConsumerState<CustomerLookupDialog> {
   }
 
   Future<void> _searchCustomers() async {
+    final languageCode = ref.read(localizationProvider).languageCode;
     final query = _searchController.text.trim();
     if (query.isEmpty) {
       setState(() {
@@ -45,13 +49,14 @@ class _CustomerLookupDialogState extends ConsumerState<CustomerLookupDialog> {
     try {
       final restaurantId = ref.read(currentRestaurantIdProvider);
       if (restaurantId == null) {
-        throw Exception('Restaurant not configured');
+        throw Exception(
+          Translations.get('restaurant_not_configured', languageCode),
+        );
       }
 
-      final customers = await ref.read(customerServiceProvider).getCustomers(
-            restaurantId: restaurantId,
-            search: query,
-          );
+      final customers = await ref
+          .read(customerServiceProvider)
+          .getCustomers(restaurantId: restaurantId, search: query);
 
       setState(() {
         _searchResults = customers;
@@ -67,6 +72,7 @@ class _CustomerLookupDialogState extends ConsumerState<CustomerLookupDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final languageCode = ref.read(localizationProvider).languageCode;
     return Dialog(
       child: Container(
         width: 500,
@@ -80,13 +86,10 @@ class _CustomerLookupDialogState extends ConsumerState<CustomerLookupDialog> {
               children: [
                 const Icon(Icons.search, color: AppTheme.primaryOrange),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Find Customer',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    Translations.get('find_customer', languageCode)!,
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                 ),
                 IconButton(
@@ -102,17 +105,21 @@ class _CustomerLookupDialogState extends ConsumerState<CustomerLookupDialog> {
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Enter phone number or name',
+                hintText: Translations.get(
+                  'enter_phone_number_or_name',
+                  languageCode,
+                ),
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: _isSearching
-                    ? const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : IconButton(
-                        icon: const Icon(Icons.arrow_forward),
-                        onPressed: _searchCustomers,
-                      ),
+                suffixIcon:
+                    _isSearching
+                        ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : IconButton(
+                          icon: const Icon(Icons.arrow_forward),
+                          onPressed: _searchCustomers,
+                        ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -125,94 +132,107 @@ class _CustomerLookupDialogState extends ConsumerState<CustomerLookupDialog> {
 
             // Search results
             Expanded(
-              child: _searchError != null
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.error_outline,
-                            size: 48,
-                            color: AppTheme.error,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _searchError!,
-                            style: const TextStyle(color: AppTheme.error),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    )
-                  : _searchResults.isEmpty
+              child:
+                  _searchError != null
                       ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.person_search,
-                                size: 64,
-                                color: AppTheme.neutral300,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                _searchController.text.isEmpty
-                                    ? 'Search by phone number or name'
-                                    : 'No customers found',
-                                style: TextStyle(
-                                  color: AppTheme.neutral500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount: _searchResults.length,
-                          itemBuilder: (context, index) {
-                            final customer = _searchResults[index];
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.all(12),
-                                leading: CircleAvatar(
-                                  backgroundColor:
-                                      AppTheme.primaryOrangeBackground,
-                                  child: Text(
-                                    customer.name[0].toUpperCase(),
-                                    style: const TextStyle(
-                                      color: AppTheme.primaryOrange,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                title: Text(
-                                  customer.name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SizedBox(height: 4),
-                                    Text(customer.phone ?? 'No phone'),
-                                    Text(
-                                      '${customer.loyaltyPoints} points',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppTheme.primaryOrange,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                trailing: const Icon(Icons.arrow_forward_ios,
-                                    size: 16),
-                                onTap: () => Navigator.pop(context, customer),
-                              ),
-                            );
-                          },
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              size: 48,
+                              color: AppTheme.error,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _searchError!,
+                              style: const TextStyle(color: AppTheme.error),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
+                      )
+                      : _searchResults.isEmpty
+                      ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.person_search,
+                              size: 64,
+                              color: AppTheme.neutral300,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _searchController.text.isEmpty
+                                  ? Translations.get(
+                                    'search_by_phone_or_name',
+                                    languageCode,
+                                  )
+                                  : Translations.get(
+                                    'no_customers_found',
+                                    languageCode,
+                                  ),
+                              style: TextStyle(color: AppTheme.neutral500),
+                            ),
+                          ],
+                        ),
+                      )
+                      : ListView.builder(
+                        itemCount: _searchResults.length,
+                        itemBuilder: (context, index) {
+                          final customer = _searchResults[index];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.all(12),
+                              leading: CircleAvatar(
+                                backgroundColor:
+                                    AppTheme.primaryOrangeBackground,
+                                child: Text(
+                                  customer.name[0].toUpperCase(),
+                                  style: const TextStyle(
+                                    color: AppTheme.primaryOrange,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              title: Text(
+                                customer.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    customer.phone ??
+                                        Translations.get(
+                                          'no_phone',
+                                          languageCode,
+                                        ),
+                                  ),
+                                  Text(
+                                    '${customer.loyaltyPoints} ${Translations.get('qty', languageCode)}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppTheme.primaryOrange,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              trailing: const Icon(
+                                Icons.arrow_forward_ios,
+                                size: 16,
+                              ),
+                              onTap: () => Navigator.pop(context, customer),
+                            ),
+                          );
+                        },
+                      ),
             ),
           ],
         ),
@@ -220,4 +240,3 @@ class _CustomerLookupDialogState extends ConsumerState<CustomerLookupDialog> {
     );
   }
 }
-

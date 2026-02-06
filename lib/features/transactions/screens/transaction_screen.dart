@@ -9,6 +9,8 @@ import '../../../core/models/transaction.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/app_sidebar.dart';
+import '../../../core/constants/translations.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../widgets/transaction_filter_dialog.dart';
 import '../widgets/transaction_summary_cards.dart';
@@ -80,6 +82,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
   Widget build(BuildContext context) {
     final transactionState = ref.watch(transactionProvider);
     final isMobile = Responsive.isMobile(context);
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return AppShell(
       child: Scaffold(
@@ -87,25 +90,25 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
         drawer:
             isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
-          title: const Text('Transactions'),
+          title: Text(Translations.get('transactions', languageCode)),
           surfaceTintColor: AppTheme.scaffoldBackground,
           actions: [
             // Date range button
             IconButton(
               icon: const Icon(Icons.calendar_today),
-              tooltip: 'Date Range',
+              tooltip: Translations.get('date_range', languageCode),
               onPressed: _pickDateRange,
             ),
             // Filter button
             IconButton(
               icon: const Icon(Icons.filter_list),
-              tooltip: 'Filters',
+              tooltip: Translations.get('filters', languageCode),
               onPressed: _showFilters,
             ),
             // Refresh button
             IconButton(
               icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh',
+              tooltip: Translations.get('refresh', languageCode),
               onPressed: () => ref.read(transactionProvider.notifier).refresh(),
             ),
             const SizedBox(width: 8),
@@ -143,12 +146,15 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Date range display
-                        _buildDateRangeDisplay(),
+                        _buildDateRangeDisplay(languageCode),
                         const SizedBox(height: 16),
 
                         // Active filters chips
                         if (transactionState.filters.hasActiveFilters)
-                          _buildActiveFilters(transactionState.filters),
+                          _buildActiveFilters(
+                            transactionState.filters,
+                            languageCode,
+                          ),
 
                         // Summary cards
                         if (transactionState.summary != null) ...[
@@ -160,12 +166,19 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                         ],
 
                         // Transactions list
-                        _buildTransactionsList(transactionState, isMobile),
+                        _buildTransactionsList(
+                          transactionState,
+                          isMobile,
+                          languageCode,
+                        ),
 
                         // Pagination
                         if (transactionState.pagination != null) ...[
                           const SizedBox(height: 16),
-                          _buildPagination(transactionState.pagination!),
+                          _buildPagination(
+                            transactionState.pagination!,
+                            languageCode,
+                          ),
                         ],
                       ],
                     ),
@@ -175,7 +188,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     );
   }
 
-  Widget _buildDateRangeDisplay() {
+  Widget _buildDateRangeDisplay(String languageCode) {
     final dateFormat = DateFormat('MMM d, yyyy');
     return Container(
       padding: const EdgeInsets.all(12),
@@ -196,7 +209,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
             child: Text(
               _startDate != null && _endDate != null
                   ? '${dateFormat.format(_startDate!)} - ${dateFormat.format(_endDate!)}'
-                  : 'Select date range',
+                  : Translations.get('select_date_range', languageCode),
               style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 color: AppTheme.primaryOrange,
@@ -210,14 +223,14 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
               color: AppTheme.primaryOrange,
             ),
             onPressed: _pickDateRange,
-            tooltip: 'Change date range',
+            tooltip: Translations.get('change_date_range', languageCode),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildActiveFilters(TransactionFilters filters) {
+  Widget _buildActiveFilters(TransactionFilters filters, String languageCode) {
     final chips = <Widget>[];
 
     if (filters.status != null) {
@@ -232,7 +245,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     if (filters.method != null) {
       chips.add(
         _buildFilterChip(
-          'Method: ${_getMethodLabel(filters.method!)}',
+          'Method: ${_getMethodLabel(filters.method!, languageCode)}',
           () => ref.read(transactionProvider.notifier).setMethodFilter(null),
         ),
       );
@@ -246,8 +259,8 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
         const SizedBox(height: 8),
         Row(
           children: [
-            const Text(
-              'Active Filters:',
+            Text(
+              Translations.get('active_filters', languageCode),
               style: TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(width: 8),
@@ -257,7 +270,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
               onPressed:
                   () => ref.read(transactionProvider.notifier).clearFilters(),
               icon: const Icon(Icons.clear, size: 16),
-              label: const Text('Clear All'),
+              label: Text(Translations.get('clear_all', languageCode)),
             ),
           ],
         ),
@@ -277,7 +290,11 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     );
   }
 
-  Widget _buildTransactionsList(TransactionState state, bool isMobile) {
+  Widget _buildTransactionsList(
+    TransactionState state,
+    bool isMobile,
+    String languageCode,
+  ) {
     if (state.transactions.isEmpty) {
       return Center(
         child: Column(
@@ -285,8 +302,8 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
             const SizedBox(height: 48),
             Icon(Icons.receipt_long, size: 64, color: AppTheme.neutral300),
             const SizedBox(height: 16),
-            const Text(
-              'No transactions found',
+            Text(
+              Translations.get('no_transactions_found', languageCode),
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -294,8 +311,8 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Try adjusting your filters',
+            Text(
+              Translations.get('try_adjusting_your_filters', languageCode),
               style: TextStyle(color: AppTheme.neutral500),
             ),
           ],
@@ -309,12 +326,16 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
       itemCount: state.transactions.length,
       itemBuilder: (context, index) {
         final transaction = state.transactions[index];
-        return _buildTransactionCard(transaction, isMobile);
+        return _buildTransactionCard(transaction, isMobile, languageCode);
       },
     );
   }
 
-  Widget _buildTransactionCard(Transaction transaction, bool isMobile) {
+  Widget _buildTransactionCard(
+    Transaction transaction,
+    bool isMobile,
+    String languageCode,
+  ) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
@@ -357,7 +378,10 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                       ],
                     ),
                   ),
-                  _buildStatusBadge(transaction.transactionStatus),
+                  _buildStatusBadge(
+                    transaction.transactionStatus,
+                    languageCode,
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -381,7 +405,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                         if (transaction.staff?.processedBy != null) ...[
                           const SizedBox(height: 2),
                           Text(
-                            'By ${transaction.staff!.processedBy!.name}',
+                            '${Translations.get('by', languageCode)} ${transaction.staff!.processedBy!.name}',
                             style: const TextStyle(
                               color: AppTheme.neutral500,
                               fontSize: 12,
@@ -403,6 +427,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                             .paymentMethodBreakdown
                             .first
                             .method,
+                        languageCode,
                       ),
                       style: const TextStyle(
                         fontSize: 12,
@@ -433,27 +458,30 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     );
   }
 
-  Widget _buildStatusBadge(String status) {
+  Widget _buildStatusBadge(String status, String languageCode) {
     Color color;
     String label;
 
     switch (status) {
       case 'completed':
         color = AppTheme.success;
-        label = 'Completed';
+        label = Translations.get('completed', languageCode);
         break;
       case 'pending':
         color = AppTheme.warning;
-        label = 'Pending';
+        label = Translations.get('pending', languageCode);
         break;
       case 'voided':
         color = AppTheme.error;
-        label = 'Voided';
+        label = Translations.get('voided', languageCode);
         break;
       case 'refunded':
       case 'partially_refunded':
         color = Colors.purple;
-        label = status == 'refunded' ? 'Refunded' : 'Partial Refund';
+        label =
+            status == 'refunded'
+                ? Translations.get('refunded', languageCode)
+                : Translations.get('partial_refund', languageCode);
         break;
       default:
         color = AppTheme.neutral500;
@@ -478,7 +506,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     );
   }
 
-  Widget _buildPagination(PaginationInfo pagination) {
+  Widget _buildPagination(PaginationInfo pagination, String languageCode) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -502,7 +530,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
         ),
         const SizedBox(width: 8),
         Text(
-          'Page ${pagination.page} of ${pagination.totalPages}',
+          '${Translations.get('page', languageCode)} ${pagination.page} ${Translations.get('of', languageCode)} ${pagination.totalPages}',
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         const SizedBox(width: 8),
@@ -575,12 +603,12 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     }
   }
 
-  String _getMethodLabel(String method) {
+  String _getMethodLabel(String method, String languageCode) {
     switch (method) {
       case 'cash':
-        return 'Cash';
+        return Translations.get('cash', languageCode);
       case 'card':
-        return 'Card';
+        return Translations.get('card', languageCode);
       case 'bank_qr_jdb':
         return 'JDB QR';
       case 'bank_qr_bcel':

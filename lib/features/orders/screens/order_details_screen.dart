@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,11 +19,12 @@ class OrderDetailsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isMobile = Responsive.isMobile(context);
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
-        appBar: AppBar( 
+        appBar: AppBar(
           backgroundColor: AppTheme.scaffoldBackground,
           surfaceTintColor: AppTheme.scaffoldBackground,
           leading:
@@ -31,15 +34,22 @@ class OrderDetailsScreen extends ConsumerWidget {
                     onPressed: () => Navigator.pop(context),
                   )
                   : null,
-          title: Text('Order ${order.orderId}'),
+          title: Text(
+            '${Translations.get('order', languageCode)} ${order.orderId}',
+          ),
           actions: [
             IconButton(
               icon: const Icon(Icons.print),
-              tooltip: 'Print Receipt',
+              tooltip: Translations.get('print_receipt', languageCode),
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Print functionality - Coming Soon'),
+                  SnackBar(
+                    content: Text(
+                      Translations.get(
+                        'print_functionality_coming_soon',
+                        languageCode,
+                      ),
+                    ),
                   ),
                 );
               },
@@ -48,22 +58,26 @@ class OrderDetailsScreen extends ConsumerWidget {
               onSelected: (String value) {
                 switch (value) {
                   case 'refund':
-                    _showRefundDialog(context);
+                    _showRefundDialog(context, languageCode);
                     break;
                   case 'cancel':
-                    _showCancelDialog(context);
+                    _showCancelDialog(context, languageCode);
                     break;
                 }
               },
               itemBuilder:
                   (BuildContext context) => [
-                    const PopupMenuItem<String>(
+                    PopupMenuItem<String>(
                       value: 'refund',
-                      child: Text('Refund Order'),
+                      child: Text(
+                        Translations.get('refund_order', languageCode),
+                      ),
                     ),
-                    const PopupMenuItem<String>(
+                    PopupMenuItem<String>(
                       value: 'cancel',
-                      child: Text('Cancel Order'),
+                      child: Text(
+                        Translations.get('cancel_order', languageCode),
+                      ),
                     ),
                   ],
             ),
@@ -86,7 +100,7 @@ class OrderDetailsScreen extends ConsumerWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Order',
+                            Translations.get('order', languageCode),
                             style: TextStyle(
                               fontSize: 16,
                               color: AppTheme.neutral600,
@@ -95,28 +109,24 @@ class OrderDetailsScreen extends ConsumerWidget {
                           _OrderStatusChip(status: order.status.name),
                         ],
                       ),
-
-                      const SizedBox(height: 12),
-
+                      const SizedBox(height: 5),
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.fromLTRB(0, 10, 0, 10),
                         child: SelectableText(
                           order.orderId,
                           style: const TextStyle(
-                            fontSize: 18,
+                            fontSize: 14,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 0.5,
                           ),
                         ),
                       ),
-
-                      const SizedBox(height: 20),
-
+                      const SizedBox(height: 5),
                       if (isMobile) ...[
-                        _buildOrderInfoMobile(),
+                        _buildOrderInfoMobile(languageCode),
                       ] else ...[
-                        _buildOrderInfoDesktop(),
+                        _buildOrderInfoDesktop(languageCode),
                       ],
                     ],
                   ),
@@ -138,8 +148,11 @@ class OrderDetailsScreen extends ConsumerWidget {
                               color: AppTheme.primaryOrange,
                             ),
                             const SizedBox(width: 8),
-                            const Text(
-                              'Customer Information',
+                            Text(
+                              Translations.get(
+                                'customer_information',
+                                languageCode,
+                              ),
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -148,11 +161,17 @@ class OrderDetailsScreen extends ConsumerWidget {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        _buildInfoRow('Name', order.customer?.name ?? 'N/A'),
+                        _buildInfoRow(
+                          Translations.get('name', languageCode),
+                          order.customer?.name ?? 'N/A',
+                        ),
 
                         if (order.customer?.phone != null) ...[
                           const SizedBox(height: 8),
-                          _buildInfoRow('Phone', order.customer!.phone!),
+                          _buildInfoRow(
+                            Translations.get('phone', languageCode),
+                            order.customer!.phone!,
+                          ),
                         ],
                       ],
                     ),
@@ -175,9 +194,9 @@ class OrderDetailsScreen extends ConsumerWidget {
                             color: AppTheme.primaryOrange,
                           ),
                           const SizedBox(width: 8),
-                          const Text(
-                            'Order Items',
-                            style: TextStyle(
+                          Text(
+                            Translations.get('order_items', languageCode),
+                            style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
@@ -194,11 +213,14 @@ class OrderDetailsScreen extends ConsumerWidget {
                           children: [
                             if (index > 0) const Divider(),
                             const SizedBox(height: 12),
-                            _OrderItemTile(item: item),
+                            _OrderItemTile(
+                              item: item,
+                              languageCode: languageCode,
+                            ),
                             const SizedBox(height: 12),
                           ],
                         );
-                      }).toList(),
+                      }),
                     ],
                   ),
                 ),
@@ -219,9 +241,9 @@ class OrderDetailsScreen extends ConsumerWidget {
                             color: AppTheme.primaryOrange,
                           ),
                           const SizedBox(width: 8),
-                          const Text(
-                            'Payment Summary',
-                            style: TextStyle(
+                          Text(
+                            Translations.get('payment_summary', languageCode),
+                            style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
@@ -229,13 +251,19 @@ class OrderDetailsScreen extends ConsumerWidget {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      _buildPaymentRow('Subtotal', order.pricing.subtotal),
+                      _buildPaymentRow(
+                        Translations.get('subtotal', languageCode),
+                        order.pricing.subtotal,
+                      ),
                       const SizedBox(height: 8),
-                      _buildPaymentRow('Tax', order.pricing.tax),
+                      _buildPaymentRow(
+                        Translations.get('tax', languageCode),
+                        order.pricing.tax,
+                      ),
                       if (order.pricing.discountTotal > 0) ...[
                         const SizedBox(height: 8),
                         _buildPaymentRow(
-                          'Discount',
+                          Translations.get('discount', languageCode),
                           -order.pricing.discountTotal,
                           isDiscount: true,
                         ),
@@ -244,7 +272,7 @@ class OrderDetailsScreen extends ConsumerWidget {
                       const Divider(),
                       const SizedBox(height: 12),
                       _buildPaymentRow(
-                        'Total',
+                        Translations.get('total', languageCode),
                         order.pricing.total,
                         isTotal: true,
                       ),
@@ -260,22 +288,33 @@ class OrderDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildOrderInfoMobile() {
+  Widget _buildOrderInfoMobile(String languageCode) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildInfoRow(
-          'Date & Time',
+          Translations.get('date_time', languageCode),
           DateFormatter.formatDateTime(order.createdAt),
         ),
         const SizedBox(height: 12),
-        _buildInfoRow('Order Type', _getOrderTypeDisplay(order.orderType)),
-        const SizedBox(height: 12),
-        _buildInfoRow('Items Count', '${order.items.length} items'),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildInfoRow(
+              Translations.get('order_type', languageCode),
+              _getOrderTypeDisplay(order.orderType),
+            ),
+            _buildInfoRow(
+              Translations.get('items_count', languageCode),
+              '${order.items.length} ${Translations.get('items', languageCode)}',
+            ),
+          ],
+        ),
       ],
     );
   }
 
-  Widget _buildOrderInfoDesktop() {
+  Widget _buildOrderInfoDesktop(String languageCode) {
     return Row(
       children: [
         Expanded(
@@ -283,12 +322,12 @@ class OrderDetailsScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildInfoRow(
-                'Date & Time',
+                Translations.get('date_time', languageCode),
                 DateFormatter.formatDateTime(order.createdAt),
               ),
               const SizedBox(height: 12),
               _buildInfoRow(
-                'Order Type',
+                Translations.get('order_type', languageCode),
                 _getOrderTypeDisplay(order.orderType),
               ),
             ],
@@ -299,9 +338,15 @@ class OrderDetailsScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildInfoRow('Items Count', '${order.items.length} items'),
+              _buildInfoRow(
+                Translations.get('items_count', languageCode),
+                '${order.items.length} ${Translations.get('items', languageCode)}',
+              ),
               const SizedBox(height: 12),
-              _buildInfoRow('Q Number', order.qNumber.toString()),
+              _buildInfoRow(
+                Translations.get('q_number', languageCode),
+                order.qNumber.toString(),
+              ),
             ],
           ),
         ),
@@ -368,62 +413,72 @@ class OrderDetailsScreen extends ConsumerWidget {
     );
   }
 
-  void _showRefundDialog(BuildContext context) {
+  void _showRefundDialog(BuildContext context, String languageCode) {
     showDialog(
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Refund Order'),
+            title: Text(Translations.get('refund_order', languageCode)),
             content: Text(
-              'Are you sure you want to refund order ${order.orderId}?',
+              '${Translations.get('refund_order_confirmation', languageCode)} ${order.orderId}?',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
+                child: Text(Translations.get('cancel', languageCode)),
               ),
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Refund functionality - Coming Soon'),
+                    SnackBar(
+                      content: Text(
+                        Translations.get(
+                          'refund_functionality_coming_soon',
+                          languageCode,
+                        ),
+                      ),
                     ),
                   );
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                child: const Text('Refund'),
+                child: Text(Translations.get('refund', languageCode)),
               ),
             ],
           ),
     );
   }
 
-  void _showCancelDialog(BuildContext context) {
+  void _showCancelDialog(BuildContext context, String languageCode) {
     showDialog(
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Cancel Order'),
+            title: Text(Translations.get('cancel_order', languageCode)),
             content: Text(
-              'Are you sure you want to cancel order ${order.orderId}?',
+              '${Translations.get('cancel_order_confirmation', languageCode)} ${order.orderId}?',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('No'),
+                child: Text(Translations.get('no', languageCode)),
               ),
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Cancel functionality - Coming Soon'),
+                    SnackBar(
+                      content: Text(
+                        Translations.get(
+                          'cancel_functionality_coming_soon',
+                          languageCode,
+                        ),
+                      ),
                     ),
                   );
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text('Cancel Order'),
+                child: Text(Translations.get('cancel_order', languageCode)),
               ),
             ],
           ),
@@ -433,8 +488,8 @@ class OrderDetailsScreen extends ConsumerWidget {
 
 class _OrderItemTile extends StatelessWidget {
   final order_model.OrderItem item;
-
-  const _OrderItemTile({required this.item});
+  final String languageCode;
+  const _OrderItemTile({required this.item, required this.languageCode});
 
   @override
   Widget build(BuildContext context) {
@@ -480,7 +535,7 @@ class _OrderItemTile extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Qty: ${item.quantity}',
+                    '${Translations.get('qty', languageCode)}: ${item.quantity}',
                     style: TextStyle(
                       fontSize: 14,
                       color: AppTheme.neutral700,

@@ -4,9 +4,10 @@ import 'package:intl/intl.dart';
 
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
+import '../../../core/constants/translations.dart';
 import '../../../core/models/report.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../../../core/utils/responsive.dart';
-import '../../../shared/widgets/app_sidebar.dart';
 import '../providers/reports_provider.dart';
 
 /// Daily Sales Report Screen
@@ -36,24 +37,25 @@ class _DailySalesReportScreenState
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
     final reportsState = ref.watch(reportsProvider);
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
         appBar: AppBar(
-          title: const Text('Daily Sales Report'),
+          title: Text(Translations.get('daily_sales_report', languageCode)),
           backgroundColor: AppTheme.primaryOrange,
           foregroundColor: Colors.white,
           elevation: 2,
           actions: [
             IconButton(
               icon: const Icon(Icons.calendar_today),
-              tooltip: 'Select Date',
+              tooltip: Translations.get('select_date', languageCode),
               onPressed: () => _selectDate(context),
             ),
             IconButton(
               icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh',
+              tooltip: Translations.get('refresh', languageCode),
               onPressed: () => ref.read(reportsProvider.notifier).refresh(),
             ),
             const SizedBox(width: 8),
@@ -68,7 +70,7 @@ class _DailySalesReportScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header with date
-                _buildHeader(),
+                _buildHeader(languageCode),
                 const SizedBox(height: 20),
 
                 // Loading state
@@ -77,19 +79,23 @@ class _DailySalesReportScreenState
 
                 // Error state
                 if (reportsState.error != null)
-                  _buildErrorCard(reportsState.error!),
+                  _buildErrorCard(reportsState.error!, languageCode),
 
                 // Success state
                 if (!reportsState.isLoading &&
                     reportsState.error == null &&
                     reportsState.summary != null)
-                  _buildReportContent(reportsState.summary!, isMobile),
+                  _buildReportContent(
+                    reportsState.summary!,
+                    isMobile,
+                    languageCode,
+                  ),
 
                 // No data state
                 if (!reportsState.isLoading &&
                     reportsState.error == null &&
                     reportsState.summary == null)
-                  _buildNoDataCard(),
+                  _buildNoDataCard(languageCode),
               ],
             ),
           ),
@@ -98,7 +104,7 @@ class _DailySalesReportScreenState
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -136,7 +142,7 @@ class _DailySalesReportScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Daily Sales Report',
+                        Translations.get('daily_sales_report', languageCode),
                         style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
@@ -158,31 +164,38 @@ class _DailySalesReportScreenState
     );
   }
 
-  Widget _buildReportContent(DailySalesSummary summary, bool isMobile) {
+  Widget _buildReportContent(
+    DailySalesSummary summary,
+    bool isMobile,
+    String languageCode,
+  ) {
     return Column(
       children: [
         // Summary Cards
         isMobile
-            ? _buildMobileSummaryCards(summary)
-            : _buildDesktopSummaryCards(summary),
+            ? _buildMobileSummaryCards(summary, languageCode)
+            : _buildDesktopSummaryCards(summary, languageCode),
         const SizedBox(height: 20),
 
         // Additional Details
-        _buildTransactionBreakdown(summary),
+        _buildTransactionBreakdown(summary, languageCode),
         const SizedBox(height: 20),
 
         // Payment Methods (if available)
         if (summary.payments.isNotEmpty)
-          _buildPaymentMethodsCard(summary.payments),
+          _buildPaymentMethodsCard(summary.payments, languageCode),
       ],
     );
   }
 
-  Widget _buildMobileSummaryCards(DailySalesSummary summary) {
+  Widget _buildMobileSummaryCards(
+    DailySalesSummary summary,
+    String languageCode,
+  ) {
     return Column(
       children: [
         _SummaryCard(
-          title: 'Total Revenue',
+          title: Translations.get('total_revenue', languageCode),
           value:
               'LAK ${NumberFormat('#,##0').format(summary.sales.totalSales)}',
           icon: Icons.monetization_on,
@@ -193,7 +206,7 @@ class _DailySalesReportScreenState
           children: [
             Expanded(
               child: _SummaryCard(
-                title: 'Orders',
+                title: Translations.get('orders', languageCode),
                 value: '${summary.sales.totalOrders}',
                 icon: Icons.receipt,
                 color: Colors.blue,
@@ -202,7 +215,7 @@ class _DailySalesReportScreenState
             const SizedBox(width: 12),
             Expanded(
               child: _SummaryCard(
-                title: 'Avg Order',
+                title: Translations.get('avg_order', languageCode),
                 value:
                     'LAK ${NumberFormat('#,##0').format(summary.sales.averageOrderValue)}',
                 icon: Icons.trending_up,
@@ -215,12 +228,15 @@ class _DailySalesReportScreenState
     );
   }
 
-  Widget _buildDesktopSummaryCards(DailySalesSummary summary) {
+  Widget _buildDesktopSummaryCards(
+    DailySalesSummary summary,
+    String languageCode,
+  ) {
     return Row(
       children: [
         Expanded(
           child: _SummaryCard(
-            title: 'Total Revenue',
+            title: Translations.get('total_revenue', languageCode),
             value:
                 'LAK ${NumberFormat('#,##0').format(summary.sales.totalSales)}',
             icon: Icons.monetization_on,
@@ -230,7 +246,7 @@ class _DailySalesReportScreenState
         const SizedBox(width: 16),
         Expanded(
           child: _SummaryCard(
-            title: 'Total Orders',
+            title: Translations.get('total_orders', languageCode),
             value: '${summary.sales.totalOrders}',
             icon: Icons.receipt,
             color: Colors.blue,
@@ -239,7 +255,7 @@ class _DailySalesReportScreenState
         const SizedBox(width: 16),
         Expanded(
           child: _SummaryCard(
-            title: 'Average Order',
+            title: Translations.get('average_order', languageCode),
             value:
                 'LAK ${NumberFormat('#,##0').format(summary.sales.averageOrderValue)}',
             icon: Icons.trending_up,
@@ -250,7 +266,10 @@ class _DailySalesReportScreenState
     );
   }
 
-  Widget _buildTransactionBreakdown(DailySalesSummary summary) {
+  Widget _buildTransactionBreakdown(
+    DailySalesSummary summary,
+    String languageCode,
+  ) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -260,25 +279,25 @@ class _DailySalesReportScreenState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Transaction Breakdown',
+              Translations.get('transaction_breakdown', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             _buildBreakdownRow(
-              'Total Orders',
+              Translations.get('total_orders', languageCode),
               '${summary.sales.totalOrders}',
               Colors.blue,
             ),
             _buildBreakdownRow(
-              'Total Sales',
+              Translations.get('total_sales', languageCode),
               'LAK ${NumberFormat('#,##0').format(summary.sales.totalSales)}',
               Colors.green,
             ),
             const Divider(height: 24),
             _buildBreakdownRow(
-              'Tax Amount',
+              Translations.get('tax_amount', languageCode),
               'LAK ${NumberFormat('#,##0').format(summary.sales.totalTax)}',
               Colors.orange,
             ),
@@ -307,7 +326,10 @@ class _DailySalesReportScreenState
     );
   }
 
-  Widget _buildPaymentMethodsCard(Map<String, double> paymentMethods) {
+  Widget _buildPaymentMethodsCard(
+    Map<String, double> paymentMethods,
+    String languageCode,
+  ) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -317,7 +339,7 @@ class _DailySalesReportScreenState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Payment Methods',
+              Translations.get('payment_methods', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -359,7 +381,7 @@ class _DailySalesReportScreenState
     );
   }
 
-  Widget _buildErrorCard(String error) {
+  Widget _buildErrorCard(String error, String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -371,7 +393,7 @@ class _DailySalesReportScreenState
             Icon(Icons.error_outline, size: 48, color: Colors.red),
             const SizedBox(height: 16),
             Text(
-              'Error Loading Report',
+              Translations.get('error_loading_report', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -387,7 +409,7 @@ class _DailySalesReportScreenState
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => ref.read(reportsProvider.notifier).refresh(),
-              child: const Text('Retry'),
+              child: Text(Translations.get('retry', languageCode)),
             ),
           ],
         ),
@@ -395,7 +417,7 @@ class _DailySalesReportScreenState
     );
   }
 
-  Widget _buildNoDataCard() {
+  Widget _buildNoDataCard(String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -411,14 +433,14 @@ class _DailySalesReportScreenState
             ),
             const SizedBox(height: 16),
             Text(
-              'No Data Available',
+              Translations.get('no_data_available', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'No sales data found for ${displayFormat.format(selectedDate)}',
+              '${Translations.get('no_sales_data_found_for', languageCode)} ${displayFormat.format(selectedDate)}',
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),

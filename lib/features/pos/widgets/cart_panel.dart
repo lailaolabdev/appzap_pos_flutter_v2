@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/models/cart.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../core/constants/translations.dart';
+import '../../../core/providers/localization_provider.dart';
+import '../../../shared/widgets/app_text.dart';
 
 /// Cart panel for displaying current order items
-class CartPanel extends StatelessWidget {
+class CartPanel extends ConsumerWidget {
   final Cart cart;
   final void Function(String productId, int quantity) onUpdateQuantity;
   final void Function(String productId) onRemoveItem;
@@ -24,7 +28,9 @@ class CartPanel extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final languageCode = ref.watch(localizationProvider).languageCode;
+
     return Container(
       color: Colors.white,
       child: Column(
@@ -34,9 +40,7 @@ class CartPanel extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
-              border: Border(
-                bottom: BorderSide(color: AppTheme.neutral200),
-              ),
+              border: Border(bottom: BorderSide(color: AppTheme.neutral200)),
             ),
             child: Row(
               children: [
@@ -53,8 +57,8 @@ class CartPanel extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  'Current Order',
+                AppText(
+                  Translations.get('current_order', languageCode),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -64,7 +68,7 @@ class CartPanel extends StatelessWidget {
                   TextButton.icon(
                     onPressed: onApplyLoyalty,
                     icon: const Icon(Icons.card_giftcard, size: 18),
-                    label: const Text('Loyalty'),
+                    label: AppText(Translations.get('loyalty', languageCode)),
                     style: TextButton.styleFrom(
                       foregroundColor: AppTheme.primaryOrange,
                     ),
@@ -72,9 +76,9 @@ class CartPanel extends StatelessWidget {
                 if (cart.isNotEmpty)
                   TextButton(
                     onPressed: onClearCart,
-                    child: Text(
-                      'Clear',
-                      style: TextStyle(color: AppTheme.error),
+                    child: AppText(
+                      Translations.get('clear', languageCode),
+                      style: const TextStyle(color: AppTheme.error),
                     ),
                   ),
               ],
@@ -83,31 +87,33 @@ class CartPanel extends StatelessWidget {
 
           // Cart Items
           Expanded(
-            child: cart.isEmpty
-                ? _buildEmptyCart(context)
-                : ListView.separated(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: cart.items.length,
-                    separatorBuilder: (_, __) => Divider(
-                      height: 1,
-                      color: AppTheme.neutral100,
+            child:
+                cart.isEmpty
+                    ? _buildEmptyCart(context, ref, languageCode)
+                    : ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: cart.items.length,
+                      separatorBuilder:
+                          (_, __) =>
+                              Divider(height: 1, color: AppTheme.neutral100),
+                      itemBuilder: (context, index) {
+                        final item = cart.items[index];
+                        return _CartItemTile(
+                          item: item,
+                          onIncrement:
+                              () => onUpdateQuantity(
+                                item.productId,
+                                item.quantity + 1,
+                              ),
+                          onDecrement:
+                              () => onUpdateQuantity(
+                                item.productId,
+                                item.quantity - 1,
+                              ),
+                          onRemove: () => onRemoveItem(item.productId),
+                        );
+                      },
                     ),
-                    itemBuilder: (context, index) {
-                      final item = cart.items[index];
-                      return _CartItemTile(
-                        item: item,
-                        onIncrement: () => onUpdateQuantity(
-                          item.productId,
-                          item.quantity + 1,
-                        ),
-                        onDecrement: () => onUpdateQuantity(
-                          item.productId,
-                          item.quantity - 1,
-                        ),
-                        onRemove: () => onRemoveItem(item.productId),
-                      );
-                    },
-                  ),
           ),
 
           // Summary
@@ -116,15 +122,13 @@ class CartPanel extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppTheme.neutral50,
-                border: Border(
-                  top: BorderSide(color: AppTheme.neutral200),
-                ),
+                border: Border(top: BorderSide(color: AppTheme.neutral200)),
               ),
               child: Column(
                 children: [
                   // Subtotal
                   _SummaryRow(
-                    label: 'Subtotal',
+                    translationKey: 'subtotal',
                     value: CurrencyFormatter.formatLAKWithSymbol(cart.subtotal),
                   ),
 
@@ -132,8 +136,9 @@ class CartPanel extends StatelessWidget {
                   if (cart.discountAmount > 0) ...[
                     const SizedBox(height: 8),
                     _SummaryRow(
-                      label: 'Discount',
-                      value: '-${CurrencyFormatter.formatLAKWithSymbol(cart.discountAmount)}',
+                      translationKey: 'discount',
+                      value:
+                          '-${CurrencyFormatter.formatLAKWithSymbol(cart.discountAmount)}',
                       valueColor: AppTheme.success,
                     ),
                   ],
@@ -142,8 +147,10 @@ class CartPanel extends StatelessWidget {
                   if (cart.totalTax > 0) ...[
                     const SizedBox(height: 8),
                     _SummaryRow(
-                      label: 'Tax',
-                      value: CurrencyFormatter.formatLAKWithSymbol(cart.totalTax),
+                      translationKey: 'tax',
+                      value: CurrencyFormatter.formatLAKWithSymbol(
+                        cart.totalTax,
+                      ),
                     ),
                   ],
 
@@ -155,8 +162,8 @@ class CartPanel extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Total',
+                      AppText(
+                        Translations.get('total', languageCode),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -183,9 +190,20 @@ class CartPanel extends StatelessWidget {
                 child: ElevatedButton.icon(
                   onPressed: onCheckout,
                   icon: const Icon(Icons.payment),
-                  label: Text(
-                    'Checkout (${cart.totalItemsCount} items)',
-                    style: const TextStyle(fontSize: 16),
+                  label: Consumer(
+                    builder: (context, ref, _) {
+                      final languageCode =
+                          ref.watch(localizationProvider).languageCode;
+                      final checkout = Translations.get(
+                        'checkout',
+                        languageCode,
+                      );
+                      final items = Translations.get('items', languageCode);
+                      return Text(
+                        '$checkout (${cart.totalItemsCount} $items)',
+                        style: const TextStyle(fontSize: 16),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -196,7 +214,11 @@ class CartPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptyCart(BuildContext context) {
+  Widget _buildEmptyCart(
+    BuildContext context,
+    WidgetRef ref,
+    String languageCode,
+  ) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -214,18 +236,18 @@ class CartPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          Text(
-            'Cart is empty',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: AppTheme.neutral500,
-            ),
+          AppText(
+            Translations.get('cart_empty', languageCode),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: AppTheme.neutral500),
           ),
           const SizedBox(height: 8),
-          Text(
-            'Tap products to add them here',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.neutral400,
-            ),
+          AppText(
+            Translations.get('tap_products_to_add', languageCode),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral400),
           ),
         ],
       ),
@@ -277,11 +299,18 @@ class _CartItemTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    '${CurrencyFormatter.formatLAK(item.unitPrice)} each',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.neutral500,
-                    ),
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final languageCode =
+                          ref.watch(localizationProvider).languageCode;
+                      final each = Translations.get('each', languageCode);
+                      return Text(
+                        '${CurrencyFormatter.formatLAK(item.unitPrice)} $each',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.neutral500,
+                        ),
+                      );
+                    },
                   ),
                   if (item.notes != null && item.notes!.isNotEmpty) ...[
                     const SizedBox(height: 4),
@@ -305,24 +334,17 @@ class _CartItemTile extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _QuantityButton(
-                      icon: Icons.remove,
-                      onPressed: onDecrement,
-                    ),
+                    _QuantityButton(icon: Icons.remove, onPressed: onDecrement),
                     Container(
                       width: 40,
                       alignment: Alignment.center,
                       child: Text(
                         item.quantity.toString(),
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                     ),
-                    _QuantityButton(
-                      icon: Icons.add,
-                      onPressed: onIncrement,
-                    ),
+                    _QuantityButton(icon: Icons.add, onPressed: onIncrement),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -346,10 +368,7 @@ class _QuantityButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onPressed;
 
-  const _QuantityButton({
-    required this.icon,
-    required this.onPressed,
-  });
+  const _QuantityButton({required this.icon, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -371,12 +390,12 @@ class _QuantityButton extends StatelessWidget {
 }
 
 class _SummaryRow extends StatelessWidget {
-  final String label;
+  final String translationKey;
   final String value;
   final Color? valueColor;
 
   const _SummaryRow({
-    required this.label,
+    required this.translationKey,
     required this.value,
     this.valueColor,
   });
@@ -386,11 +405,11 @@ class _SummaryRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppTheme.neutral600,
-          ),
+        AppText(
+          translationKey,
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),
         ),
         Text(
           value,
@@ -403,4 +422,3 @@ class _SummaryRow extends StatelessWidget {
     );
   }
 }
-

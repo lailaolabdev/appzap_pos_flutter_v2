@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,7 +12,7 @@ import '../../../shared/widgets/error_banner.dart';
 import '../providers/auth_provider.dart';
 
 /// Self-service registration screen for new users
-/// 
+///
 /// This screen is shown after OTP verification when the user is not registered.
 /// Allows users to create their own account with just 3 fields!
 class RegistrationScreen extends ConsumerStatefulWidget {
@@ -69,7 +71,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     }
 
     try {
-      await ref.read(authProvider.notifier).registerWithPhone(
+      await ref
+          .read(authProvider.notifier)
+          .registerWithPhone(
             registrationToken: widget.registrationToken,
             name: _nameController.text.trim(),
             restaurantName: _restaurantController.text.trim(),
@@ -111,10 +115,12 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final languageCode = ref.read(localizationProvider).languageCode;
+
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackground,
       appBar: AppBar(
-        title: const Text('Create Your Account'),
+        title: Text(Translations.get('create_your_account', languageCode)),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -127,19 +133,23 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               children: [
                 // Welcome message
                 Text(
-                  'Almost there!',
+                  Translations.get('almost_there', languageCode),
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.check_circle, color: AppTheme.success, size: 20),
+                    const Icon(
+                      Icons.check_circle,
+                      color: AppTheme.success,
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Phone verified: ${widget.phone}',
+                        Translations.get('phone_verified', languageCode),
                         style: const TextStyle(
                           color: AppTheme.success,
                           fontWeight: FontWeight.w500,
@@ -150,29 +160,41 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Just 3 quick details and you\'re ready to start selling!',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.neutral500,
-                      ),
+                  Translations.get(
+                    'just_3_quick_details_and_you_re_ready_to_start_selling',
+                    languageCode,
+                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral500),
                 ),
                 const SizedBox(height: 32),
 
                 // Name input
                 TextFormField(
                   controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Your Name',
+                  decoration: InputDecoration(
+                    labelText: Translations.get('your_name', languageCode),
                     hintText: 'John Doe',
                     prefixIcon: Icon(Icons.person_outline),
-                    helperText: 'This will be your display name',
+                    helperText: Translations.get(
+                      'this_will_be_your_display_name',
+                      languageCode,
+                    ),
                   ),
                   textCapitalization: TextCapitalization.words,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your name';
+                      return Translations.get(
+                        'please_enter_your_name',
+                        languageCode,
+                      );
                     }
                     if (value.trim().length < 2) {
-                      return 'Name must be at least 2 characters';
+                      return Translations.get(
+                        'name_must_be_at_least_2_characters',
+                        languageCode,
+                      );
                     }
                     return null;
                   },
@@ -184,19 +206,31 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 // Restaurant name input
                 TextFormField(
                   controller: _restaurantController,
-                  decoration: const InputDecoration(
-                    labelText: 'Restaurant/Shop Name',
+                  decoration: InputDecoration(
+                    labelText: Translations.get(
+                      'restaurant_shop_name',
+                      languageCode,
+                    ),
                     hintText: 'John\'s Coffee Shop',
                     prefixIcon: Icon(Icons.store_outlined),
-                    helperText: 'Your business name',
+                    helperText: Translations.get(
+                      'your_business_name',
+                      languageCode,
+                    ),
                   ),
                   textCapitalization: TextCapitalization.words,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your restaurant name';
+                      return Translations.get(
+                        'please_enter_your_restaurant_name',
+                        languageCode,
+                      );
                     }
                     if (value.trim().length < 2) {
-                      return 'Restaurant name must be at least 2 characters';
+                      return Translations.get(
+                        'restaurant_name_must_be_at_least_2_characters',
+                        languageCode,
+                      );
                     }
                     return null;
                   },
@@ -223,32 +257,47 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'Setup PIN for Faster Logins',
-                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                      color: AppTheme.primaryOrange,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                Translations.get(
+                                  'setup_pin_for_faster_logins',
+                                  languageCode,
+                                ),
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.titleSmall?.copyWith(
+                                  color: AppTheme.primaryOrange,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Optional: Set up a 4-digit PIN for ultra-fast daily logins (2 seconds!)',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppTheme.neutral600,
-                              ),
+                          Translations.get(
+                            'optional_set_up_a_4_digit_pin_for_ultra_fast_daily_logins_2_seconds',
+                            languageCode,
+                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppTheme.neutral600),
                         ),
                         const SizedBox(height: 12),
                         CheckboxListTile(
                           value: _setupPIN,
-                          onChanged: _isLoading
-                              ? null
-                              : (value) {
-                                  setState(() => _setupPIN = value ?? false);
-                                },
-                          title: const Text('Yes, setup PIN now'),
-                          subtitle: const Text('You can always skip and set it up later'),
+                          onChanged:
+                              _isLoading
+                                  ? null
+                                  : (value) {
+                                    setState(() => _setupPIN = value ?? false);
+                                  },
+                          title: Text(
+                            Translations.get('yes_setup_pin_now', languageCode),
+                          ),
+                          subtitle: Text(
+                            Translations.get(
+                              'you_can_always_skip_and_set_it_up_later',
+                              languageCode,
+                            ),
+                          ),
                           contentPadding: EdgeInsets.zero,
                           dense: true,
                         ),
@@ -261,11 +310,14 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _pinController,
-                    decoration: const InputDecoration(
-                      labelText: '4-Digit PIN',
+                    decoration: InputDecoration(
+                      labelText: Translations.get('4_digit_pin', languageCode),
                       hintText: '****',
                       prefixIcon: Icon(Icons.lock_outline),
-                      helperText: 'Choose a memorable 4-digit PIN',
+                      helperText: Translations.get(
+                        'choose_a_memorable_4_digit_pin',
+                        languageCode,
+                      ),
                     ),
                     obscureText: true,
                     keyboardType: TextInputType.number,
@@ -277,10 +329,16 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                     validator: (value) {
                       if (_setupPIN) {
                         if (value == null || value.isEmpty) {
-                          return 'Please enter a PIN';
+                          return Translations.get(
+                            'please_enter_a_pin',
+                            languageCode,
+                          );
                         }
                         if (value.length != 4) {
-                          return 'PIN must be exactly 4 digits';
+                          return Translations.get(
+                            'pin_must_be_exactly_4_digits',
+                            languageCode,
+                          );
                         }
                       }
                       return null;
@@ -306,23 +364,29 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   height: 56,
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _completeRegistration,
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
+                    child:
+                        _isLoading
+                            ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white,
+                              ),
+                            )
+                            : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.rocket_launch, size: 20),
+                                SizedBox(width: 8),
+                                Text(
+                                  Translations.get(
+                                    'create_account_start_selling',
+                                    languageCode,
+                                  ),
+                                ),
+                              ],
                             ),
-                          )
-                        : const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.rocket_launch, size: 20),
-                              SizedBox(width: 8),
-                              Text('Create Account & Start Selling'),
-                            ],
-                          ),
                   ),
                 ),
 
@@ -347,11 +411,13 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            'What you get:',
-                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                  color: AppTheme.neutral700,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                            Translations.get('what_you_get', languageCode),
+                            style: Theme.of(
+                              context,
+                            ).textTheme.labelMedium?.copyWith(
+                              color: AppTheme.neutral700,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
@@ -368,10 +434,10 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
                 // Terms text
                 Text(
-                  'By creating an account, you agree to our Terms of Service and Privacy Policy.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.neutral400,
-                      ),
+                  Translations.get('by_creating_an_account', languageCode),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppTheme.neutral400),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -387,21 +453,16 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       padding: const EdgeInsets.only(top: 4),
       child: Row(
         children: [
-          const Icon(
-            Icons.check_circle,
-            size: 16,
-            color: AppTheme.success,
-          ),
+          const Icon(Icons.check_circle, size: 16, color: AppTheme.success),
           const SizedBox(width: 8),
           Text(
             text,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.neutral600,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppTheme.neutral600),
           ),
         ],
       ),
     );
   }
 }
-

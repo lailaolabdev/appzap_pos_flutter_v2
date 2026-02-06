@@ -8,6 +8,8 @@ import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/app_sidebar.dart';
 import '../../../shared/widgets/error_banner.dart';
+import '../../../core/constants/translations.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../providers/menu_provider.dart';
 import '../widgets/category_form_dialog.dart';
 import '../widgets/menu_item_form_dialog.dart';
@@ -66,23 +68,31 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
   }
 
   Future<void> _deleteItem(String itemId, String itemName) async {
+    final languageCode = ref.read(localizationProvider).languageCode;
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Delete Menu Item'),
-            content: Text('Are you sure you want to delete "$itemName"?'),
+            title: Text(
+              Translations.get('delete_menu_item_title', languageCode),
+            ),
+            content: Text(
+              Translations.get(
+                'delete_menu_item_confirmation',
+                languageCode,
+              ).replaceAll('{name}', itemName),
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
+                child: Text(Translations.get('cancel', languageCode)),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.error,
                 ),
-                child: const Text('Delete'),
+                child: Text(Translations.get('delete', languageCode)),
               ),
             ],
           ),
@@ -96,7 +106,9 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              success ? 'Item deleted successfully' : 'Failed to delete item',
+              success
+                  ? Translations.get('item_deleted_successfully', languageCode)
+                  : Translations.get('failed_to_delete_item', languageCode),
             ),
             backgroundColor: success ? AppTheme.success : AppTheme.error,
           ),
@@ -106,23 +118,31 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
   }
 
   Future<void> _deleteCategory(String categoryId, String categoryName) async {
+    final languageCode = ref.read(localizationProvider).languageCode;
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Delete Category'),
-            content: Text('Are you sure you want to delete "$categoryName"?'),
+            title: Text(
+              Translations.get('delete_category_title', languageCode),
+            ),
+            content: Text(
+              Translations.get(
+                'delete_category_confirmation',
+                languageCode,
+              ).replaceAll('{name}', categoryName),
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
+                child: Text(Translations.get('cancel', languageCode)),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.error,
                 ),
-                child: const Text('Delete'),
+                child: Text(Translations.get('delete', languageCode)),
               ),
             ],
           ),
@@ -137,8 +157,11 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
           SnackBar(
             content: Text(
               success
-                  ? 'Category deleted successfully'
-                  : 'Failed to delete category',
+                  ? Translations.get(
+                    'category_deleted_successfully',
+                    languageCode,
+                  )
+                  : Translations.get('failed_to_delete_category', languageCode),
             ),
             backgroundColor: success ? AppTheme.success : AppTheme.error,
           ),
@@ -150,6 +173,8 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
   @override
   Widget build(BuildContext context) {
     final menuState = ref.watch(menuProvider);
+    final localization = ref.watch(localizationProvider);
+    final languageCode = localization.languageCode;
     final isMobile = Responsive.isMobile(context);
 
     return AppShell(
@@ -168,18 +193,24 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
                         ),
                   )
                   : null,
-          title: const Text('Menu Management'),
+          title: Text(Translations.get('menu_management', languageCode)),
           bottom: TabBar(
             controller: _tabController,
-            tabs: const [
-              Tab(text: 'Menu Items', icon: Icon(Icons.restaurant_menu)),
-              Tab(text: 'Categories', icon: Icon(Icons.category)),
+            tabs: [
+              Tab(
+                text: Translations.get('menu_items_tab', languageCode),
+                icon: const Icon(Icons.restaurant_menu),
+              ),
+              Tab(
+                text: Translations.get('categories_tab', languageCode),
+                icon: const Icon(Icons.category),
+              ),
             ],
           ),
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh',
+              tooltip: Translations.get('refresh', languageCode),
               onPressed: () {
                 ref.read(menuProvider.notifier).refresh();
                 ref.read(menuProvider.notifier).filterByCategory(null);
@@ -194,8 +225,8 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildMenuItemsTab(menuState, isMobile),
-                  _buildCategoriesTab(menuState, isMobile),
+                  _buildMenuItemsTab(menuState, isMobile, languageCode),
+                  _buildCategoriesTab(menuState, isMobile, languageCode),
                 ],
               ),
             ),
@@ -216,7 +247,11 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
     );
   }
 
-  Widget _buildMenuItemsTab(MenuState menuState, bool isMobile) {
+  Widget _buildMenuItemsTab(
+    MenuState menuState,
+    bool isMobile,
+    String languageCode,
+  ) {
     if (menuState.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -224,9 +259,9 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
     if (menuState.items.isEmpty) {
       return _buildEmptyState(
         icon: Icons.restaurant_menu,
-        title: 'No menu items yet',
-        subtitle: 'Add your first product to start selling',
-        actionLabel: 'Add Item',
+        title: Translations.get('no_menu_items_yet', languageCode),
+        subtitle: Translations.get('add_first_product_to_sell', languageCode),
+        actionLabel: Translations.get('add_item', languageCode),
         onAction: _showAddItemDialog,
       );
     }
@@ -240,7 +275,10 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
           child: TextField(
             controller: _searchController,
             decoration: InputDecoration(
-              hintText: 'Search items...',
+              hintText: Translations.get(
+                'search_items_placeholder',
+                languageCode,
+              ),
               prefixIcon: const Icon(Icons.search),
               suffixIcon:
                   _searchController.text.isNotEmpty
@@ -267,8 +305,8 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
           SizedBox(
             height: 60,
             child: Scrollbar(
-              thumbVisibility: true, // ✅ Always show scrollbar
-              thickness: 4, // ✅ Make it more visible
+              thumbVisibility: true, // Always show scrollbar
+              thickness: 4, // Make it more visible
               radius: const Radius.circular(2),
               child: ListView(
                 scrollDirection: Axis.horizontal,
@@ -281,10 +319,10 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
                         ref.read(menuProvider.notifier).filterByCategory(null);
                       },
                       child: FilterChip(
-                        label: const Text('All'),
+                        label: Text(Translations.get('all', languageCode)),
                         selected: menuState.categoryFilter == null,
                         onSelected:
-                            null, // ✅ Disable built-in handler, use GestureDetector
+                            null, // Disable built-in handler, use GestureDetector
                         backgroundColor: AppTheme.neutral100,
                         selectedColor: AppTheme.primaryOrange,
                         labelStyle: TextStyle(
@@ -315,7 +353,7 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
                           label: Text(category.name),
                           selected: isSelected,
                           onSelected:
-                              null, // ✅ Disable built-in handler, use GestureDetector
+                              null, // Disable built-in handler, use GestureDetector
                           backgroundColor: AppTheme.neutral100,
                           selectedColor: AppTheme.primaryOrange,
                           labelStyle: TextStyle(
@@ -340,7 +378,7 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
             itemCount: menuState.items.length,
             itemBuilder: (context, index) {
               final item = menuState.items[index];
-              return _buildMenuItemCard(item, isMobile);
+              return _buildMenuItemCard(item, isMobile, languageCode);
             },
           ),
         ),
@@ -348,7 +386,11 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
     );
   }
 
-  Widget _buildCategoriesTab(MenuState menuState, bool isMobile) {
+  Widget _buildCategoriesTab(
+    MenuState menuState,
+    bool isMobile,
+    String languageCode,
+  ) {
     if (menuState.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -356,9 +398,12 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
     if (menuState.categories.isEmpty) {
       return _buildEmptyState(
         icon: Icons.category,
-        title: 'No categories yet',
-        subtitle: 'Create categories to organize your menu items',
-        actionLabel: 'Add Category',
+        title: Translations.get('no_categories_yet', languageCode),
+        subtitle: Translations.get(
+          'create_categories_to_organize',
+          languageCode,
+        ),
+        actionLabel: Translations.get('add_category', languageCode),
         onAction: _showAddCategoryDialog,
       );
     }
@@ -368,12 +413,12 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
       itemCount: menuState.categories.length,
       itemBuilder: (context, index) {
         final category = menuState.categories[index];
-        return _buildCategoryCard(category);
+        return _buildCategoryCard(category, languageCode);
       },
     );
   }
 
-  Widget _buildMenuItemCard(dynamic item, bool isMobile) {
+  Widget _buildMenuItemCard(dynamic item, bool isMobile, String languageCode) {
     Category? category;
     try {
       category = ref
@@ -383,7 +428,8 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
     } catch (e) {
       category = null;
     }
-    final categoryName = category?.name ?? 'No Category';
+    final categoryName =
+        category?.name ?? Translations.get('no_category', languageCode);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -418,7 +464,10 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
               ),
             ),
             if (!item.isActive)
-              const Text('Inactive', style: TextStyle(color: AppTheme.error)),
+              Text(
+                Translations.get('inactive', languageCode),
+                style: const TextStyle(color: AppTheme.error),
+              ),
           ],
         ),
         trailing: Row(
@@ -438,7 +487,7 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
     );
   }
 
-  Widget _buildCategoryCard(dynamic category) {
+  Widget _buildCategoryCard(dynamic category, String languageCode) {
     final itemCount =
         ref
             .read(menuProvider)
@@ -471,9 +520,15 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
           children: [
             if (category.description != null) Text(category.description!),
             const SizedBox(height: 4),
-            Text('$itemCount items'),
+            Text(
+              '$itemCount ${Translations.get('items', languageCode)}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
             if (!category.isActive)
-              const Text('Inactive', style: TextStyle(color: AppTheme.error)),
+              Text(
+                Translations.get('inactive', languageCode),
+                style: const TextStyle(color: AppTheme.error),
+              ),
           ],
         ),
         trailing: Row(

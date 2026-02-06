@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -67,7 +69,7 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
   @override
   Widget build(BuildContext context) {
     final total = widget.totalAmount;
-
+    final localization = ref.watch(localizationProvider);
     // ✅ Watch payment provider to keep it alive during async operations
     ref.watch(paymentProvider);
 
@@ -93,8 +95,8 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
                       Navigator.pop(context); // Returns null
                     },
           ),
-          title: const Text(
-            'Cash Payment',
+          title: Text(
+            Translations.get('cash_payment', localization.languageCode),
             style: TextStyle(
               color: AppTheme.neutral900,
               fontWeight: FontWeight.bold,
@@ -233,7 +235,10 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Amount to Pay',
+                              Translations.get(
+                                'amount_to_pay',
+                                localization.languageCode,
+                              ),
                               style: Theme.of(
                                 context,
                               ).textTheme.bodyLarge?.copyWith(
@@ -292,7 +297,10 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Change',
+                                  Translations.get(
+                                    'change',
+                                    localization.languageCode,
+                                  ),
                                   style: Theme.of(
                                     context,
                                   ).textTheme.bodyLarge?.copyWith(
@@ -307,7 +315,10 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
                                   ? CurrencyFormatter.formatLAKWithSymbol(
                                     _change,
                                   )
-                                  : 'Insufficient',
+                                  : Translations.get(
+                                    'insufficient',
+                                    localization.languageCode,
+                                  ),
                               style: Theme.of(
                                 context,
                               ).textTheme.titleLarge?.copyWith(
@@ -363,7 +374,10 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
                           Expanded(
                             child: _QuickAmountButton(
                               amount: total,
-                              label: 'Exact',
+                              label: Translations.get(
+                                'exact',
+                                localization.languageCode,
+                              ),
                               icon: Icons.check_circle_outline,
                               onTap: () => _setQuickAmount(total),
                             ),
@@ -424,8 +438,8 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text(
-                          'Cancel',
+                        child: Text(
+                          Translations.get('cancel', localization.languageCode),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -485,12 +499,17 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
                                         ScaffoldMessenger.of(
                                           context,
                                         ).showSnackBar(
-                                          const SnackBar(
+                                          SnackBar(
                                             content: Text(
-                                              'Print failed, but payment will continue',
+                                              Translations.get(
+                                                'print_failed_but_payment_will_continue',
+                                                localization.languageCode,
+                                              ),
                                             ),
                                             backgroundColor: AppTheme.warning,
-                                            duration: Duration(seconds: 2),
+                                            duration: const Duration(
+                                              seconds: 2,
+                                            ),
                                           ),
                                         );
                                       }
@@ -574,7 +593,7 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
                         ),
                         child:
                             _isProcessing
-                                ? const Row(
+                                ? Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     SizedBox(
@@ -590,7 +609,10 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
                                     ),
                                     SizedBox(width: 12),
                                     Text(
-                                      'Processing...',
+                                      Translations.get(
+                                        'processing',
+                                        localization.languageCode,
+                                      ),
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,
@@ -598,13 +620,16 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
                                     ),
                                   ],
                                 )
-                                : const Row(
+                                : Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Icon(Icons.check_circle, size: 20),
                                     SizedBox(width: 8),
                                     Text(
-                                      'Complete Payment',
+                                      Translations.get(
+                                        'complete_payment',
+                                        localization.languageCode,
+                                      ),
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,

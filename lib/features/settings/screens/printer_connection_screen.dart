@@ -706,7 +706,10 @@ class _PrinterConnectionScreenState
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Not a Sunmi Device',
+                      Translations.get(
+                        'sunmi_not_device_title',
+                        localization.languageCode,
+                      ),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -715,7 +718,10 @@ class _PrinterConnectionScreenState
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'This device does not appear to be a Sunmi device with a built-in printer. Please use Bluetooth or WiFi connection instead.',
+                      Translations.get(
+                        'sunmi_not_device_message',
+                        localization.languageCode,
+                      ),
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppTheme.neutral700),
                     ),
@@ -725,12 +731,18 @@ class _PrinterConnectionScreenState
             )
           else ...[
             Text(
-              'Sunmi Built-in Printer',
+              Translations.get(
+                'sunmi_built_in_printer',
+                localization.languageCode,
+              ),
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'Connect to the Sunmi device\'s built-in thermal printer.',
+              Translations.get(
+                'sunmi_connect_description',
+                localization.languageCode,
+              ),
               style: TextStyle(color: AppTheme.neutral600),
             ),
             const SizedBox(height: 24),
@@ -742,7 +754,10 @@ class _PrinterConnectionScreenState
                     Icon(Icons.print, size: 80, color: AppTheme.primaryOrange),
                     const SizedBox(height: 16),
                     Text(
-                      'Sunmi Device Detected',
+                      Translations.get(
+                        'sunmi_device_detected',
+                        localization.languageCode,
+                      ),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -750,7 +765,10 @@ class _PrinterConnectionScreenState
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'This device has a built-in printer ready to use.',
+                      Translations.get(
+                        'sunmi_ready_message',
+                        localization.languageCode,
+                      ),
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppTheme.neutral600),
                     ),
@@ -772,8 +790,14 @@ class _PrinterConnectionScreenState
                                 : const Icon(Icons.link),
                         label: Text(
                           _isSunmiConnecting
-                              ? 'Connecting...'
-                              : 'Connect to Sunmi Printer',
+                              ? Translations.get(
+                                'connecting',
+                                localization.languageCode,
+                              )
+                              : Translations.get(
+                                'connect_sunmi_printer',
+                                localization.languageCode,
+                              ),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primaryOrange,
@@ -794,7 +818,15 @@ class _PrinterConnectionScreenState
                           ? AppTheme.success.withOpacity(0.2)
                           : AppTheme.warning.withOpacity(0.2),
                   label: Text(
-                    _isSunmiConnected ? 'Connected' : 'Not Ready',
+                    _isSunmiConnected
+                        ? Translations.get(
+                          'connected',
+                          localization.languageCode,
+                        )
+                        : Translations.get(
+                          'not_ready',
+                          localization.languageCode,
+                        ),
                     style: TextStyle(
                       color:
                           _isSunmiConnected
@@ -806,8 +838,14 @@ class _PrinterConnectionScreenState
                 const SizedBox(width: 8),
                 Text(
                   _isSunmiConnected
-                      ? 'Sunmi printer is ready'
-                      : 'Reconnect to enable printing',
+                      ? Translations.get(
+                        'sunmi_printer_ready',
+                        localization.languageCode,
+                      )
+                      : Translations.get(
+                        'reconnect_to_enable_printing',
+                        localization.languageCode,
+                      ),
                   style: TextStyle(color: AppTheme.neutral600),
                 ),
               ],
@@ -844,7 +882,12 @@ class _PrinterConnectionScreenState
                         )
                         : const Icon(Icons.receipt_long),
                 label: Text(
-                  _isSunmiTesting ? 'Printing...' : 'Print Test Receipt',
+                  _isSunmiTesting
+                      ? Translations.get('printing', localization.languageCode)
+                      : Translations.get(
+                        'print_test_receipt',
+                        localization.languageCode,
+                      ),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.success,
@@ -865,7 +908,10 @@ class _PrinterConnectionScreenState
                         const Icon(Icons.info_outline, color: AppTheme.info),
                         const SizedBox(width: 8),
                         Text(
-                          'Sunmi Printer Info',
+                          Translations.get(
+                            'sunmi_printer_info_title',
+                            localization.languageCode,
+                          ),
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             color: AppTheme.info,
@@ -875,22 +921,34 @@ class _PrinterConnectionScreenState
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      '• No additional setup required',
+                      Translations.get(
+                        'sunmi_info_no_setup',
+                        localization.languageCode,
+                      ),
                       style: const TextStyle(color: AppTheme.neutral700),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '• Built-in thermal printer',
+                      Translations.get(
+                        'sunmi_info_built_in',
+                        localization.languageCode,
+                      ),
                       style: const TextStyle(color: AppTheme.neutral700),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '• Faster printing performance',
+                      Translations.get(
+                        'sunmi_info_faster',
+                        localization.languageCode,
+                      ),
                       style: const TextStyle(color: AppTheme.neutral700),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '• Optimized for Sunmi devices',
+                      Translations.get(
+                        'sunmi_info_optimized',
+                        localization.languageCode,
+                      ),
                       style: const TextStyle(color: AppTheme.neutral700),
                     ),
                   ],

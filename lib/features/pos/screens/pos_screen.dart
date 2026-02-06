@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -43,6 +45,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
   }
 
   Future<void> _handleBarcodeScan(String barcode) async {
+    final languageCode = ref.read(localizationProvider).languageCode;
     // First try local search (synchronous)
     final localProduct = ref
         .read(productsProvider.notifier)
@@ -53,7 +56,10 @@ class _POSScreenState extends ConsumerState<POSScreen> {
       ref.read(cartProvider.notifier).addProduct(localProduct);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Added ${localProduct.name}'),
+          content: Text(
+            Translations.get('added_product', languageCode) +
+                ' ${localProduct.name}',
+          ),
           duration: const Duration(seconds: 1),
           backgroundColor: AppTheme.success,
         ),
@@ -63,7 +69,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
 
     // Not found locally - show loading and search via API
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+      SnackBar(
         content: Row(
           children: [
             SizedBox(
@@ -75,7 +81,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
               ),
             ),
             SizedBox(width: 12),
-            Text('Searching product...'),
+            Text(Translations.get('searching_product', languageCode)),
           ],
         ),
         duration: Duration(seconds: 2),
@@ -95,7 +101,10 @@ class _POSScreenState extends ConsumerState<POSScreen> {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Added ${apiProduct.name} (found online)'),
+            content: Text(
+              Translations.get('added_product', languageCode) +
+                  ' ${apiProduct.name} (found online)',
+            ),
             duration: const Duration(seconds: 20),
             backgroundColor: AppTheme.success,
           ),
@@ -105,7 +114,10 @@ class _POSScreenState extends ConsumerState<POSScreen> {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Product not found: $barcode'),
+            content: Text(
+              Translations.get('product_not_found', languageCode) +
+                  ': $barcode',
+            ),
             backgroundColor: AppTheme.error,
             duration: const Duration(seconds: 2),
           ),
@@ -117,7 +129,10 @@ class _POSScreenState extends ConsumerState<POSScreen> {
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Search failed: ${e.toString()}'),
+          content: Text(
+            Translations.get('search_failed', languageCode) +
+                ': ${e.toString()}',
+          ),
           backgroundColor: AppTheme.error,
         ),
       );
@@ -126,6 +141,8 @@ class _POSScreenState extends ConsumerState<POSScreen> {
 
   /// Open barcode scanner camera
   Future<void> _openBarcodeScanner() async {
+    final languageCode = ref.read(localizationProvider).languageCode;
+
     try {
       // Navigate to barcode scanner
       final String? scannedCode = await Navigator.push<String>(
@@ -150,7 +167,9 @@ class _POSScreenState extends ConsumerState<POSScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to open scanner: $e'),
+            content: Text(
+              '${Translations.get('failed_to_open_scanner', languageCode)}: $e',
+            ),
             backgroundColor: AppTheme.error,
           ),
         );
@@ -159,11 +178,13 @@ class _POSScreenState extends ConsumerState<POSScreen> {
   }
 
   Future<void> _handleCheckout() async {
+    final languageCode = ref.read(localizationProvider).languageCode;
+
     final cart = ref.read(cartProvider);
     if (cart.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cart is empty'),
+        SnackBar(
+          content: Text(Translations.get('cart_is_empty', languageCode)),
           backgroundColor: AppTheme.warning,
         ),
       );
@@ -191,8 +212,10 @@ class _POSScreenState extends ConsumerState<POSScreen> {
       // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Payment completed successfully!'),
+          SnackBar(
+            content: Text(
+              Translations.get('payment_completed_successfully', languageCode),
+            ),
             backgroundColor: AppTheme.success,
             duration: Duration(seconds: 2),
           ),
@@ -202,6 +225,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
   }
 
   Future<void> _handleApplyLoyalty() async {
+    final languageCode = ref.read(localizationProvider).languageCode;
     // Step 1: Look up customer
     final Customer? customer = await showDialog<Customer>(
       context: context,
@@ -245,7 +269,11 @@ class _POSScreenState extends ConsumerState<POSScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Applied $pointsRedeemed loyalty points (${CurrencyFormatter.format(discountAmount)} discount)',
+            '${Translations.get('loyalty_points_applied', languageCode)} $pointsRedeemed ' +
+                Translations.get('loyalty_points', languageCode) +
+                ' (${CurrencyFormatter.format(discountAmount)} ' +
+                Translations.get('discount', languageCode) +
+                ')',
           ),
           backgroundColor: AppTheme.success,
         ),
@@ -259,6 +287,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
     final cart = ref.watch(cartProvider);
     final cartItemCount = ref.watch(cartItemCountProvider);
     final isMobile = Responsive.isMobile(context);
+    final localization = ref.watch(localizationProvider);
 
     return AppShell(
       child: Scaffold(
@@ -285,7 +314,10 @@ class _POSScreenState extends ConsumerState<POSScreen> {
                             controller: _searchController,
                             onChanged: _handleSearch,
                             decoration: InputDecoration(
-                              hintText: 'Search products or scan barc...',
+                              hintText: Translations.get(
+                                'search_products_or_scan_barcode',
+                                localization.languageCode,
+                              ),
                               hintStyle: TextStyle(
                                 color: AppTheme.neutral400,
                                 fontSize: 14,
@@ -325,7 +357,10 @@ class _POSScreenState extends ConsumerState<POSScreen> {
                             color: AppTheme.primaryOrange,
                             size: 22,
                           ),
-                          tooltip: 'Scan Barcode',
+                          tooltip: Translations.get(
+                            'scan_barcode',
+                            localization.languageCode,
+                          ),
                           padding: EdgeInsets.zero,
                           onPressed: _openBarcodeScanner,
                         ),
@@ -338,7 +373,10 @@ class _POSScreenState extends ConsumerState<POSScreen> {
                   actions: [
                     IconButton(
                       icon: const Icon(Icons.qr_code_scanner),
-                      tooltip: 'Scan Barcode',
+                      tooltip: Translations.get(
+                        'scan_barcode',
+                        localization.languageCode,
+                      ),
                       onPressed: _openBarcodeScanner,
                     ),
                     const SizedBox(width: 8),
@@ -436,6 +474,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
 
   /// Bottom bar with SAVE and checkout buttons (mobile only - 2 buttons, single line)
   Widget _buildBottomBar(Cart cart, int cartItemCount) {
+    final localization = ref.watch(localizationProvider);
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -461,8 +500,13 @@ class _POSScreenState extends ConsumerState<POSScreen> {
                           : () {
                             // TODO: Implement save/on hold functionality
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Save feature coming soon'),
+                              SnackBar(
+                                content: Text(
+                                  Translations.get(
+                                    'save_feature_coming_soon',
+                                    localization.languageCode,
+                                  ),
+                                ),
                                 duration: Duration(seconds: 1),
                               ),
                             );
@@ -478,7 +522,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
                     ),
                   ),
                   child: Text(
-                    'SAVE',
+                    Translations.get('save', localization.languageCode),
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
@@ -525,6 +569,8 @@ class _POSScreenState extends ConsumerState<POSScreen> {
 
   /// Products grid (shared by mobile and tablet)
   Widget _buildProductsGrid(dynamic productsState) {
+    final localization = ref.watch(localizationProvider);
+
     if (productsState.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -542,7 +588,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
               onPressed: () {
                 ref.read(productsProvider.notifier).refresh();
               },
-              child: const Text('Retry'),
+              child: Text(Translations.get('retry', localization.languageCode)),
             ),
           ],
         ),
@@ -573,7 +619,10 @@ class _POSScreenState extends ConsumerState<POSScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Cannot add ${product.name} - Check stock availability',
+                  Translations.get(
+                    'cannot_add_product',
+                    localization.languageCode,
+                  ),
                   style: const TextStyle(color: Colors.white),
                 ),
                 backgroundColor: AppTheme.error,
@@ -586,7 +635,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Added ${product.name} to cart',
+                  '${Translations.get('add', localization.languageCode)}${product.name} ${Translations.get('to_cart', localization.languageCode)}',
                   style: const TextStyle(color: Colors.white),
                 ),
                 backgroundColor: AppTheme.success,
@@ -679,6 +728,8 @@ class _PaymentBottomSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final localization = ref.watch(localizationProvider);
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.7,
       decoration: const BoxDecoration(
@@ -704,7 +755,7 @@ class _PaymentBottomSheet extends ConsumerWidget {
             child: Row(
               children: [
                 Text(
-                  'Payment',
+                  Translations.get('payment', localization.languageCode),
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -736,7 +787,10 @@ class _PaymentBottomSheet extends ConsumerWidget {
                     child: Column(
                       children: [
                         Text(
-                          'Total Amount',
+                          Translations.get(
+                            'total_amount',
+                            localization.languageCode,
+                          ),
                           style: Theme.of(context).textTheme.bodyLarge,
                         ),
                         const SizedBox(height: 8),
@@ -757,7 +811,10 @@ class _PaymentBottomSheet extends ConsumerWidget {
 
                   // Payment methods
                   Text(
-                    'Select Payment Method',
+                    Translations.get(
+                      'select_payment_method',
+                      localization.languageCode,
+                    ),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 16),
@@ -765,7 +822,7 @@ class _PaymentBottomSheet extends ConsumerWidget {
                   // Cash
                   _PaymentMethodButton(
                     icon: Icons.payments_outlined,
-                    label: 'Cash',
+                    label: Translations.get('cash', localization.languageCode),
                     onTap: () async {
                       // ✅ Get cart notifier BEFORE closing bottom sheet
                       final cartNotifier = ref.read(cartProvider.notifier);
@@ -786,7 +843,10 @@ class _PaymentBottomSheet extends ConsumerWidget {
                   // PhayPay
                   _PaymentMethodButton(
                     icon: Icons.qr_code_2,
-                    label: 'PhayPay (QR)',
+                    label: Translations.get(
+                      'phaypay_qr',
+                      localization.languageCode,
+                    ),
                     subtitle: 'JDB, BCEL, LDB, IB',
                     onTap: () {
                       // ✅ Close bottom sheet (using modal's context)

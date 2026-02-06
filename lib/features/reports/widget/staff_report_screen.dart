@@ -4,9 +4,10 @@ import 'package:intl/intl.dart';
 
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
+import '../../../core/constants/translations.dart';
 import '../../../core/models/report.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../../../core/utils/responsive.dart';
-import '../../../shared/widgets/app_sidebar.dart';
 import '../providers/reports_provider.dart';
 
 /// Staff Performance Report Screen
@@ -36,19 +37,22 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
     final reportsState = ref.watch(reportsProvider);
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
         appBar: AppBar(
-          title: const Text('Staff Performance Report'),
+          title: Text(
+            Translations.get('staff_performance_report', languageCode),
+          ),
           backgroundColor: Colors.green,
           foregroundColor: Colors.white,
           elevation: 2,
           actions: [
             PopupMenuButton<String>(
               icon: const Icon(Icons.sort),
-              tooltip: 'Sort By',
+              tooltip: Translations.get('sort_by', languageCode),
               onSelected: (value) {
                 setState(() {
                   sortBy = value;
@@ -56,25 +60,30 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
               },
               itemBuilder:
                   (context) => [
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'revenue',
-                      child: Text('Revenue'),
+                      child: Text(Translations.get('revenue', languageCode)),
                     ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'transactions',
-                      child: Text('Transactions'),
+                      child: Text(
+                        Translations.get('transactions', languageCode),
+                      ),
                     ),
-                    const PopupMenuItem(value: 'name', child: Text('Name')),
+                    PopupMenuItem(
+                      value: 'name',
+                      child: Text(Translations.get('name', languageCode)),
+                    ),
                   ],
             ),
             IconButton(
               icon: const Icon(Icons.date_range),
-              tooltip: 'Date Range',
+              tooltip: Translations.get('date_range', languageCode),
               onPressed: () => _selectDateRange(context),
             ),
             IconButton(
               icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh',
+              tooltip: Translations.get('refresh', languageCode),
               onPressed: () => ref.read(reportsProvider.notifier).refresh(),
             ),
             const SizedBox(width: 8),
@@ -89,7 +98,7 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header
-                _buildHeader(),
+                _buildHeader(languageCode),
                 const SizedBox(height: 20),
 
                 // Loading state
@@ -98,11 +107,15 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
 
                 // Error state
                 if (reportsState.error != null)
-                  _buildErrorCard(reportsState.error!),
+                  _buildErrorCard(reportsState.error!, languageCode),
 
                 // Success state
                 if (!reportsState.isLoading && reportsState.error == null)
-                  _buildStaffList(reportsState.employeePerformance, isMobile),
+                  _buildStaffList(
+                    reportsState.employeePerformance,
+                    isMobile,
+                    languageCode,
+                  ),
               ],
             ),
           ),
@@ -111,7 +124,7 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -149,7 +162,10 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Staff Performance Report',
+                        Translations.get(
+                          'staff_performance_report',
+                          languageCode,
+                        ),
                         style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
@@ -171,9 +187,13 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
     );
   }
 
-  Widget _buildStaffList(List<SalesByStaffItem> staff, bool isMobile) {
+  Widget _buildStaffList(
+    List<SalesByStaffItem> staff,
+    bool isMobile,
+    String languageCode,
+  ) {
     if (staff.isEmpty) {
-      return _buildNoDataCard();
+      return _buildNoDataCard(languageCode);
     }
 
     // Sort staff based on sortBy
@@ -205,7 +225,7 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
               children: [
                 Expanded(
                   child: _buildSummaryItem(
-                    'Active Staff',
+                    Translations.get('active_staff', languageCode),
                     '${staff.length}',
                     Icons.people,
                     Colors.green,
@@ -214,7 +234,7 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
                 const SizedBox(width: 16),
                 Expanded(
                   child: _buildSummaryItem(
-                    'Total Revenue',
+                    Translations.get('total_revenue', languageCode),
                     'LAK ${NumberFormat('#,##0').format(staff.fold<double>(0, (sum, item) => sum + item.totalSales))}',
                     Icons.monetization_on,
                     Colors.blue,
@@ -224,7 +244,7 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: _buildSummaryItem(
-                      'Total Orders',
+                      Translations.get('total_orders', languageCode),
                       '${staff.fold<int>(0, (sum, item) => sum + item.totalOrders)}',
                       Icons.receipt,
                       Colors.orange,
@@ -242,15 +262,10 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Performance Leaderboard',
+              Translations.get('performance_leaderboard', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            Chip(
-              label: Text('Sorted by ${sortBy.toUpperCase()}'),
-              backgroundColor: Colors.green.withOpacity(0.1),
-              labelStyle: const TextStyle(color: Colors.green),
             ),
           ],
         ),
@@ -381,95 +396,9 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-
-            // Stats section
-            if (isMobile) ...[
-              _buildStatRow('Orders Handled', '${staffMember.totalOrders}'),
-              const SizedBox(height: 8),
-              _buildStatRow(
-                'Total Revenue',
-                'LAK ${NumberFormat('#,##0').format(staffMember.totalSales)}',
-              ),
-              const SizedBox(height: 8),
-              _buildStatRow(
-                'Avg Order Value',
-                'LAK ${NumberFormat('#,##0').format(staffMember.averageOrderValue)}',
-              ),
-            ] else ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatColumn(
-                      'Orders',
-                      '${staffMember.totalOrders}',
-                      Icons.receipt,
-                    ),
-                  ),
-                  Expanded(
-                    child: _buildStatColumn(
-                      'Revenue',
-                      'LAK ${NumberFormat('#,##0').format(staffMember.totalSales)}',
-                      Icons.monetization_on,
-                    ),
-                  ),
-                  Expanded(
-                    child: _buildStatColumn(
-                      'Avg Order',
-                      'LAK ${NumberFormat('#,##0').format(staffMember.averageOrderValue)}',
-                      Icons.trending_up,
-                    ),
-                  ),
-                ],
-              ),
-            ],
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildStatRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),
-        ),
-        Text(
-          value,
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatColumn(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, size: 20, color: AppTheme.neutral600),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: Theme.of(
-            context,
-          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: AppTheme.neutral600),
-          textAlign: TextAlign.center,
-        ),
-      ],
     );
   }
 
@@ -498,7 +427,7 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
     return Icons.trending_down;
   }
 
-  Widget _buildErrorCard(String error) {
+  Widget _buildErrorCard(String error, String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -510,7 +439,7 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
             const Icon(Icons.error_outline, size: 48, color: Colors.red),
             const SizedBox(height: 16),
             Text(
-              'Error Loading Staff Performance',
+              Translations.get('error_loading_staff_performance', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -526,7 +455,7 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => ref.read(reportsProvider.notifier).refresh(),
-              child: const Text('Retry'),
+              child: Text(Translations.get('retry', languageCode)),
             ),
           ],
         ),
@@ -534,7 +463,7 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
     );
   }
 
-  Widget _buildNoDataCard() {
+  Widget _buildNoDataCard(String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -550,14 +479,17 @@ class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'No Staff Data',
+              Translations.get('performance_leaderboard', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'No staff performance data found for the selected period',
+              Translations.get(
+                'no_staff_data_for_selected_period',
+                languageCode,
+              ),
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),

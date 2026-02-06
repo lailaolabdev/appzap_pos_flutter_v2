@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -5,7 +7,6 @@ import 'package:intl/intl.dart';
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
 import '../../../core/utils/responsive.dart';
-import '../../../shared/widgets/app_sidebar.dart';
 import '../providers/reports_provider.dart';
 
 /// Categories Report Screen
@@ -37,12 +38,13 @@ class _CategoriesReportScreenState
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
     final reportsState = ref.watch(reportsProvider);
+    final languageCode = ref.read(localizationProvider).languageCode;
 
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
         appBar: AppBar(
-          title: const Text('Categories Report'),
+          title: Text(Translations.get('categories_report', languageCode)),
           backgroundColor: Colors.orange,
           foregroundColor: Colors.white,
           elevation: 2,
@@ -57,15 +59,18 @@ class _CategoriesReportScreenState
               },
               itemBuilder:
                   (context) => [
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'revenue',
-                      child: Text('Revenue'),
+                      child: Text(Translations.get('revenue', languageCode)),
                     ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'quantity',
-                      child: Text('Quantity'),
+                      child: Text(Translations.get('quantity', languageCode)),
                     ),
-                    const PopupMenuItem(value: 'name', child: Text('Name')),
+                    PopupMenuItem(
+                      value: 'name',
+                      child: Text(Translations.get('name', languageCode)),
+                    ),
                   ],
             ),
             IconButton(
@@ -90,7 +95,7 @@ class _CategoriesReportScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header
-                _buildHeader(),
+                _buildHeader(languageCode),
                 const SizedBox(height: 20),
 
                 // Loading state
@@ -99,11 +104,15 @@ class _CategoriesReportScreenState
 
                 // Error state
                 if (reportsState.error != null)
-                  _buildErrorCard(reportsState.error!),
+                  _buildErrorCard(reportsState.error!, languageCode),
 
                 // Success state - show products grouped by category
                 if (!reportsState.isLoading && reportsState.error == null)
-                  _buildCategoriesList(reportsState.topProducts, isMobile),
+                  _buildCategoriesList(
+                    reportsState.topProducts,
+                    isMobile,
+                    languageCode,
+                  ),
               ],
             ),
           ),
@@ -112,7 +121,7 @@ class _CategoriesReportScreenState
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -150,7 +159,10 @@ class _CategoriesReportScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Category Performance Report',
+                        Translations.get(
+                          'category_performance_report',
+                          languageCode,
+                        ),
                         style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
@@ -172,9 +184,13 @@ class _CategoriesReportScreenState
     );
   }
 
-  Widget _buildCategoriesList(List products, bool isMobile) {
+  Widget _buildCategoriesList(
+    List products,
+    bool isMobile,
+    String languageCode,
+  ) {
     if (products.isEmpty) {
-      return _buildNoDataCard();
+      return _buildNoDataCard(languageCode);
     }
 
     // Group products by category
@@ -240,7 +256,7 @@ class _CategoriesReportScreenState
               children: [
                 Expanded(
                   child: _buildSummaryItem(
-                    'Categories',
+                    Translations.get('categories', languageCode),
                     '${categories.length}',
                     Icons.category,
                     Colors.orange,
@@ -249,7 +265,7 @@ class _CategoriesReportScreenState
                 const SizedBox(width: 16),
                 Expanded(
                   child: _buildSummaryItem(
-                    'Total Revenue',
+                    Translations.get('total_revenue', languageCode),
                     'LAK ${NumberFormat('#,##0').format(categories.fold<double>(0, (sum, item) => sum + item['totalRevenue']))}',
                     Icons.monetization_on,
                     Colors.green,
@@ -259,7 +275,7 @@ class _CategoriesReportScreenState
                   const SizedBox(width: 16),
                   Expanded(
                     child: _buildSummaryItem(
-                      'Total Products',
+                      Translations.get('total_products', languageCode),
                       '${products.length}',
                       Icons.inventory,
                       Colors.blue,
@@ -277,14 +293,17 @@ class _CategoriesReportScreenState
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Category',
+              Translations.get('category', languageCode),
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
               ),
             ),
             Chip(
-              label: Text('Sorted by ${sortBy.toUpperCase()}'),
+              label: Text(
+                Translations.get('sorted_by', languageCode) +
+                    ' ${sortBy.toUpperCase()}',
+              ),
               backgroundColor: Colors.orange.withOpacity(0.1),
               labelStyle: const TextStyle(color: Colors.orange),
             ),
@@ -475,7 +494,7 @@ class _CategoriesReportScreenState
     );
   }
 
-  Widget _buildErrorCard(String error) {
+  Widget _buildErrorCard(String error, String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -487,7 +506,7 @@ class _CategoriesReportScreenState
             const Icon(Icons.error_outline, size: 48, color: Colors.red),
             const SizedBox(height: 16),
             Text(
-              'Error Loading Categories',
+              Translations.get('error_loading_categories', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -511,7 +530,7 @@ class _CategoriesReportScreenState
     );
   }
 
-  Widget _buildNoDataCard() {
+  Widget _buildNoDataCard(String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -527,14 +546,14 @@ class _CategoriesReportScreenState
             ),
             const SizedBox(height: 16),
             Text(
-              'No Category Data',
+              Translations.get('no_category_data', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'No category sales data found for the selected period',
+              Translations.get('no_category_data', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),

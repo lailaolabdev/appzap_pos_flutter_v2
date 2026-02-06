@@ -1,19 +1,23 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../app/theme.dart';
 
 /// Barcode Scanner Widget
-class BarcodeScannerWidget extends StatefulWidget {
+class BarcodeScannerWidget extends ConsumerStatefulWidget {
   final Function(String barcode) onBarcodeScanned;
 
   const BarcodeScannerWidget({super.key, required this.onBarcodeScanned});
 
   @override
-  State<BarcodeScannerWidget> createState() => _BarcodeScannerWidgetState();
+  ConsumerState<BarcodeScannerWidget> createState() =>
+      _BarcodeScannerWidgetState();
 }
 
-class _BarcodeScannerWidgetState extends State<BarcodeScannerWidget> {
+class _BarcodeScannerWidgetState extends ConsumerState<BarcodeScannerWidget> {
   late MobileScannerController controller;
   bool isScanned = false;
 
@@ -70,16 +74,23 @@ class _BarcodeScannerWidgetState extends State<BarcodeScannerWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final localization = ref.watch(localizationProvider);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Scan Barcode'),
+        title: Text(
+          Translations.get('scan_barcode', localization.languageCode),
+        ),
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.flash_on),
             onPressed: _toggleFlash,
-            tooltip: 'Toggle Flash',
+            tooltip: Translations.get(
+              'toggle_flash',
+              localization.languageCode,
+            ),
           ),
         ],
       ),
@@ -132,7 +143,10 @@ class _BarcodeScannerWidgetState extends State<BarcodeScannerWidget> {
                   ),
                   Flexible(
                     child: Text(
-                      'Point the camera at a barcode',
+                      Translations.get(
+                        'point_camera_barcode',
+                        localization.languageCode,
+                      ),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: Colors.white,
                         fontSize:
@@ -148,7 +162,10 @@ class _BarcodeScannerWidgetState extends State<BarcodeScannerWidget> {
                   ),
                   Flexible(
                     child: Text(
-                      'Make sure the barcode is clearly visible and well-lit',
+                      Translations.get(
+                        'barcode_visible_well_lit',
+                        localization.languageCode,
+                      ),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Colors.grey[400],
                         fontSize:

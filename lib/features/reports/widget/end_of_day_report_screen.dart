@@ -4,8 +4,9 @@ import 'package:intl/intl.dart';
 
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
+import '../../../core/constants/translations.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../../../core/utils/responsive.dart';
-import '../../../shared/widgets/app_sidebar.dart';
 import '../providers/reports_provider.dart';
 
 /// End of Day Report Screen
@@ -39,29 +40,30 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
     final endOfDayReport = ref.watch(endOfDayReportProvider);
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
         appBar: AppBar(
-          title: const Text('End of Day Report'),
+          title: Text(Translations.get('end_of_day_report', languageCode)),
           backgroundColor: Colors.purple,
           foregroundColor: Colors.white,
           elevation: 2,
           actions: [
             IconButton(
               icon: const Icon(Icons.calendar_today),
-              tooltip: 'Select Date',
+              tooltip: Translations.get('select_date', languageCode),
               onPressed: () => _selectDate(context),
             ),
             IconButton(
               icon: const Icon(Icons.print),
-              tooltip: 'Print Report',
+              tooltip: Translations.get('print_report', languageCode),
               onPressed: () => _printReport(),
             ),
             IconButton(
               icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh',
+              tooltip: Translations.get('refresh', languageCode),
               onPressed: () => _loadEndOfDayReport(),
             ),
             const SizedBox(width: 8),
@@ -76,7 +78,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header
-                _buildHeader(),
+                _buildHeader(languageCode),
                 const SizedBox(height: 20),
 
                 // Report content
@@ -84,11 +86,17 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
                   data:
                       (report) =>
                           report != null
-                              ? _buildReportContent(report, isMobile)
-                              : _buildNoDataCard(),
+                              ? _buildReportContent(
+                                report,
+                                isMobile,
+                                languageCode,
+                              )
+                              : _buildNoDataCard(languageCode),
                   loading:
                       () => const Center(child: CircularProgressIndicator()),
-                  error: (error, stack) => _buildErrorCard(error.toString()),
+                  error:
+                      (error, stack) =>
+                          _buildErrorCard(error.toString(), languageCode),
                 ),
               ],
             ),
@@ -98,7 +106,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -136,7 +144,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'End of Day Report',
+                        Translations.get('end_of_day_report', languageCode),
                         style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
@@ -148,7 +156,8 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
                         ),
                       ),
                       Text(
-                        'Generated at ${timeFormat.format(DateTime.now())}',
+                        Translations.get('generated_at', languageCode) +
+                            ' ${timeFormat.format(DateTime.now())}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppTheme.neutral500,
                         ),
@@ -164,39 +173,43 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
     );
   }
 
-  Widget _buildReportContent(dynamic report, bool isMobile) {
+  Widget _buildReportContent(
+    dynamic report,
+    bool isMobile,
+    String languageCode,
+  ) {
     // Since we don't have the exact EndOfDayReport model structure,
     // I'll create a mock comprehensive report structure
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Sales summary
-        _buildSalesSummarySection(),
+        _buildSalesSummarySection(languageCode),
         const SizedBox(height: 16),
 
         // Transaction breakdown
-        _buildTransactionBreakdownSection(),
+        _buildTransactionBreakdownSection(languageCode),
         const SizedBox(height: 16),
 
         // Payment methods
-        _buildPaymentMethodsSection(),
+        _buildPaymentMethodsSection(languageCode),
         const SizedBox(height: 16),
 
         // Staff performance summary
-        _buildStaffSummarySection(),
+        _buildStaffSummarySection(languageCode),
         const SizedBox(height: 16),
 
         // Operational summary
-        _buildOperationalSummarySection(),
+        _buildOperationalSummarySection(languageCode),
         const SizedBox(height: 16),
 
         // Actions
-        _buildActionsSection(),
+        _buildActionsSection(languageCode),
       ],
     );
   }
 
-  Widget _buildSalesSummarySection() {
+  Widget _buildSalesSummarySection(String languageCode) {
     final reportsState = ref.watch(reportsProvider);
     final summary = reportsState.summary;
 
@@ -208,7 +221,10 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionTitle('Sales Summary', Icons.assessment),
+            _buildSectionTitle(
+              Translations.get('sales_summary', languageCode),
+              Icons.assessment,
+            ),
             const SizedBox(height: 16),
 
             if (summary != null) ...[
@@ -216,7 +232,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
                 children: [
                   Expanded(
                     child: _buildSummaryItem(
-                      'Total Revenue',
+                      Translations.get('total_revenue', languageCode),
                       'LAK ${NumberFormat('#,##0').format(summary.sales?.totalSales ?? 0)}',
                       Colors.green,
                       Icons.monetization_on,
@@ -225,7 +241,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _buildSummaryItem(
-                      'Total Orders',
+                      Translations.get('total_orders', languageCode),
                       '${summary.sales?.totalOrders ?? 0}',
                       Colors.blue,
                       Icons.receipt,
@@ -238,7 +254,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
                 children: [
                   Expanded(
                     child: _buildSummaryItem(
-                      'Average Order',
+                      Translations.get('average_order', languageCode),
                       'LAK ${NumberFormat('#,##0').format(summary.sales?.averageOrderValue ?? 0)}',
                       Colors.orange,
                       Icons.trending_up,
@@ -247,7 +263,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _buildSummaryItem(
-                      'Sales Amount',
+                      Translations.get('sales_amount', languageCode),
                       'LAK ${NumberFormat('#,##0').format(summary.sales?.totalSales ?? 0)}',
                       Colors.teal,
                       Icons.attach_money,
@@ -256,81 +272,9 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
                 ],
               ),
             ] else ...[
-              const Center(child: Text('No sales data available')),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTransactionBreakdownSection() {
-    final reportsState = ref.watch(reportsProvider);
-    final summary = reportsState.summary;
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle('Transaction Breakdown', Icons.bar_chart),
-            const SizedBox(height: 16),
-
-            if (summary != null) ...[
-              _buildBreakdownRow(
-                'Completed Sales',
-                '${summary.sales?.totalOrders ?? 0}',
-                summary.sales?.totalSales ?? 0,
-                Colors.green,
-              ),
-              _buildBreakdownRow(
-                'Void Transactions',
-                '0', // Not available in current model
-                0.0, // Not available in current model
-                Colors.red,
-              ),
-              const Divider(height: 24),
-              _buildBreakdownRow(
-                'Net Sales',
-                '${summary.sales?.totalOrders ?? 0}',
-                summary.sales?.totalSales ?? 0,
-                Colors.blue,
-                isTotal: true,
-              ),
-            ] else ...[
-              const Center(child: Text('No transaction data available')),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPaymentMethodsSection() {
-    final reportsState = ref.watch(reportsProvider);
-    final summary = reportsState.summary;
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle('Payment Methods Breakdown', Icons.payment),
-            const SizedBox(height: 16),
-
-            if (false) ...[
-              // Payment method breakdown not available in current model
-              // This section would need proper payment method data
-            ] else ...[
-              const Center(
+              Center(
                 child: Text(
-                  'Payment method breakdown not available in current data model',
+                  Translations.get('no_sales_data_available', languageCode),
                 ),
               ),
             ],
@@ -340,7 +284,96 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
     );
   }
 
-  Widget _buildStaffSummarySection() {
+  Widget _buildTransactionBreakdownSection(String languageCode) {
+    final reportsState = ref.watch(reportsProvider);
+    final summary = reportsState.summary;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionTitle(
+              Translations.get('transaction_breakdown', languageCode),
+              Icons.bar_chart,
+            ),
+            const SizedBox(height: 16),
+
+            if (summary != null) ...[
+              _buildBreakdownRow(
+                Translations.get('completed_sales', languageCode),
+                '${summary.sales?.totalOrders ?? 0}',
+                summary.sales?.totalSales ?? 0,
+                Colors.green,
+              ),
+              _buildBreakdownRow(
+                Translations.get('void_transactions', languageCode),
+                '0', // Not available in current model
+                0.0, // Not available in current model
+                Colors.red,
+              ),
+              const Divider(height: 24),
+              _buildBreakdownRow(
+                Translations.get('net_sales', languageCode),
+                '${summary.sales?.totalOrders ?? 0}',
+                summary.sales?.totalSales ?? 0,
+                Colors.blue,
+                isTotal: true,
+              ),
+            ] else ...[
+              Center(
+                child: Text(
+                  Translations.get(
+                    'no_transaction_data_available',
+                    languageCode,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentMethodsSection(String languageCode) {
+    final reportsState = ref.watch(reportsProvider);
+    final summary = reportsState.summary;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionTitle(
+              Translations.get('payment_methods_breakdown', languageCode),
+              Icons.payment,
+            ),
+            const SizedBox(height: 16),
+
+            if (summary != null) ...[
+              Center(
+                child: Text(
+                  Translations.get(
+                    'payment_method_breakdown_not_available_in_current_data_model',
+                    languageCode,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStaffSummarySection(String languageCode) {
     final reportsState = ref.watch(reportsProvider);
     final staff = reportsState.employeePerformance;
 
@@ -352,7 +385,10 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionTitle('Staff Summary', Icons.people),
+            _buildSectionTitle(
+              Translations.get('staff_summary', languageCode),
+              Icons.people,
+            ),
             const SizedBox(height: 16),
 
             if (staff.isNotEmpty) ...[
@@ -360,7 +396,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
                 children: [
                   Expanded(
                     child: _buildSummaryItem(
-                      'Active Staff',
+                      Translations.get('active_staff', languageCode),
                       '${staff.length}',
                       Colors.green,
                       Icons.people,
@@ -369,7 +405,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _buildSummaryItem(
-                      'Top Performer',
+                      Translations.get('top_performer', languageCode),
                       staff.first.staffName,
                       Colors.amber,
                       Icons.star,
@@ -409,7 +445,11 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
                     ),
                   ),
             ] else ...[
-              const Center(child: Text('No staff data available')),
+              Center(
+                child: Text(
+                  Translations.get('no_staff_data_available', languageCode),
+                ),
+              ),
             ],
           ],
         ),
@@ -417,7 +457,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
     );
   }
 
-  Widget _buildOperationalSummarySection() {
+  Widget _buildOperationalSummarySection(String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -426,14 +466,17 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionTitle('Operational Summary', Icons.business),
+            _buildSectionTitle(
+              Translations.get('operational_summary', languageCode),
+              Icons.business,
+            ),
             const SizedBox(height: 16),
 
             Row(
               children: [
                 Expanded(
                   child: _buildSummaryItem(
-                    'Operating Hours',
+                    Translations.get('operating_hours', languageCode),
                     '12 hours',
                     Colors.blue,
                     Icons.access_time,
@@ -442,7 +485,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildSummaryItem(
-                    'Status',
+                    Translations.get('status', languageCode),
                     'Completed',
                     Colors.green,
                     Icons.check_circle,
@@ -453,13 +496,13 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
             const SizedBox(height: 16),
 
             _buildOperationalItem(
-              'Store Opened',
+              Translations.get('store_opened', languageCode),
               '08:00 AM',
               Icons.store,
               Colors.green,
             ),
             _buildOperationalItem(
-              'Last Transaction',
+              Translations.get('last_transaction', languageCode),
               timeFormat.format(
                 DateTime.now().subtract(const Duration(hours: 1)),
               ),
@@ -467,7 +510,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
               Colors.blue,
             ),
             _buildOperationalItem(
-              'Report Generated',
+              Translations.get('report_generated', languageCode),
               timeFormat.format(DateTime.now()),
               Icons.description,
               Colors.orange,
@@ -478,7 +521,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
     );
   }
 
-  Widget _buildActionsSection() {
+  Widget _buildActionsSection(String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -487,7 +530,10 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionTitle('Actions', Icons.settings),
+            _buildSectionTitle(
+              Translations.get('actions', languageCode),
+              Icons.settings,
+            ),
             const SizedBox(height: 16),
 
             Wrap(
@@ -497,7 +543,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
                 ElevatedButton.icon(
                   onPressed: () => _printReport(),
                   icon: const Icon(Icons.print),
-                  label: const Text('Print Report'),
+                  label: Text(Translations.get('print_report', languageCode)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.purple,
                     foregroundColor: Colors.white,
@@ -506,7 +552,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
                 ElevatedButton.icon(
                   onPressed: () => _exportReport(),
                   icon: const Icon(Icons.file_download),
-                  label: const Text('Export PDF'),
+                  label: Text(Translations.get('export_pdf', languageCode)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
@@ -515,7 +561,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
                 ElevatedButton.icon(
                   onPressed: () => _emailReport(),
                   icon: const Icon(Icons.email),
-                  label: const Text('Email Report'),
+                  label: Text(Translations.get('email_report', languageCode)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
@@ -665,37 +711,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
     );
   }
 
-  Color _getPaymentColor(String method) {
-    switch (method.toLowerCase()) {
-      case 'cash':
-        return Colors.green;
-      case 'card':
-        return Colors.blue;
-      case 'bank_transfer':
-        return Colors.purple;
-      case 'qr':
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _getPaymentIcon(String method) {
-    switch (method.toLowerCase()) {
-      case 'cash':
-        return Icons.money;
-      case 'card':
-        return Icons.credit_card;
-      case 'bank_transfer':
-        return Icons.account_balance;
-      case 'qr':
-        return Icons.qr_code;
-      default:
-        return Icons.payment;
-    }
-  }
-
-  Widget _buildErrorCard(String error) {
+  Widget _buildErrorCard(String error, String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -707,7 +723,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
             const Icon(Icons.error_outline, size: 48, color: Colors.red),
             const SizedBox(height: 16),
             Text(
-              'Error Loading End of Day Report',
+              Translations.get('error_loading_end_of_day_report', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -723,7 +739,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => _loadEndOfDayReport(),
-              child: const Text('Retry'),
+              child: Text(Translations.get('retry', languageCode)),
             ),
           ],
         ),
@@ -731,7 +747,7 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
     );
   }
 
-  Widget _buildNoDataCard() {
+  Widget _buildNoDataCard(String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -747,14 +763,14 @@ class _EndOfDayReportScreenState extends ConsumerState<EndOfDayReportScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'No End of Day Data',
+              Translations.get('no_end_of_day_data', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'No end of day report data available for ${displayFormat.format(selectedDate)}',
+              '${Translations.get('no_end_of_day_report_data_available_for', languageCode)} ${displayFormat.format(selectedDate)}',
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),

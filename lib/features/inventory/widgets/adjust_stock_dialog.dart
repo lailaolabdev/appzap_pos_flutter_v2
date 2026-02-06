@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/constants/translations.dart';
 import '../../../core/models/inventory.dart';
 import '../../../core/models/product.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../../../core/services/inventory_service.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../pos/providers/pos_provider.dart';
@@ -55,6 +57,8 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
 
   Future<void> _submitAdjustment() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final languageCode = ref.read(localizationProvider).languageCode;
 
     setState(() {
       _isLoading = true;
@@ -127,8 +131,21 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
               // Show error to user
               if (mounted) {
                 setState(() {
+                  final prefix = Translations.get(
+                    'stock_adjust_persist_prefix',
+                    languageCode,
+                  );
+                  final expectedLabel = Translations.get(
+                    'expected',
+                    languageCode,
+                  );
+                  final actualLabel = Translations.get('actual', languageCode);
+                  final contactSupport = Translations.get(
+                    'please_contact_support',
+                    languageCode,
+                  );
                   _error =
-                      'Stock adjustment failed to persist. Expected: $expectedNewStock, but database shows: ${updatedItem.currentStock}. Please contact support.';
+                      '$prefix $expectedLabel: $expectedNewStock, $actualLabel: ${updatedItem.currentStock}. $contactSupport';
                   _isLoading = false;
                 });
                 return;
@@ -142,8 +159,10 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
             // Show warning to user
             if (mounted) {
               setState(() {
-                _error =
-                    'Could not verify stock adjustment. The item may not exist or there may be a backend issue.';
+                _error = Translations.get(
+                  'stock_adjust_verify_missing',
+                  languageCode,
+                );
                 _isLoading = false;
               });
               return;
@@ -155,8 +174,15 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
           // Continue with the rest of the process even if verification fails
           if (mounted) {
             setState(() {
-              _error =
-                  'Stock adjusted but verification failed: ${e.toString()}. Please refresh to see current stock levels.';
+              final prefix = Translations.get(
+                'stock_adjust_verify_failed_prefix',
+                languageCode,
+              );
+              final refreshPrompt = Translations.get(
+                'please_refresh',
+                languageCode,
+              );
+              _error = '$prefix ${e.toString()}. $refreshPrompt';
               _isLoading = false;
             });
             return;
@@ -295,7 +321,7 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
         Navigator.pop(context, true);
       } else {
         setState(() {
-          _error = 'Failed to adjust stock. Please try again.';
+          _error = Translations.get('failed_to_adjust_stock', languageCode);
           _isLoading = false;
         });
       }
@@ -303,20 +329,21 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
       print('🔧 Caught error in dialog: $e');
       setState(() {
         // Show more detailed error information
-        _error = 'Error: ${e.toString().replaceAll('Exception: ', '')}';
+        final errorLabel = Translations.get('error', languageCode);
+        _error = '$errorLabel: ${e.toString().replaceAll('Exception: ', '')}';
         _isLoading = false;
       });
     }
   }
 
-  String _getOperationLabel(StockOperation op) {
+  String _getOperationLabel(StockOperation op, String languageCode) {
     switch (op) {
       case StockOperation.add:
-        return 'Add';
+        return Translations.get('operation_add', languageCode);
       case StockOperation.remove:
-        return 'Move';
+        return Translations.get('operation_remove', languageCode);
       case StockOperation.set:
-        return 'Set';
+        return Translations.get('operation_set', languageCode);
     }
   }
 
@@ -334,6 +361,7 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final languageCode = ref.watch(localizationProvider).languageCode;
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
@@ -366,8 +394,8 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Adjust Stock',
+                          Text(
+                            Translations.get('adjust_stock', languageCode),
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -385,6 +413,7 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                     ),
                     IconButton(
                       icon: const Icon(Icons.close),
+                      tooltip: Translations.get('close', languageCode),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
@@ -403,8 +432,8 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Current Stock',
+                          Text(
+                            Translations.get('current_stock', languageCode),
                             style: TextStyle(
                               fontSize: 12,
                               color: AppTheme.neutral600,
@@ -423,8 +452,8 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          const Text(
-                            'Unit Cost',
+                          Text(
+                            Translations.get('unit_cost', languageCode),
                             style: TextStyle(
                               fontSize: 12,
                               color: AppTheme.neutral600,
@@ -446,8 +475,8 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                 const SizedBox(height: 16),
 
                 // Operation selector
-                const Text(
-                  'Operation',
+                Text(
+                  Translations.get('operation', languageCode),
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 8),
@@ -455,17 +484,23 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                   segments: [
                     ButtonSegment(
                       value: StockOperation.add,
-                      label: Text(_getOperationLabel(StockOperation.add)),
+                      label: Text(
+                        _getOperationLabel(StockOperation.add, languageCode),
+                      ),
                       icon: const Icon(Icons.add, size: 18),
                     ),
                     ButtonSegment(
                       value: StockOperation.remove,
-                      label: Text(_getOperationLabel(StockOperation.remove)),
+                      label: Text(
+                        _getOperationLabel(StockOperation.remove, languageCode),
+                      ),
                       icon: const Icon(Icons.remove, size: 18),
                     ),
                     ButtonSegment(
                       value: StockOperation.set,
-                      label: Text(_getOperationLabel(StockOperation.set)),
+                      label: Text(
+                        _getOperationLabel(StockOperation.set, languageCode),
+                      ),
                       icon: const Icon(Icons.edit, size: 18),
                     ),
                   ],
@@ -486,9 +521,12 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                   decoration: InputDecoration(
                     labelText:
                         _selectedOperation == StockOperation.set
-                            ? 'New Stock Level *'
-                            : 'Quantity *',
-                    hintText: 'Enter quantity',
+                            ? Translations.get(
+                              'new_stock_level_label',
+                              languageCode,
+                            )
+                            : Translations.get('quantity_label', languageCode),
+                    hintText: Translations.get('quantity_hint', languageCode),
                     prefixIcon: const Icon(Icons.numbers),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -497,15 +535,21 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                   keyboardType: TextInputType.number,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter quantity';
+                      return Translations.get(
+                        'quantity_required',
+                        languageCode,
+                      );
                     }
                     final quantity = int.tryParse(value);
                     if (quantity == null || quantity <= 0) {
-                      return 'Please enter a valid positive number';
+                      return Translations.get('quantity_invalid', languageCode);
                     }
                     if (_selectedOperation == StockOperation.remove &&
                         quantity > widget.item.currentStock) {
-                      return 'Cannot remove more than current stock';
+                      return Translations.get(
+                        'quantity_exceeds_stock',
+                        languageCode,
+                      );
                     }
                     return null;
                   },
@@ -528,8 +572,8 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'New Stock Level:',
+                        Text(
+                          Translations.get('new_stock_preview', languageCode),
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -590,7 +634,7 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        child: const Text('Cancel'),
+                        child: Text(Translations.get('cancel', languageCode)),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -611,7 +655,9 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
                                     color: Colors.white,
                                   ),
                                 )
-                                : const Text('Confirm'),
+                                : Text(
+                                  Translations.get('confirm', languageCode),
+                                ),
                       ),
                     ),
                   ],

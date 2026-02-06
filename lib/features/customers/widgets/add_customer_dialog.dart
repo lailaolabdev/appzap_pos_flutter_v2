@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,8 +26,8 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
 
   bool get _isFormValid {
     return _nameController.text.trim().isNotEmpty &&
-           _phoneController.text.trim().isNotEmpty &&
-           _phoneController.text.trim().length >= 8;
+        _phoneController.text.trim().isNotEmpty &&
+        _phoneController.text.trim().length >= 8;
   }
 
   @override
@@ -45,13 +47,16 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
     });
 
     try {
-      await ref.read(customerServiceProvider).createCustomer(
-        name: _nameController.text.trim(),
-        phone: Validators.normalizePhone(_phoneController.text.trim()),
-        email: _emailController.text.trim().isEmpty
-            ? null
-            : _emailController.text.trim(),
-      );
+      await ref
+          .read(customerServiceProvider)
+          .createCustomer(
+            name: _nameController.text.trim(),
+            phone: Validators.normalizePhone(_phoneController.text.trim()),
+            email:
+                _emailController.text.trim().isEmpty
+                    ? null
+                    : _emailController.text.trim(),
+          );
 
       if (mounted) {
         Navigator.pop(context, true);
@@ -69,18 +74,19 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
+    final languageCode = ref.read(localizationProvider).languageCode;
 
     if (isMobile) {
       // Full screen for mobile
       return Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: false,
-          title: const Text('Add Customer'),
+          title: Text(Translations.get('add_customer', languageCode)),
           actions: [
             IconButton(
               icon: const Icon(Icons.close),
               onPressed: () => Navigator.pop(context),
-              tooltip: 'Close',
+              tooltip: Translations.get('close', languageCode),
             ),
           ],
         ),
@@ -91,136 +97,144 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
               ListView(
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
                 children: [
-              // Name
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Name *',
-                  hintText: 'Enter customer name',
-                  prefixIcon: Icon(Icons.person),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Name is required';
-                  }
-                  return null;
-                },
-                enabled: !_isLoading,
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 16),
+                  // Name
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: InputDecoration(
+                      labelText: Translations.get('name', languageCode) + ' *',
+                      hintText: Translations.get(
+                        'enter_customer_name',
+                        languageCode,
+                      ),
+                      prefixIcon: const Icon(Icons.person),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Name is required';
+                      }
+                      return null;
+                    },
+                    enabled: !_isLoading,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 16),
 
-              // Phone
-              TextFormField(
-                controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone *',
-                  hintText: '020 1234 5678',
-                  prefixIcon: Icon(Icons.phone),
-                ),
-                keyboardType: TextInputType.phone,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(12),
+                  // Phone
+                  TextFormField(
+                    controller: _phoneController,
+                    decoration: InputDecoration(
+                      labelText: '${Translations.get('phone', languageCode)} *',
+                      hintText: '20 555....',
+                      prefixIcon: const Icon(Icons.phone),
+                    ),
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(12),
+                    ],
+                    validator: Validators.phone,
+                    enabled: !_isLoading,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Email (optional)
+                  TextFormField(
+                    controller: _emailController,
+                    decoration: InputDecoration(
+                      labelText: '${Translations.get('email', languageCode)} *',
+                      hintText: 'customer@example.com',
+                      prefixIcon: Icon(Icons.email),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value != null && value.isNotEmpty) {
+                        if (!value.contains('@') || !value.contains('.')) {
+                          return 'Enter a valid email';
+                        }
+                      }
+                      return null;
+                    },
+                    enabled: !_isLoading,
+                  ),
+
+                  if (_error != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.errorLight,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(color: AppTheme.error),
+                      ),
+                    ),
+                  ],
                 ],
-                validator: Validators.phone,
-                enabled: !_isLoading,
-                onChanged: (_) => setState(() {}),
               ),
-              const SizedBox(height: 16),
-
-              // Email (optional)
-              TextFormField(
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email (Optional)',
-                  hintText: 'customer@example.com',
-                  prefixIcon: Icon(Icons.email),
-                ),
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  if (value != null && value.isNotEmpty) {
-                    if (!value.contains('@') || !value.contains('.')) {
-                      return 'Enter a valid email';
-                    }
-                  }
-                  return null;
-                },
-              enabled: !_isLoading,
-            ),
-
-            if (_error != null) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.errorLight,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  _error!,
-                  style: const TextStyle(color: AppTheme.error),
+              // Floating Save Button at Bottom
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, -2),
+                      ),
+                    ],
+                  ),
+                  child: SafeArea(
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed:
+                            _isLoading || !_isFormValid ? null : _handleSubmit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryOrange,
+                          disabledBackgroundColor: AppTheme.neutral300,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child:
+                            _isLoading
+                                ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                                : Text(
+                                  Translations.get(
+                                    'add_customer',
+                                    languageCode,
+                                  ),
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
-          ],
-        ),
-        // Floating Save Button at Bottom
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isLoading || !_isFormValid ? null : _handleSubmit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryOrange,
-                    disabledBackgroundColor: AppTheme.neutral300,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          'Add Customer',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                ),
-              ),
-            ),
           ),
         ),
-      ],
-    ),
-  ),
-);
+      );
     }
 
     // Dialog for tablet/desktop
@@ -249,10 +263,10 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Add Customer',
-                      style: TextStyle(
+                      Translations.get('add_customer', languageCode),
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -269,10 +283,10 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
               // Name
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Name *',
+                decoration: InputDecoration(
+                  labelText: '${Translations.get('name', languageCode)} *',
                   hintText: 'Enter customer name',
-                  prefixIcon: Icon(Icons.person),
+                  prefixIcon: const Icon(Icons.person),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
@@ -287,10 +301,10 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
               // Phone
               TextFormField(
                 controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone *',
+                decoration: InputDecoration(
+                  labelText: '${Translations.get('phone', languageCode)} *',
                   hintText: '020 1234 5678',
-                  prefixIcon: Icon(Icons.phone),
+                  prefixIcon: const Icon(Icons.phone),
                 ),
                 keyboardType: TextInputType.phone,
                 inputFormatters: [
@@ -305,10 +319,10 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
               // Email (optional)
               TextFormField(
                 controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email (Optional)',
+                decoration: InputDecoration(
+                  labelText: '${Translations.get('email', languageCode)} ',
                   hintText: 'customer@example.com',
-                  prefixIcon: Icon(Icons.email),
+                  prefixIcon: const Icon(Icons.email),
                 ),
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
@@ -344,8 +358,9 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: _isLoading ? null : () => Navigator.pop(context),
-                      child: const Text('Cancel'),
+                      onPressed:
+                          _isLoading ? null : () => Navigator.pop(context),
+                      child: Text(Translations.get('cancelled', languageCode)),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -353,16 +368,19 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
                     flex: 2,
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _handleSubmit,
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
+                      child:
+                          _isLoading
+                              ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                              : Text(
+                                Translations.get('add_customer', languageCode),
                               ),
-                            )
-                          : const Text('Add Customer'),
                     ),
                   ),
                 ],

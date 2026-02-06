@@ -52,9 +52,9 @@ class PhayPayBankSelectionDialog extends StatelessWidget {
               padding: const EdgeInsets.all(20),
               child: Text(
                 'Select Bank',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
             Expanded(
@@ -146,11 +146,7 @@ class PhayPayQRDialog extends ConsumerWidget {
     final phayPayPayment = paymentState.phayPayPayment;
 
     if (phayPayPayment == null) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
@@ -175,7 +171,11 @@ class PhayPayQRDialog extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.account_balance, size: 20, color: AppTheme.neutral600),
+                  const Icon(
+                    Icons.account_balance,
+                    size: 20,
+                    color: AppTheme.neutral600,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     phayPayPayment.bankMethod.displayName,
@@ -196,7 +196,10 @@ class PhayPayQRDialog extends ConsumerWidget {
                     if (paymentState.isCompleted)
                       _buildSuccessState(context)
                     else if (paymentState.isFailed)
-                      _buildFailedState(context, paymentState.error ?? 'Payment failed')
+                      _buildFailedState(
+                        context,
+                        paymentState.error ?? 'Payment failed',
+                      )
                     else
                       _buildQRState(context, phayPayPayment, paymentState),
 
@@ -213,14 +216,17 @@ class PhayPayQRDialog extends ConsumerWidget {
                         children: [
                           Text(
                             'Amount',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppTheme.neutral600,
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: AppTheme.neutral600),
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            CurrencyFormatter.formatLAKWithSymbol(phayPayPayment.amount),
-                            style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                            CurrencyFormatter.formatLAKWithSymbol(
+                              phayPayPayment.amount,
+                            ),
+                            style: Theme.of(
+                              context,
+                            ).textTheme.displaySmall?.copyWith(
                               fontWeight: FontWeight.bold,
                               color: AppTheme.primaryOrange,
                             ),
@@ -247,50 +253,55 @@ class PhayPayQRDialog extends ConsumerWidget {
                     ),
                   ],
                 ),
-                child: paymentState.isCompleted
-                    ? SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            backgroundColor: AppTheme.success,
-                          ),
-                          child: const Text(
-                            'Done',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                child:
+                    paymentState.isCompleted
+                        ? SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              backgroundColor: AppTheme.success,
+                            ),
+                            child: const Text(
+                              'Done',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
+                        )
+                        : Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                ),
+                                child: const Text('Cancel'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  ref.read(paymentProvider.notifier).reset();
+                                  Navigator.pop(context, false);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                ),
+                                child: const Text('Try Again'),
+                              ),
+                            ),
+                          ],
                         ),
-                      )
-                    : Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                              ),
-                              child: const Text('Cancel'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {
-                                ref.read(paymentProvider.notifier).reset();
-                                Navigator.pop(context, false);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                              ),
-                              child: const Text('Try Again'),
-                            ),
-                          ),
-                        ],
-                      ),
               ),
           ],
         ),

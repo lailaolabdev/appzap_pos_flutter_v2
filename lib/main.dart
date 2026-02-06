@@ -28,9 +28,13 @@ void main() async {
     ),
   );
 
+  final container = ProviderContainer();
+  await container.read(localizationProvider.notifier).loadFromStorage();
+
   runApp(
-    const ProviderScope(
-      child: AppZapPOSApp(),
+    UncontrolledProviderScope(
+      container: container,
+      child: const AppZapPOSApp(),
     ),
   );
 }
@@ -47,34 +51,30 @@ class AppZapPOSApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'AppZap POS',
       debugShowCheckedModeBanner: false,
-      
+
       // Localization
       locale: localization.locale,
-      supportedLocales: const [
-        Locale('en'),
-        Locale('lo'),
-      ],
+      supportedLocales: const [Locale('en'), Locale('lo')],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      
+
       // Theme
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.light, // Force light mode for POS
-      
       // Router
       routerConfig: router,
-      
+
       // Builder for global error handling and overlays
       builder: (context, child) {
         return MediaQuery(
           // Prevent text scaling that might break UI
-          data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.noScaling,
-          ),
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.noScaling),
           child: child!,
         );
       },

@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,22 +9,20 @@ import '../../app/theme.dart';
 import '../../features/auth/providers/auth_provider.dart';
 
 /// Sidebar navigation for all devices
-/// 
+///
 /// - Tablet/Desktop: Persistent sidebar (80px width)
 /// - Mobile: Drawer sidebar (240px width)
 /// Industry standard (Loyverse, Square, Toast style)
 class AppSidebar extends ConsumerWidget {
   final bool isInDrawer;
 
-  const AppSidebar({
-    super.key,
-    this.isInDrawer = false,
-  });
+  const AppSidebar({super.key, this.isInDrawer = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final currentRoute = GoRouterState.of(context).matchedLocation;
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     // Drawer mode: wider sidebar with more spacing
     // Persistent mode: compact sidebar with icon + label
@@ -43,159 +43,163 @@ class AppSidebar extends ConsumerWidget {
       child: SafeArea(
         child: Column(
           children: [
-          // Logo/Brand
-          Container(
-            height: isInDrawer ? 120 : 80,
-            padding: const EdgeInsets.all(16),
-            child: isInDrawer ? _buildDrawerHeader(user) : _buildCompactHeader(),
-          ),
+            // Logo/Brand
+            Container(
+              height: isInDrawer ? 120 : 80,
+              padding: const EdgeInsets.all(16),
+              child:
+                  isInDrawer ? _buildDrawerHeader(user) : _buildCompactHeader(),
+            ),
 
-          // Divider
-          Container(
-            height: 1,
-            color: AppTheme.neutral200,
-          ),
+            // Divider
+            Container(height: 1, color: AppTheme.neutral200),
 
-          // Navigation Items
-          Expanded(
-            child: SingleChildScrollView(
+            // Navigation Items
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _SidebarItem(
+                      icon: Icons.point_of_sale,
+                      label: Translations.get('sales', languageCode),
+                      route: AppRoutes.pos,
+                      isActive: currentRoute == AppRoutes.pos,
+                      isInDrawer: isInDrawer,
+                      onTap: () {
+                        context.go(AppRoutes.pos);
+                        if (isInDrawer)
+                          Navigator.of(context).pop(); // Close drawer
+                      },
+                    ),
+                    // Menu - accessible to admins and managers
+                    if (user?.isAdmin == true || user?.isManager == true)
+                      _SidebarItem(
+                        icon: Icons.restaurant_menu,
+                        label: Translations.get('menu', languageCode),
+                        route: AppRoutes.menu,
+                        isActive: currentRoute == AppRoutes.menu,
+                        isInDrawer: isInDrawer,
+                        onTap: () {
+                          context.go(AppRoutes.menu);
+                          if (isInDrawer) Navigator.of(context).pop();
+                        },
+                      ),
+                    // Orders - accessible to everyone who can manage sales
+                    _SidebarItem(
+                      icon: Icons.receipt_long_outlined,
+                      label: Translations.get('orders', languageCode),
+                      route: AppRoutes.orders,
+                      isActive: currentRoute == AppRoutes.orders,
+                      isInDrawer: isInDrawer,
+                      onTap: () {
+                        context.go(AppRoutes.orders);
+                        if (isInDrawer) Navigator.of(context).pop();
+                      },
+                    ),
+                    // Show to admins OR users with permission
+                    if (user?.isAdmin == true ||
+                        user?.canManageInventory == true)
+                      _SidebarItem(
+                        icon: Icons.inventory_2_outlined,
+                        label: Translations.get('inventory', languageCode),
+                        route: AppRoutes.inventory,
+                        isActive: currentRoute == AppRoutes.inventory,
+                        isInDrawer: isInDrawer,
+                        onTap: () {
+                          context.go(AppRoutes.inventory);
+                          if (isInDrawer) Navigator.of(context).pop();
+                        },
+                      ),
+                    // Show to admins OR users with permission
+                    if (user?.isAdmin == true ||
+                        user?.canManageCustomers == true)
+                      _SidebarItem(
+                        icon: Icons.people_outline,
+                        label: Translations.get('customers', languageCode),
+                        route: AppRoutes.customers,
+                        isActive: currentRoute == AppRoutes.customers,
+                        isInDrawer: isInDrawer,
+                        onTap: () {
+                          context.go(AppRoutes.customers);
+                          if (isInDrawer) Navigator.of(context).pop();
+                        },
+                      ),
+                    // Transactions - Show to admins OR users who can manage sales/view reports
+                    if (user?.isAdmin == true ||
+                        user?.canManageSales == true ||
+                        user?.canViewReports == true)
+                      _SidebarItem(
+                        icon: Icons.receipt_long,
+                        label: Translations.get('transactions', languageCode),
+                        route: AppRoutes.transactions,
+                        isActive: currentRoute == AppRoutes.transactions,
+                        isInDrawer: isInDrawer,
+                        onTap: () {
+                          context.go(AppRoutes.transactions);
+                          if (isInDrawer) Navigator.of(context).pop();
+                        },
+                      ),
+                    // Show to admins OR users with permission
+                    if (user?.isAdmin == true || user?.canViewReports == true)
+                      _SidebarItem(
+                        icon: Icons.assessment_outlined,
+                        label: Translations.get('reports', languageCode),
+                        route: AppRoutes.reports,
+                        isActive: currentRoute == AppRoutes.reports,
+                        isInDrawer: isInDrawer,
+                        onTap: () {
+                          context.go(AppRoutes.reports);
+                          if (isInDrawer) Navigator.of(context).pop();
+                        },
+                      ),
+                    // Settings - Show to admins only
+                    if (user?.isAdmin == true)
+                      _SidebarItem(
+                        icon: Icons.settings_outlined,
+                        label: Translations.get('settings', languageCode),
+                        route: AppRoutes.settings,
+                        isActive: currentRoute == AppRoutes.settings,
+                        isInDrawer: isInDrawer,
+                        onTap: () {
+                          context.go(AppRoutes.settings);
+                          if (isInDrawer) Navigator.of(context).pop();
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Bottom Section - User Profile
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Column(
                 children: [
+                  // Divider
+                  Container(
+                    height: 1,
+                    color: AppTheme.neutral200,
+                    margin: const EdgeInsets.only(bottom: 8),
+                  ),
+
+                  // User Profile
                   _SidebarItem(
-                    icon: Icons.point_of_sale,
-                    label: 'Sales',
-                    route: AppRoutes.pos,
-                    isActive: currentRoute == AppRoutes.pos,
+                    icon: Icons.person_outline,
+                    label:
+                        isInDrawer
+                            ? (user?.name ?? 'User')
+                            : user?.name.substring(0, 1).toUpperCase() ?? 'U',
+                    route: '',
+                    isActive: false,
                     isInDrawer: isInDrawer,
                     onTap: () {
-                      context.go(AppRoutes.pos);
-                      if (isInDrawer) Navigator.of(context).pop(); // Close drawer
+                      _showUserMenu(context, ref, user, isInDrawer);
                     },
                   ),
-                  // Menu - accessible to admins and managers
-                  if (user?.isAdmin == true || user?.isManager == true)
-                    _SidebarItem(
-                      icon: Icons.restaurant_menu,
-                      label: 'Menu',
-                      route: AppRoutes.menu,
-                      isActive: currentRoute == AppRoutes.menu,
-                      isInDrawer: isInDrawer,
-                      onTap: () {
-                        context.go(AppRoutes.menu);
-                        if (isInDrawer) Navigator.of(context).pop();
-                      },
-                    ),
-                  // Orders - accessible to everyone who can manage sales
-                  _SidebarItem(
-                    icon: Icons.receipt_long_outlined,
-                    label: 'Orders',
-                    route: AppRoutes.orders,
-                    isActive: currentRoute == AppRoutes.orders,
-                    isInDrawer: isInDrawer,
-                    onTap: () {
-                      context.go(AppRoutes.orders);
-                      if (isInDrawer) Navigator.of(context).pop();
-                    },
-                  ),
-                  // Show to admins OR users with permission
-                  if (user?.isAdmin == true || user?.canManageInventory == true)
-                    _SidebarItem(
-                      icon: Icons.inventory_2_outlined,
-                      label: 'Inventory',
-                      route: AppRoutes.inventory,
-                      isActive: currentRoute == AppRoutes.inventory,
-                      isInDrawer: isInDrawer,
-                      onTap: () {
-                        context.go(AppRoutes.inventory);
-                        if (isInDrawer) Navigator.of(context).pop();
-                      },
-                    ),
-                  // Show to admins OR users with permission
-                  if (user?.isAdmin == true || user?.canManageCustomers == true)
-                    _SidebarItem(
-                      icon: Icons.people_outline,
-                      label: 'Customers',
-                      route: AppRoutes.customers,
-                      isActive: currentRoute == AppRoutes.customers,
-                      isInDrawer: isInDrawer,
-                      onTap: () {
-                        context.go(AppRoutes.customers);
-                        if (isInDrawer) Navigator.of(context).pop();
-                      },
-                    ),
-                  // Transactions - Show to admins OR users who can manage sales/view reports
-                  if (user?.isAdmin == true || user?.canManageSales == true || user?.canViewReports == true)
-                    _SidebarItem(
-                      icon: Icons.receipt_long,
-                      label: 'Transactions',
-                      route: AppRoutes.transactions,
-                      isActive: currentRoute == AppRoutes.transactions,
-                      isInDrawer: isInDrawer,
-                      onTap: () {
-                        context.go(AppRoutes.transactions);
-                        if (isInDrawer) Navigator.of(context).pop();
-                      },
-                    ),
-                  // Show to admins OR users with permission
-                  if (user?.isAdmin == true || user?.canViewReports == true)
-                    _SidebarItem(
-                      icon: Icons.assessment_outlined,
-                      label: 'Reports',
-                      route: AppRoutes.reports,
-                      isActive: currentRoute == AppRoutes.reports,
-                      isInDrawer: isInDrawer,
-                      onTap: () {
-                        context.go(AppRoutes.reports);
-                        if (isInDrawer) Navigator.of(context).pop();
-                      },
-                    ),
-                  // Settings - Show to admins only
-                  if (user?.isAdmin == true)
-                    _SidebarItem(
-                      icon: Icons.settings_outlined,
-                      label: 'Settings',
-                      route: AppRoutes.settings,
-                      isActive: currentRoute == AppRoutes.settings,
-                      isInDrawer: isInDrawer,
-                      onTap: () {
-                        context.go(AppRoutes.settings);
-                        if (isInDrawer) Navigator.of(context).pop();
-                      },
-                    ),
                 ],
               ),
             ),
-          ),
-
-          // Bottom Section - User Profile
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Column(
-              children: [
-                // Divider
-                Container(
-                  height: 1,
-                  color: AppTheme.neutral200,
-                  margin: const EdgeInsets.only(bottom: 8),
-                ),
-
-                // User Profile
-                _SidebarItem(
-                  icon: Icons.person_outline,
-                  label: isInDrawer 
-                      ? (user?.name ?? 'User')
-                      : user?.name.substring(0, 1).toUpperCase() ?? 'U',
-                  route: '',
-                  isActive: false,
-                  isInDrawer: isInDrawer,
-                  onTap: () {
-                    _showUserMenu(context, ref, user, isInDrawer);
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
         ),
       ),
     );
@@ -258,75 +262,87 @@ class AppSidebar extends ConsumerWidget {
         if (user?.branch?.name != null)
           Text(
             user!.branch!.name!,
-            style: const TextStyle(
-              color: AppTheme.neutral600,
-              fontSize: 13,
-            ),
+            style: const TextStyle(color: AppTheme.neutral600, fontSize: 13),
           ),
       ],
     );
   }
 
-  void _showUserMenu(BuildContext context, WidgetRef ref, dynamic user, bool isInDrawer) {
+  void _showUserMenu(
+    BuildContext context,
+    WidgetRef ref,
+    dynamic user,
+    bool isInDrawer,
+  ) {
     showModalBottomSheet(
       context: context,
-      builder: (modalContext) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // User Info
-            ListTile(
-              leading: CircleAvatar(
-                backgroundColor: AppTheme.primaryOrangeBackground,
-                child: Text(
-                  user?.name.substring(0, 1).toUpperCase() ?? 'U',
-                  style: const TextStyle(
-                    color: AppTheme.primaryOrange,
-                    fontWeight: FontWeight.bold,
+      builder:
+          (modalContext) => Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // User Info
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: AppTheme.primaryOrangeBackground,
+                    child: Text(
+                      user?.name.substring(0, 1).toUpperCase() ?? 'U',
+                      style: const TextStyle(
+                        color: AppTheme.primaryOrange,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
+                  title: Text(user?.name ?? 'User'),
+                  subtitle: Text(user?.roleDisplayName ?? 'Staff'),
                 ),
-              ),
-              title: Text(user?.name ?? 'User'),
-              subtitle: Text(user?.roleDisplayName ?? 'Staff'),
-            ),
-            const Divider(),
-            
-            // Logout
-            ListTile(
-              leading: const Icon(Icons.logout, color: AppTheme.error),
-              title: const Text('Logout', style: TextStyle(color: AppTheme.error)),
-              onTap: () async {
-                Navigator.pop(modalContext); // Close bottom sheet
-                if (isInDrawer) Navigator.pop(context); // Close drawer if in drawer mode
-                
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (dialogContext) => AlertDialog(
-                    title: const Text('Logout'),
-                    content: const Text('Are you sure you want to logout?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(dialogContext, false),
-                        child: const Text('Cancel'),
-                      ),
-                      ElevatedButton(
-                        onPressed: () => Navigator.pop(dialogContext, true),
-                        child: const Text('Logout'),
-                      ),
-                    ],
-                  ),
-                );
+                const Divider(),
 
-                if (confirmed == true) {
-                  await ref.read(authProvider.notifier).logout();
-                }
-              },
+                // Logout
+                ListTile(
+                  leading: const Icon(Icons.logout, color: AppTheme.error),
+                  title: const Text(
+                    'Logout',
+                    style: TextStyle(color: AppTheme.error),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(modalContext); // Close bottom sheet
+                    if (isInDrawer)
+                      Navigator.pop(context); // Close drawer if in drawer mode
+
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder:
+                          (dialogContext) => AlertDialog(
+                            title: const Text('Logout'),
+                            content: const Text(
+                              'Are you sure you want to logout?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed:
+                                    () => Navigator.pop(dialogContext, false),
+                                child: const Text('Cancel'),
+                              ),
+                              ElevatedButton(
+                                onPressed:
+                                    () => Navigator.pop(dialogContext, true),
+                                child: const Text('Logout'),
+                              ),
+                            ],
+                          ),
+                    );
+
+                    if (confirmed == true) {
+                      await ref.read(authProvider.notifier).logout();
+                    }
+                  },
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 }
@@ -357,11 +373,15 @@ class _SidebarItem extends StatelessWidget {
       onTap: onTap,
       child: Container(
         height: isInDrawer ? 56 : 72,
-        padding: isInDrawer 
-            ? const EdgeInsets.symmetric(horizontal: 16, vertical: 8)
-            : const EdgeInsets.symmetric(vertical: 8),
+        padding:
+            isInDrawer
+                ? const EdgeInsets.symmetric(horizontal: 16, vertical: 8)
+                : const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? AppTheme.primaryOrangeBackground.withOpacity(0.1) : Colors.transparent,
+          color:
+              isActive
+                  ? AppTheme.primaryOrangeBackground.withOpacity(0.1)
+                  : Colors.transparent,
           border: Border(
             left: BorderSide(
               color: isActive ? AppTheme.primaryOrange : Colors.transparent,
@@ -369,7 +389,8 @@ class _SidebarItem extends StatelessWidget {
             ),
           ),
         ),
-        child: isInDrawer ? _buildDrawerLayout(color) : _buildCompactLayout(color),
+        child:
+            isInDrawer ? _buildDrawerLayout(color) : _buildCompactLayout(color),
       ),
     );
   }
@@ -378,11 +399,7 @@ class _SidebarItem extends StatelessWidget {
   Widget _buildDrawerLayout(Color color) {
     return Row(
       children: [
-        Icon(
-          icon,
-          color: color,
-          size: 24,
-        ),
+        Icon(icon, color: color, size: 24),
         const SizedBox(width: 16),
         Expanded(
           child: Text(
@@ -405,11 +422,7 @@ class _SidebarItem extends StatelessWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(
-          icon,
-          color: color,
-          size: 28,
-        ),
+        Icon(icon, color: color, size: 28),
         const SizedBox(height: 4),
         Text(
           label,
@@ -426,4 +439,3 @@ class _SidebarItem extends StatelessWidget {
     );
   }
 }
-

@@ -1,24 +1,25 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
 import '../providers/transaction_provider.dart';
 
-class TransactionFilterDialog extends StatefulWidget {
+class TransactionFilterDialog extends ConsumerStatefulWidget {
   final TransactionFilters currentFilters;
 
-  const TransactionFilterDialog({
-    super.key,
-    required this.currentFilters,
-  });
+  const TransactionFilterDialog({super.key, required this.currentFilters});
 
   @override
-  State<TransactionFilterDialog> createState() =>
+  ConsumerState<TransactionFilterDialog> createState() =>
       _TransactionFilterDialogState();
 }
 
-class _TransactionFilterDialogState extends State<TransactionFilterDialog> {
-  late String? _selectedStatus;
-  late String? _selectedMethod;
+class _TransactionFilterDialogState
+    extends ConsumerState<TransactionFilterDialog> {
+  String? _selectedStatus;
+  String? _selectedMethod;
 
   @override
   void initState() {
@@ -29,16 +30,18 @@ class _TransactionFilterDialogState extends State<TransactionFilterDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final languageCode = ref.watch(localizationProvider).languageCode;
+
     return AlertDialog(
-      title: const Text('Filter Transactions'),
+      title: Text(Translations.get('filter_transactions', languageCode)),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Status filter
-            const Text(
-              'Status',
+            Text(
+              Translations.get('status', languageCode),
               style: TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
@@ -47,37 +50,36 @@ class _TransactionFilterDialogState extends State<TransactionFilterDialog> {
               runSpacing: 8,
               children: [
                 _buildFilterChip(
-                  label: 'All',
+                  label: Translations.get('all', languageCode),
                   isSelected: _selectedStatus == null,
                   onTap: () => setState(() => _selectedStatus = null),
                 ),
                 _buildFilterChip(
-                  label: 'Completed',
+                  label: Translations.get('completed', languageCode),
                   isSelected: _selectedStatus == 'completed',
                   onTap: () => setState(() => _selectedStatus = 'completed'),
                 ),
                 _buildFilterChip(
-                  label: 'Pending',
+                  label: Translations.get('pending', languageCode),
                   isSelected: _selectedStatus == 'pending',
                   onTap: () => setState(() => _selectedStatus = 'pending'),
                 ),
                 _buildFilterChip(
-                  label: 'Voided',
+                  label: Translations.get('voided', languageCode),
                   isSelected: _selectedStatus == 'voided',
                   onTap: () => setState(() => _selectedStatus = 'voided'),
                 ),
                 _buildFilterChip(
-                  label: 'Refunded',
+                  label: Translations.get('refunded', languageCode),
                   isSelected: _selectedStatus == 'refunded',
                   onTap: () => setState(() => _selectedStatus = 'refunded'),
                 ),
               ],
             ),
             const SizedBox(height: 24),
-
             // Payment method filter
-            const Text(
-              'Payment Method',
+            Text(
+              Translations.get('payment_methods', languageCode),
               style: TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
@@ -86,17 +88,17 @@ class _TransactionFilterDialogState extends State<TransactionFilterDialog> {
               runSpacing: 8,
               children: [
                 _buildFilterChip(
-                  label: 'All',
+                  label: Translations.get('all', languageCode),
                   isSelected: _selectedMethod == null,
                   onTap: () => setState(() => _selectedMethod = null),
                 ),
                 _buildFilterChip(
-                  label: 'Cash',
+                  label: Translations.get('cash', languageCode),
                   isSelected: _selectedMethod == 'cash',
                   onTap: () => setState(() => _selectedMethod = 'cash'),
                 ),
                 _buildFilterChip(
-                  label: 'Card',
+                  label: Translations.get('card', languageCode),
                   isSelected: _selectedMethod == 'card',
                   onTap: () => setState(() => _selectedMethod = 'card'),
                 ),
@@ -133,11 +135,11 @@ class _TransactionFilterDialogState extends State<TransactionFilterDialog> {
               _selectedMethod = null;
             });
           },
-          child: const Text('Clear All'),
+          child: Text(Translations.get('clear_all', languageCode)),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(Translations.get('cancel', languageCode)),
         ),
         ElevatedButton(
           onPressed: () {
@@ -154,7 +156,7 @@ class _TransactionFilterDialogState extends State<TransactionFilterDialog> {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppTheme.primaryOrange,
           ),
-          child: const Text('Apply'),
+          child: Text(Translations.get('apply', languageCode)),
         ),
       ],
     );
@@ -174,9 +176,7 @@ class _TransactionFilterDialogState extends State<TransactionFilterDialog> {
           color: isSelected ? AppTheme.primaryOrange : AppTheme.neutral100,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected
-                ? AppTheme.primaryOrange
-                : AppTheme.neutral300,
+            color: isSelected ? AppTheme.primaryOrange : AppTheme.neutral300,
           ),
         ),
         child: Text(
@@ -191,4 +191,3 @@ class _TransactionFilterDialogState extends State<TransactionFilterDialog> {
     );
   }
 }
-

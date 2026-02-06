@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
 import '../../../core/api/api_exception.dart';
+import '../../../core/constants/translations.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/error_banner.dart';
 import '../providers/auth_provider.dart';
@@ -30,20 +32,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  String _getErrorMessage(dynamic error) {
+  String _getErrorMessage(dynamic error, String languageCode) {
     if (error is ApiException) {
       if (error.isNetworkError) {
-        return 'No internet connection. Please check your network.';
+        return Translations.get(
+          'no_internet_connection_please_check_your_network',
+          languageCode,
+        );
       }
       if (error.isServerError) {
-        return 'Server is temporarily unavailable. Please try again later.';
+        return Translations.get(
+          'server_is_temporarily_unavailable_please_try_again_later',
+          languageCode,
+        );
       }
       return error.message;
     }
-    return 'Something went wrong. Please try again.';
+    return Translations.get(
+      'something_went_wrong_please_try_again',
+      languageCode,
+    );
   }
 
   Future<void> _sendOTP() async {
+    final languageCode = ref.read(localizationProvider).languageCode;
     if (!_formKey.currentState!.validate()) return;
 
     final phone = Validators.normalizePhone(_phoneController.text.trim());
@@ -72,7 +84,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = _getErrorMessage(e);
+          _error = _getErrorMessage(e, languageCode);
           _isLoading = false;
         });
       }
@@ -83,6 +95,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     // Use local loading state to avoid disposed widget issues
     final isLoading = _isLoading;
+
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackground,
@@ -116,7 +130,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                 // Title
                 Text(
-                  'Welcome to AppZap POS',
+                  Translations.get('welcome_to_appzap_pos', languageCode),
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -124,7 +138,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Enter your phone number to receive OTP',
+                  Translations.get(
+                    'enter_your_phone_number_to_receive_otp',
+                    languageCode,
+                  ),
                   style: Theme.of(
                     context,
                   ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
@@ -154,7 +171,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     _PhoneNumberFormatter(),
                   ],
                   decoration: InputDecoration(
-                    labelText: 'Phone Number',
+                    labelText: Translations.get('phone_number', languageCode),
                     hintText: '020 1234 5678',
                     prefixIcon: const Icon(Icons.phone_outlined),
                     prefixText: '+856 ',
@@ -183,7 +200,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 color: Colors.white,
                               ),
                             )
-                            : const Text('Send OTP'),
+                            : Text(Translations.get('send_otp', languageCode)),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -191,11 +208,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 // Login with PIN instead (for returning users)
                 TextButton.icon(
                   onPressed:
-                      isLoading
-                          ? null
-                          : () => context.push(AppRoutes.pinLogin),
+                      isLoading ? null : () => context.push(AppRoutes.pinLogin),
                   icon: const Icon(Icons.flash_on, size: 20),
-                  label: const Text('Login with PIN instead (⚡ faster)'),
+                  label: Text(
+                    Translations.get(
+                      'login_with_pin_instead_⚡_faster',
+                      languageCode,
+                    ),
+                  ),
                   style: TextButton.styleFrom(
                     foregroundColor: AppTheme.primaryOrange,
                   ),
@@ -205,7 +225,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                 // Footer
                 Text(
-                  'By continuing, you agree to our Terms of Service\nand Privacy Policy',
+                  Translations.get(
+                    'by_continuing_you_agree_to_our_terms_of_service_and_privacy_policy',
+                    languageCode,
+                  ),
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: AppTheme.neutral400),

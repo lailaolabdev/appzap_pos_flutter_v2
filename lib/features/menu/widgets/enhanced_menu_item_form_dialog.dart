@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,7 +10,7 @@ import '../../../core/utils/currency_formatter.dart';
 import '../providers/menu_provider.dart';
 
 /// Enhanced Menu Item Form Dialog with Complete Inventory Integration
-/// 
+///
 /// This dialog provides comprehensive CRUD operations for menu items with:
 /// - Full inventory tracking integration
 /// - Advanced tax calculations (tax-inclusive vs tax-exclusive)
@@ -21,56 +23,66 @@ class EnhancedMenuItemFormDialog extends ConsumerStatefulWidget {
   const EnhancedMenuItemFormDialog({super.key, this.item});
 
   @override
-  ConsumerState<EnhancedMenuItemFormDialog> createState() => _EnhancedMenuItemFormDialogState();
+  ConsumerState<EnhancedMenuItemFormDialog> createState() =>
+      _EnhancedMenuItemFormDialogState();
 }
 
-class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFormDialog>
+class _EnhancedMenuItemFormDialogState
+    extends ConsumerState<EnhancedMenuItemFormDialog>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   late TabController _tabController;
-  
+
   // Controllers for all form fields
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _itemCodeController;
   late final TextEditingController _barcodeController;
   late final TextEditingController _skuController;
-  
+
   // Pricing controllers
   late final TextEditingController _basePriceController;
   late final TextEditingController _costPriceController;
   late final TextEditingController _taxRateController;
   late final TextEditingController _profitMarginController;
-  
+
   // Inventory controllers
   late final TextEditingController _minStockController;
   late final TextEditingController _maxStockController;
   late final TextEditingController _reorderPointController;
   late final TextEditingController _initialStockController;
-  
+
   // State variables
   String? _selectedCategoryId;
   bool _isActive = true;
   bool _taxIncluded = false;
   bool _trackInventory = true;
   bool _isLoading = false;
-  
+
   // Inventory settings
   String _inventoryMethod = 'auto_create'; // auto_create, manual, none
   UnitOfMeasure _selectedUnit = const UnitOfMeasure(
-    name: 'Unit', 
-    abbreviation: 'unit', 
-    category: 'count'
+    name: 'Unit',
+    abbreviation: 'unit',
+    category: 'count',
   );
-  
+
   // Available units of measure
   final List<UnitOfMeasure> _availableUnits = [
     const UnitOfMeasure(name: 'Unit', abbreviation: 'unit', category: 'count'),
     const UnitOfMeasure(name: 'Piece', abbreviation: 'pc', category: 'count'),
-    const UnitOfMeasure(name: 'Kilogram', abbreviation: 'kg', category: 'weight'),
+    const UnitOfMeasure(
+      name: 'Kilogram',
+      abbreviation: 'kg',
+      category: 'weight',
+    ),
     const UnitOfMeasure(name: 'Gram', abbreviation: 'g', category: 'weight'),
     const UnitOfMeasure(name: 'Liter', abbreviation: 'L', category: 'volume'),
-    const UnitOfMeasure(name: 'Milliliter', abbreviation: 'ml', category: 'volume'),
+    const UnitOfMeasure(
+      name: 'Milliliter',
+      abbreviation: 'ml',
+      category: 'volume',
+    ),
     const UnitOfMeasure(name: 'Bottle', abbreviation: 'btl', category: 'count'),
     const UnitOfMeasure(name: 'Can', abbreviation: 'can', category: 'count'),
     const UnitOfMeasure(name: 'Box', abbreviation: 'box', category: 'count'),
@@ -80,7 +92,7 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
   double get _basePrice => double.tryParse(_basePriceController.text) ?? 0;
   double get _costPrice => double.tryParse(_costPriceController.text) ?? 0;
   double get _taxRate => double.tryParse(_taxRateController.text) ?? 0;
-  
+
   /// Calculate final selling price including or excluding tax
   double get _finalPrice {
     if (_taxIncluded) {
@@ -91,7 +103,7 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
       return _basePrice * (1 + (_taxRate / 100));
     }
   }
-  
+
   /// Calculate tax amount
   double get _taxAmount {
     if (_taxIncluded) {
@@ -102,7 +114,7 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
       return _basePrice * (_taxRate / 100);
     }
   }
-  
+
   /// Calculate profit margin percentage
   double get _profitMargin {
     if (_costPrice == 0) return 0;
@@ -113,7 +125,7 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    
+
     _initializeControllers();
     _loadExistingData();
   }
@@ -132,7 +144,7 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
     _maxStockController = TextEditingController(text: '100');
     _reorderPointController = TextEditingController(text: '20');
     _initialStockController = TextEditingController(text: '0');
-    
+
     // Add listeners for real-time calculations
     _basePriceController.addListener(_updateCalculations);
     _costPriceController.addListener(_updateCalculations);
@@ -150,15 +162,17 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
       _basePriceController.text = item.pricing?.basePrice?.toString() ?? '';
       _costPriceController.text = item.pricing?.costPrice?.toString() ?? '';
       _taxRateController.text = item.pricing?.taxRate?.toString() ?? '10';
-      
+
       _selectedCategoryId = item.categoryId;
       _isActive = item.isActive ?? true;
       _taxIncluded = item.pricing?.taxIncluded ?? false;
       _trackInventory = item.inventory?.trackStock ?? true;
-      
+
       if (item.inventory != null) {
-        _minStockController.text = item.inventory.lowStockThreshold?.toString() ?? '10';
-        _reorderPointController.text = item.inventory.reorderPoint?.toString() ?? '20';
+        _minStockController.text =
+            item.inventory.lowStockThreshold?.toString() ?? '10';
+        _reorderPointController.text =
+            item.inventory.reorderPoint?.toString() ?? '20';
       }
     }
   }
@@ -197,10 +211,14 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
   }
 
   Future<void> _save() async {
+    final languageCode = ref.read(localizationProvider).languageCode;
+
     if (!_formKey.currentState!.validate() || !_isFormValid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill in all required fields correctly'),
+        SnackBar(
+          content: Text(
+            Translations.get('fill_all_required_fields', languageCode),
+          ),
           backgroundColor: AppTheme.error,
         ),
       );
@@ -213,36 +231,61 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
       final bool success;
       if (widget.item == null) {
         // Create new menu item with full inventory integration
-        success = await ref.read(menuProvider.notifier).createMenuItem(
-          categoryId: _selectedCategoryId!,
-          name: _nameController.text.trim(),
-          description: _descriptionController.text.isEmpty ? null : _descriptionController.text.trim(),
-          itemCode: _itemCodeController.text.isEmpty ? null : _itemCodeController.text.trim(),
-          barcode: _barcodeController.text.isEmpty ? null : _barcodeController.text.trim(),
-          sku: _skuController.text.isEmpty ? null : _skuController.text.trim(),
-          basePrice: _basePrice,
-          costPrice: _costPrice > 0 ? _costPrice : null,
-          taxRate: _taxRate,
-          taxIncluded: _taxIncluded,
-          trackStock: _trackInventory,
-          lowStockThreshold: _trackInventory ? int.tryParse(_minStockController.text) ?? 10 : 0,
-          isActive: _isActive,
-        );
+        success = await ref
+            .read(menuProvider.notifier)
+            .createMenuItem(
+              categoryId: _selectedCategoryId!,
+              name: _nameController.text.trim(),
+              description:
+                  _descriptionController.text.isEmpty
+                      ? null
+                      : _descriptionController.text.trim(),
+              itemCode:
+                  _itemCodeController.text.isEmpty
+                      ? null
+                      : _itemCodeController.text.trim(),
+              barcode:
+                  _barcodeController.text.isEmpty
+                      ? null
+                      : _barcodeController.text.trim(),
+              sku:
+                  _skuController.text.isEmpty
+                      ? null
+                      : _skuController.text.trim(),
+              basePrice: _basePrice,
+              costPrice: _costPrice > 0 ? _costPrice : null,
+              taxRate: _taxRate,
+              taxIncluded: _taxIncluded,
+              trackStock: _trackInventory,
+              lowStockThreshold:
+                  _trackInventory
+                      ? int.tryParse(_minStockController.text) ?? 10
+                      : 0,
+              isActive: _isActive,
+            );
       } else {
         // Update existing menu item
-        success = await ref.read(menuProvider.notifier).updateMenuItem(
-          itemId: widget.item.id,
-          name: _nameController.text.trim(),
-          description: _descriptionController.text.isEmpty ? null : _descriptionController.text.trim(),
-          categoryId: _selectedCategoryId,
-          basePrice: _basePrice,
-          costPrice: _costPrice > 0 ? _costPrice : null,
-          taxRate: _taxRate,
-          taxIncluded: _taxIncluded,
-          trackStock: _trackInventory,
-          lowStockThreshold: _trackInventory ? int.tryParse(_minStockController.text) ?? 10 : 0,
-          isActive: _isActive,
-        );
+        success = await ref
+            .read(menuProvider.notifier)
+            .updateMenuItem(
+              itemId: widget.item.id,
+              name: _nameController.text.trim(),
+              description:
+                  _descriptionController.text.isEmpty
+                      ? null
+                      : _descriptionController.text.trim(),
+              categoryId: _selectedCategoryId,
+              basePrice: _basePrice,
+              costPrice: _costPrice > 0 ? _costPrice : null,
+              taxRate: _taxRate,
+              taxIncluded: _taxIncluded,
+              trackStock: _trackInventory,
+              lowStockThreshold:
+                  _trackInventory
+                      ? int.tryParse(_minStockController.text) ?? 10
+                      : 0,
+              isActive: _isActive,
+            );
       }
 
       if (success && mounted) {
@@ -250,7 +293,9 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              widget.item == null ? 'Menu item created successfully!' : 'Menu item updated successfully!',
+              widget.item == null
+                  ? Translations.get('menu_item_created_success', languageCode)
+                  : Translations.get('menu_item_updated_success', languageCode),
             ),
             backgroundColor: AppTheme.success,
           ),
@@ -273,7 +318,7 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
   @override
   Widget build(BuildContext context) {
     final categories = ref.watch(menuProvider).categories;
-    
+
     return Dialog(
       child: Container(
         width: 800,
@@ -292,7 +337,15 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  widget.item == null ? 'Add Menu Item' : 'Edit Menu Item',
+                  widget.item == null
+                      ? Translations.get(
+                        'add_menu_item',
+                        ref.read(localizationProvider).languageCode,
+                      )
+                      : Translations.get(
+                        'edit_menu_item',
+                        ref.read(localizationProvider).languageCode,
+                      ),
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -305,16 +358,34 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 24),
 
             // Tab bar
             TabBar(
               controller: _tabController,
-              tabs: const [
-                Tab(icon: Icon(Icons.info), text: 'Basic Info'),
-                Tab(icon: Icon(Icons.attach_money), text: 'Pricing & Tax'),
-                Tab(icon: Icon(Icons.inventory), text: 'Inventory'),
+              tabs: [
+                Tab(
+                  icon: Icon(Icons.info),
+                  text: Translations.get(
+                    'basic_info',
+                    ref.read(localizationProvider).languageCode,
+                  ),
+                ),
+                Tab(
+                  icon: Icon(Icons.attach_money),
+                  text: Translations.get(
+                    'pricing_tax',
+                    ref.read(localizationProvider).languageCode,
+                  ),
+                ),
+                Tab(
+                  icon: Icon(Icons.inventory),
+                  text: Translations.get(
+                    'inventory',
+                    ref.read(localizationProvider).languageCode,
+                  ),
+                ),
               ],
             ),
 
@@ -342,7 +413,12 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
               children: [
                 OutlinedButton(
                   onPressed: _isLoading ? null : () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+                  child: Text(
+                    Translations.get(
+                      'cancel',
+                      ref.read(localizationProvider).languageCode,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
@@ -351,13 +427,27 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
                     backgroundColor: AppTheme.primaryOrange,
                     minimumSize: const Size(120, 48),
                   ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : Text(widget.item == null ? 'Create Item' : 'Update Item'),
+                  child:
+                      _isLoading
+                          ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                          : Text(
+                            widget.item == null
+                                ? Translations.get(
+                                  'create_item',
+                                  ref.read(localizationProvider).languageCode,
+                                )
+                                : Translations.get(
+                                  'update_item',
+                                  ref.read(localizationProvider).languageCode,
+                                ),
+                          ),
                 ),
               ],
             ),
@@ -376,8 +466,11 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
           // Item name
           TextFormField(
             controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: 'Item Name *',
+            decoration: InputDecoration(
+              labelText: Translations.get(
+                'item_name',
+                ref.read(localizationProvider).languageCode,
+              ),
               hintText: 'e.g., Espresso Coffee',
               prefixIcon: Icon(Icons.restaurant_menu),
               border: OutlineInputBorder(),
@@ -390,14 +483,17 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
             },
             textCapitalization: TextCapitalization.words,
           ),
-          
+
           const SizedBox(height: 16),
 
           // Description
           TextFormField(
             controller: _descriptionController,
-            decoration: const InputDecoration(
-              labelText: 'Description',
+            decoration: InputDecoration(
+              labelText: Translations.get(
+                'description',
+                ref.read(localizationProvider).languageCode,
+              ),
               hintText: 'Brief description of the item',
               prefixIcon: Icon(Icons.description),
               border: OutlineInputBorder(),
@@ -405,23 +501,27 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
             maxLines: 3,
             textCapitalization: TextCapitalization.sentences,
           ),
-          
+
           const SizedBox(height: 16),
 
           // Category selection
           DropdownButtonFormField<String>(
             value: _selectedCategoryId,
-            decoration: const InputDecoration(
-              labelText: 'Category *',
+            decoration: InputDecoration(
+              labelText: Translations.get(
+                'category_label',
+                ref.read(localizationProvider).languageCode,
+              ),
               prefixIcon: Icon(Icons.category),
               border: OutlineInputBorder(),
             ),
-            items: categories.map<DropdownMenuItem<String>>((category) {
-              return DropdownMenuItem<String>(
-                value: category.id,
-                child: Text(category.name),
-              );
-            }).toList(),
+            items:
+                categories.map<DropdownMenuItem<String>>((category) {
+                  return DropdownMenuItem<String>(
+                    value: category.id,
+                    child: Text(category.name),
+                  );
+                }).toList(),
             onChanged: (value) {
               setState(() => _selectedCategoryId = value);
             },
@@ -432,7 +532,7 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
               return null;
             },
           ),
-          
+
           const SizedBox(height: 16),
 
           // Item code and barcode row
@@ -441,8 +541,11 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
               Expanded(
                 child: TextFormField(
                   controller: _itemCodeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Item Code',
+                  decoration: InputDecoration(
+                    labelText: Translations.get(
+                      'item_code_label',
+                      ref.read(localizationProvider).languageCode,
+                    ),
                     hintText: 'ESP001',
                     prefixIcon: Icon(Icons.qr_code),
                     border: OutlineInputBorder(),
@@ -454,41 +557,55 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
               Expanded(
                 child: TextFormField(
                   controller: _barcodeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Barcode',
+                  decoration: InputDecoration(
+                    labelText: Translations.get(
+                      'barcode_label',
+                      ref.read(localizationProvider).languageCode,
+                    ),
                     hintText: '1234567890123',
                     prefixIcon: Icon(Icons.barcode_reader),
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                  ],
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 ),
               ),
             ],
           ),
-          
+
           const SizedBox(height: 16),
 
           // SKU
           TextFormField(
             controller: _skuController,
-            decoration: const InputDecoration(
-              labelText: 'SKU (Stock Keeping Unit)',
+            decoration: InputDecoration(
+              labelText: Translations.get(
+                'sku_label',
+                ref.read(localizationProvider).languageCode,
+              ),
               hintText: 'ESP-COFFEE-250ML',
               prefixIcon: Icon(Icons.inventory_2),
               border: OutlineInputBorder(),
             ),
             textCapitalization: TextCapitalization.characters,
           ),
-          
+
           const SizedBox(height: 16),
 
           // Active status
           SwitchListTile(
-            title: const Text('Active Item'),
-            subtitle: const Text('Available for sale'),
+            title: Text(
+              Translations.get(
+                'active',
+                ref.read(localizationProvider).languageCode,
+              ),
+            ),
+            subtitle: Text(
+              Translations.get(
+                'active_subtitle',
+                ref.read(localizationProvider).languageCode,
+              ),
+            ),
             value: _isActive,
             onChanged: (value) {
               setState(() => _isActive = value);
@@ -524,8 +641,11 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
                   children: [
                     const Icon(Icons.info, color: AppTheme.info),
                     const SizedBox(width: 8),
-                    const Text(
-                      'Tax Calculation Guide',
+                    Text(
+                      Translations.get(
+                        'tax_calculation_guide',
+                        ref.read(localizationProvider).languageCode,
+                      ),
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: AppTheme.info,
@@ -543,7 +663,7 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
               ],
             ),
           ),
-          
+
           const SizedBox(height: 24),
 
           // Base price and cost price row
@@ -552,8 +672,11 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
               Expanded(
                 child: TextFormField(
                   controller: _basePriceController,
-                  decoration: const InputDecoration(
-                    labelText: 'Selling Price (LAK) *',
+                  decoration: InputDecoration(
+                    labelText: Translations.get(
+                      'selling_price',
+                      ref.read(localizationProvider).languageCode,
+                    ),
                     hintText: '25000',
                     prefixIcon: Icon(Icons.attach_money),
                     border: OutlineInputBorder(),
@@ -578,8 +701,11 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
               Expanded(
                 child: TextFormField(
                   controller: _costPriceController,
-                  decoration: const InputDecoration(
-                    labelText: 'Cost Price (LAK)',
+                  decoration: InputDecoration(
+                    labelText: Translations.get(
+                      'cost_price_label',
+                      ref.read(localizationProvider).languageCode,
+                    ),
                     hintText: '15000',
                     prefixIcon: Icon(Icons.money_off),
                     border: OutlineInputBorder(),
@@ -592,7 +718,7 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
               ),
             ],
           ),
-          
+
           const SizedBox(height: 16),
 
           // Tax rate and settings
@@ -601,8 +727,11 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
               Expanded(
                 child: TextFormField(
                   controller: _taxRateController,
-                  decoration: const InputDecoration(
-                    labelText: 'Tax Rate (%)',
+                  decoration: InputDecoration(
+                    labelText: Translations.get(
+                      'tax_rate_label',
+                      ref.read(localizationProvider).languageCode,
+                    ),
                     hintText: '10',
                     prefixIcon: Icon(Icons.percent),
                     border: OutlineInputBorder(),
@@ -616,21 +745,32 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
               const SizedBox(width: 16),
               Expanded(
                 child: SwitchListTile(
-                  title: const Text('Tax Inclusive'),
-                  subtitle: const Text('Price includes tax'),
+                  title: Text(
+                    Translations.get(
+                      'tax_included',
+                      ref.read(localizationProvider).languageCode,
+                    ),
+                  ),
+                  subtitle: Text(
+                    Translations.get(
+                      'tax_included_subtitle',
+                      ref.read(localizationProvider).languageCode,
+                    ),
+                  ),
                   value: _taxIncluded,
                   onChanged: (value) {
                     setState(() => _taxIncluded = value);
                   },
                   secondary: Icon(
                     _taxIncluded ? Icons.check_circle : Icons.add_circle,
-                    color: _taxIncluded ? AppTheme.success : AppTheme.neutral400,
+                    color:
+                        _taxIncluded ? AppTheme.success : AppTheme.neutral400,
                   ),
                 ),
               ),
             ],
           ),
-          
+
           const SizedBox(height: 24),
 
           // Price calculation preview
@@ -644,8 +784,11 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Price Breakdown',
+                Text(
+                  Translations.get(
+                    'price_breakdown',
+                    ref.read(localizationProvider).languageCode,
+                  ),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: AppTheme.success,
@@ -661,10 +804,13 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
                   _buildPriceRow('Cost Price', _costPrice),
                   _buildPriceRow('Profit', _basePrice - _costPrice),
                   Text(
-                    'Profit Margin: ${_profitMargin.toStringAsFixed(1)}%',
+                    '${Translations.get('profit_margin', ref.read(localizationProvider).languageCode)}: ${_profitMargin.toStringAsFixed(1)}%',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: _profitMargin >= 20 ? AppTheme.success : AppTheme.warning,
+                      color:
+                          _profitMargin >= 20
+                              ? AppTheme.success
+                              : AppTheme.warning,
                     ),
                   ),
                 ],
@@ -708,8 +854,18 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
         children: [
           // Inventory tracking toggle
           SwitchListTile(
-            title: const Text('Enable Inventory Tracking'),
-            subtitle: const Text('Track stock levels for this item'),
+            title: Text(
+              Translations.get(
+                'inventory_tracking',
+                ref.read(localizationProvider).languageCode,
+              ),
+            ),
+            subtitle: Text(
+              Translations.get(
+                'inventory_tracking_subtitle',
+                ref.read(localizationProvider).languageCode,
+              ),
+            ),
             value: _trackInventory,
             onChanged: (value) {
               setState(() => _trackInventory = value);
@@ -719,31 +875,35 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
               color: _trackInventory ? AppTheme.success : AppTheme.neutral400,
             ),
           ),
-          
+
           if (_trackInventory) ...[
             const SizedBox(height: 16),
 
             // Unit of measure selection
             DropdownButtonFormField<UnitOfMeasure>(
-              value: _selectedUnit,
-              decoration: const InputDecoration(
-                labelText: 'Unit of Measure',
+              initialValue: _selectedUnit,
+              decoration: InputDecoration(
+                labelText: Translations.get(
+                  'unit_of_measure',
+                  ref.read(localizationProvider).languageCode,
+                ),
                 prefixIcon: Icon(Icons.straighten),
                 border: OutlineInputBorder(),
               ),
-              items: _availableUnits.map((unit) {
-                return DropdownMenuItem<UnitOfMeasure>(
-                  value: unit,
-                  child: Text('${unit.name} (${unit.abbreviation})'),
-                );
-              }).toList(),
+              items:
+                  _availableUnits.map((unit) {
+                    return DropdownMenuItem<UnitOfMeasure>(
+                      value: unit,
+                      child: Text('${unit.name} (${unit.abbreviation})'),
+                    );
+                  }).toList(),
               onChanged: (value) {
                 if (value != null) {
                   setState(() => _selectedUnit = value);
                 }
               },
             ),
-            
+
             const SizedBox(height: 16),
 
             // Stock level settings
@@ -752,37 +912,39 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
                 Expanded(
                   child: TextFormField(
                     controller: _minStockController,
-                    decoration: const InputDecoration(
-                      labelText: 'Min Stock Level',
+                    decoration: InputDecoration(
+                      labelText: Translations.get(
+                        'min_stock_level',
+                        ref.read(localizationProvider).languageCode,
+                      ),
                       hintText: '10',
                       prefixIcon: Icon(Icons.trending_down),
                       border: OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                    ],
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: TextFormField(
                     controller: _maxStockController,
-                    decoration: const InputDecoration(
-                      labelText: 'Max Stock Level',
+                    decoration: InputDecoration(
+                      labelText: Translations.get(
+                        'max_stock_level',
+                        ref.read(localizationProvider).languageCode,
+                      ),
                       hintText: '100',
                       prefixIcon: Icon(Icons.trending_up),
                       border: OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                    ],
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   ),
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 16),
 
             // Reorder point and initial stock
@@ -791,32 +953,34 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
                 Expanded(
                   child: TextFormField(
                     controller: _reorderPointController,
-                    decoration: const InputDecoration(
-                      labelText: 'Reorder Point',
+                    decoration: InputDecoration(
+                      labelText: Translations.get(
+                        'reorder_point',
+                        ref.read(localizationProvider).languageCode,
+                      ),
                       hintText: '20',
                       prefixIcon: Icon(Icons.refresh),
                       border: OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                    ],
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: TextFormField(
                     controller: _initialStockController,
-                    decoration: const InputDecoration(
-                      labelText: 'Initial Stock',
+                    decoration: InputDecoration(
+                      labelText: Translations.get(
+                        'initial_stock',
+                        ref.read(localizationProvider).languageCode,
+                      ),
                       hintText: '0',
                       prefixIcon: Icon(Icons.add_box),
                       border: OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                    ],
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   ),
                 ),
               ],
@@ -830,17 +994,25 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
               decoration: BoxDecoration(
                 color: AppTheme.primaryOrangeBackground,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppTheme.primaryOrange.withOpacity(0.3)),
+                border: Border.all(
+                  color: AppTheme.primaryOrange.withOpacity(0.3),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.lightbulb, color: AppTheme.primaryOrange),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Inventory Management Tips',
+                      const Icon(
+                        Icons.lightbulb,
+                        color: AppTheme.primaryOrange,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        Translations.get(
+                          'inventory_management_tips',
+                          ref.read(localizationProvider).languageCode,
+                        ),
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: AppTheme.primaryOrange,
@@ -848,8 +1020,8 @@ class _EnhancedMenuItemFormDialogState extends ConsumerState<EnhancedMenuItemFor
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
+                  SizedBox(height: 8),
+                  Text(
                     '• Min Stock: Alert threshold for low inventory\n'
                     '• Max Stock: Maximum recommended inventory level\n'
                     '• Reorder Point: When to place new orders\n'

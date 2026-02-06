@@ -1,3 +1,5 @@
+import 'package:appzap_pos/core/constants/translations.dart';
+import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -32,6 +34,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
   Widget build(BuildContext context) {
     final customersState = ref.watch(customersProvider);
     final isMobile = Responsive.isMobile(context);
+    final languageCode = ref.read(localizationProvider).languageCode;
 
     return AppShell(
       child: Scaffold(
@@ -39,11 +42,11 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
         drawer:
             isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
-          title: const Text('Customers'),
+          title: Text(Translations.get('customers', languageCode)),
           actions: [
             IconButton(
               icon: const Icon(Icons.person_add_outlined),
-              tooltip: 'Add Customer',
+              tooltip: Translations.get('add_customer', languageCode),
               onPressed: () async {
                 final result = await showDialog(
                   context: context,
@@ -67,7 +70,10 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
               child: TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
-                  hintText: 'Search by name or phone...',
+                  hintText: Translations.get(
+                    'search_by_name_or_phone',
+                    languageCode,
+                  ),
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon:
                       _searchController.text.isNotEmpty
@@ -116,7 +122,9 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                                     .read(customersProvider.notifier)
                                     .loadCustomers();
                               },
-                              child: const Text('Retry'),
+                              child: Text(
+                                Translations.get('retry', languageCode),
+                              ),
                             ),
                           ],
                         ),
@@ -146,13 +154,19 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                               ),
                               const SizedBox(height: 24),
                               Text(
-                                'No Customers Yet',
+                                Translations.get(
+                                  'no_customers_yet',
+                                  languageCode,
+                                ),
                                 style: Theme.of(context).textTheme.headlineSmall
                                     ?.copyWith(fontWeight: FontWeight.bold),
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                'Add your first customer to get started',
+                                Translations.get(
+                                  'add_your_first_customer',
+                                  languageCode,
+                                ),
                                 style: Theme.of(context).textTheme.bodyLarge
                                     ?.copyWith(color: AppTheme.neutral500),
                               ),
@@ -172,7 +186,12 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                                   }
                                 },
                                 icon: const Icon(Icons.person_add),
-                                label: const Text('Add Customer'),
+                                label: Text(
+                                  Translations.get(
+                                    'add_customer',
+                                    languageCode,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -223,6 +242,8 @@ class _CustomerCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final languageCode = ref.read(localizationProvider).languageCode;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
@@ -313,7 +334,7 @@ class _CustomerCard extends ConsumerWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${customer.loyaltyPoints} pts',
+                          '${customer.loyaltyPoints} ${Translations.get('pts', languageCode)}',
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -344,14 +365,6 @@ class _CustomerCard extends ConsumerWidget {
                           Icons.event,
                           size: 16,
                           color: AppTheme.neutral500,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${customer.visitCount} visits',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppTheme.neutral700,
-                          ),
                         ),
                       ],
                     ),

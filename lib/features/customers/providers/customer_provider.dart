@@ -61,15 +61,9 @@ class CustomersNotifier extends StateNotifier<CustomersState> {
         search: state.searchQuery,
       );
 
-      state = state.copyWith(
-        customers: customers,
-        isLoading: false,
-      );
+      state = state.copyWith(customers: customers, isLoading: false);
     } catch (e) {
-      state = state.copyWith(
-        error: e.toString(),
-        isLoading: false,
-      );
+      state = state.copyWith(error: e.toString(), isLoading: false);
     }
   }
 
@@ -86,11 +80,9 @@ class CustomersNotifier extends StateNotifier<CustomersState> {
 }
 
 /// Customers provider
-final customersProvider = StateNotifierProvider<CustomersNotifier, CustomersState>(
-  (ref) {
-    final customerService = ref.watch(customerServiceProvider);
-    final restaurantId = ref.watch(currentRestaurantIdProvider);
-    return CustomersNotifier(customerService, restaurantId);
-  },
-);
-
+final customersProvider =
+    StateNotifierProvider<CustomersNotifier, CustomersState>((ref) {
+      final customerService = ref.watch(customerServiceProvider);
+      final restaurantId = ref.watch(currentRestaurantIdProvider);
+      return CustomersNotifier(customerService, restaurantId);
+    });

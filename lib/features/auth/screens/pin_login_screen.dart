@@ -6,6 +6,8 @@ import 'package:pin_code_fields/pin_code_fields.dart';
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
 import '../../../core/api/api_exception.dart';
+import '../../../core/constants/translations.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/error_banner.dart';
 import '../providers/auth_provider.dart';
@@ -32,11 +34,13 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    final languageCode = ref.read(localizationProvider).languageCode;
     final pin = _pinController.text.trim();
     final error = Validators.pin(pin);
 
     if (error != null) {
-      if (mounted) setState(() => _error = error);
+      if (mounted)
+        setState(() => _error = Translations.get('invalid_pin', languageCode));
       return;
     }
 
@@ -54,7 +58,7 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
       // Navigation handled by router redirect
     } catch (e) {
       if (mounted) {
-        String errorMessage = _getErrorMessage(e);
+        String errorMessage = _getErrorMessage(e, languageCode);
         setState(() {
           _error = errorMessage;
           _isLoading = false;
@@ -64,29 +68,46 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
     }
   }
 
-  String _getErrorMessage(dynamic error) {
+  String _getErrorMessage(dynamic error, String languageCode) {
     if (error is ApiException) {
       if (error.isUnauthorized) {
-        return 'Incorrect PIN. Please check and try again.';
+        return Translations.get(
+          'incorrect_pin_please_check_and_try_again',
+          languageCode,
+        );
       }
       if (error.isNetworkError) {
-        return 'No internet connection. Please check your network and try again.';
+        return Translations.get(
+          'no_internet_connection_please_check_your_network_and_try_again',
+          languageCode,
+        );
       }
       if (error.isServerError) {
-        return 'Server is temporarily unavailable. Please try again later.';
+        return Translations.get(
+          'server_is_temporarily_unavailable_please_try_again_later',
+          languageCode,
+        );
       }
       if (error.isRateLimited) {
-        return 'Too many attempts. Please wait a moment and try again.';
+        return Translations.get(
+          'too_many_attempts_please_wait_a_moment',
+          languageCode,
+        );
       }
       return error.message;
     }
-    return 'Something went wrong. Please try again.';
+    return Translations.get(
+      'something_went_wrong_please_try_again',
+      languageCode,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     // Use local loading state to avoid disposed widget issues with provider updates
     final isLoading = _isLoading;
+
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackground,
@@ -125,7 +146,7 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
 
               // Title
               Text(
-                'Enter your PIN',
+                Translations.get('enter_your_pin', languageCode),
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -133,7 +154,10 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Enter your 4-digit PIN to login',
+                Translations.get(
+                  'enter_your_4_digit_pin_to_login',
+                  languageCode,
+                ),
                 style: Theme.of(
                   context,
                 ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
@@ -209,7 +233,7 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
                 ErrorBanner(
                   key: ValueKey(_error),
                   message: _error!,
-                  title: 'Login Failed',
+                  title: Translations.get('login_failed', languageCode),
                   onDismiss: () {
                     if (mounted) setState(() => _error = null);
                   },
@@ -239,7 +263,7 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
                               color: Colors.white,
                             ),
                           )
-                          : const Text('Login'),
+                          : Text(Translations.get('login', languageCode)),
                 ),
               ),
               const SizedBox(height: 24),
@@ -248,14 +272,14 @@ class _PinLoginScreenState extends ConsumerState<PinLoginScreen> {
               TextButton(
                 onPressed:
                     isLoading ? null : () => context.push(AppRoutes.forgotPin),
-                child: const Text('Forgot PIN?'),
+                child: Text(Translations.get('forgot_pin', languageCode)),
               ),
 
               // Different account
               TextButton(
                 onPressed: isLoading ? null : () => context.pop(),
                 child: Text(
-                  'Use a different account',
+                  Translations.get('use_a_different_account', languageCode),
                   style: TextStyle(color: AppTheme.neutral500),
                 ),
               ),

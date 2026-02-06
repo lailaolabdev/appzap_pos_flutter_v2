@@ -4,9 +4,10 @@ import 'package:intl/intl.dart';
 
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
+import '../../../core/constants/translations.dart';
 import '../../../core/models/report.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../../../core/utils/responsive.dart';
-import '../../../shared/widgets/app_sidebar.dart';
 import '../providers/reports_provider.dart';
 
 /// Products Performance Report Screen
@@ -37,19 +38,20 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
     final reportsState = ref.watch(reportsProvider);
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return AppShell(
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
         appBar: AppBar(
-          title: const Text('Products Report'),
+          title: Text(Translations.get('products_report', languageCode)),
           backgroundColor: Colors.blue,
           foregroundColor: Colors.white,
           elevation: 2,
           actions: [
             PopupMenuButton<String>(
               icon: const Icon(Icons.sort),
-              tooltip: 'Sort By',
+              tooltip: Translations.get('sort_by', languageCode),
               onSelected: (value) {
                 setState(() {
                   sortBy = value;
@@ -58,25 +60,30 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
               },
               itemBuilder:
                   (context) => [
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'revenue',
-                      child: Text('Revenue'),
+                      child: Text(Translations.get('revenue', languageCode)),
                     ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'quantity',
-                      child: Text('Quantity'),
+                      child: Text(
+                        Translations.get('total_quantity', languageCode),
+                      ),
                     ),
-                    const PopupMenuItem(value: 'name', child: Text('Name')),
+                    PopupMenuItem(
+                      value: 'name',
+                      child: Text(Translations.get('name', languageCode)),
+                    ),
                   ],
             ),
             IconButton(
               icon: const Icon(Icons.date_range),
-              tooltip: 'Date Range',
+              tooltip: Translations.get('date_range', languageCode),
               onPressed: () => _selectDateRange(context),
             ),
             IconButton(
               icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh',
+              tooltip: Translations.get('refresh', languageCode),
               onPressed: () => ref.read(reportsProvider.notifier).refresh(),
             ),
             const SizedBox(width: 8),
@@ -91,7 +98,7 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header
-                _buildHeader(),
+                _buildHeader(languageCode),
                 const SizedBox(height: 20),
 
                 // Loading state
@@ -100,11 +107,15 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
 
                 // Error state
                 if (reportsState.error != null)
-                  _buildErrorCard(reportsState.error!),
+                  _buildErrorCard(reportsState.error!, languageCode),
 
                 // Success state
                 if (!reportsState.isLoading && reportsState.error == null)
-                  _buildProductsList(reportsState.topProducts, isMobile),
+                  _buildProductsList(
+                    reportsState.topProducts,
+                    isMobile,
+                    languageCode,
+                  ),
               ],
             ),
           ),
@@ -113,7 +124,7 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -151,7 +162,10 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Product Performance Report',
+                        Translations.get(
+                          'product_performance_report',
+                          languageCode,
+                        ),
                         style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
@@ -173,9 +187,13 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
     );
   }
 
-  Widget _buildProductsList(List<SalesByProductItem> products, bool isMobile) {
+  Widget _buildProductsList(
+    List<SalesByProductItem> products,
+    bool isMobile,
+    String languageCode,
+  ) {
     if (products.isEmpty) {
-      return _buildNoDataCard();
+      return _buildNoDataCard(languageCode);
     }
 
     // Sort products based on sortBy
@@ -207,7 +225,7 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
               children: [
                 Expanded(
                   child: _buildSummaryItem(
-                    'Total Products',
+                    Translations.get('total_products', languageCode),
                     '${products.length}',
                     Icons.inventory,
                     Colors.blue,
@@ -216,7 +234,7 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
                 const SizedBox(width: 16),
                 Expanded(
                   child: _buildSummaryItem(
-                    'Total Revenue',
+                    Translations.get('total_revenue', languageCode),
                     'LAK ${NumberFormat('#,##0').format(products.fold<double>(0, (sum, item) => sum + item.totalRevenue))}',
                     Icons.monetization_on,
                     Colors.green,
@@ -226,7 +244,7 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: _buildSummaryItem(
-                      'Total Quantity',
+                      Translations.get('total_quantity', languageCode),
                       '${products.fold<int>(0, (sum, item) => sum + item.quantitySold)}',
                       Icons.shopping_cart,
                       Colors.orange,
@@ -244,13 +262,15 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Top Products',
+              Translations.get('top_products', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             Chip(
-              label: Text('Sorted by ${sortBy.toUpperCase()}'),
+              label: Text(
+                '${Translations.get('sorted_by', languageCode)} ${Translations.get(_getSortLabel(sortBy), languageCode)}',
+              ),
               backgroundColor: Colors.blue.withOpacity(0.1),
               labelStyle: const TextStyle(color: Colors.blue),
             ),
@@ -262,10 +282,23 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
         ...sortedProducts.asMap().entries.map((entry) {
           final index = entry.key;
           final product = entry.value;
-          return _buildProductCard(product, index + 1, isMobile);
+          return _buildProductCard(product, index + 1, isMobile, languageCode);
         }).toList(),
       ],
     );
+  }
+
+  String _getSortLabel(String sortBy) {
+    switch (sortBy) {
+      case 'revenue':
+        return 'revenue';
+      case 'quantity':
+        return 'quantity';
+      case 'name':
+        return 'name';
+      default:
+        return '';
+    }
   }
 
   Widget _buildSummaryItem(
@@ -309,6 +342,7 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
     SalesByProductItem product,
     int rank,
     bool isMobile,
+    String languageCode,
   ) {
     return Card(
       elevation: 2,
@@ -368,39 +402,48 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
 
             // Stats row
             if (isMobile) ...[
-              _buildStatRow('Quantity Sold', '${product.quantitySold}'),
-              const SizedBox(height: 8),
               _buildStatRow(
-                'Revenue',
-                'LAK ${NumberFormat('#,##0').format(product.totalRevenue)}',
+                'quantity_sold',
+                '${product.quantitySold}',
+                languageCode,
               ),
               const SizedBox(height: 8),
               _buildStatRow(
-                'Avg Price',
+                'revenue',
+                'LAK ${NumberFormat('#,##0').format(product.totalRevenue)}',
+                languageCode,
+              ),
+              const SizedBox(height: 8),
+              _buildStatRow(
+                'avg_price',
                 'LAK ${NumberFormat('#,##0').format(product.totalRevenue / (product.quantitySold > 0 ? product.quantitySold : 1))}',
+                languageCode,
               ),
             ] else ...[
               Row(
                 children: [
                   Expanded(
                     child: _buildStatColumn(
-                      'Quantity',
+                      'quantity',
                       '${product.quantitySold}',
                       Icons.shopping_cart,
+                      languageCode,
                     ),
                   ),
                   Expanded(
                     child: _buildStatColumn(
-                      'Revenue',
+                      'revenue',
                       'LAK ${NumberFormat('#,##0').format(product.totalRevenue)}',
                       Icons.monetization_on,
+                      languageCode,
                     ),
                   ),
                   Expanded(
                     child: _buildStatColumn(
-                      'Avg Price',
+                      'avg_price',
                       'LAK ${NumberFormat('#,##0').format(product.totalRevenue / (product.quantitySold > 0 ? product.quantitySold : 1))}',
                       Icons.attach_money,
+                      languageCode,
                     ),
                   ),
                 ],
@@ -412,12 +455,12 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
     );
   }
 
-  Widget _buildStatRow(String label, String value) {
+  Widget _buildStatRow(String labelKey, String value, String languageCode) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          label,
+          Translations.get(labelKey, languageCode),
           style: Theme.of(
             context,
           ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),
@@ -432,7 +475,12 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
     );
   }
 
-  Widget _buildStatColumn(String label, String value, IconData icon) {
+  Widget _buildStatColumn(
+    String labelKey,
+    String value,
+    IconData icon,
+    String languageCode,
+  ) {
     return Column(
       children: [
         Icon(icon, size: 20, color: AppTheme.neutral600),
@@ -445,7 +493,7 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
         ),
         const SizedBox(height: 2),
         Text(
-          label,
+          Translations.get(labelKey, languageCode),
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: AppTheme.neutral600),
@@ -470,7 +518,7 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
     return Colors.blue;
   }
 
-  Widget _buildErrorCard(String error) {
+  Widget _buildErrorCard(String error, String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -482,7 +530,7 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
             const Icon(Icons.error_outline, size: 48, color: Colors.red),
             const SizedBox(height: 16),
             Text(
-              'Error Loading Products',
+              Translations.get('error_loading_products', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -498,7 +546,7 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => ref.read(reportsProvider.notifier).refresh(),
-              child: const Text('Retry'),
+              child: Text(Translations.get('retry', languageCode)),
             ),
           ],
         ),
@@ -506,7 +554,7 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
     );
   }
 
-  Widget _buildNoDataCard() {
+  Widget _buildNoDataCard(String languageCode) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -522,14 +570,20 @@ class _ProductsReportScreenState extends ConsumerState<ProductsReportScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'No Products Data',
+              Translations.get('no_products_data', languageCode),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'No product sales data found for the selected period',
+              Translations.get(
+                'no_product_sales_data_found_for_the_selected_period',
+                languageCode,
+              ).replaceAll(
+                '{date}',
+                '${displayFormat.format(startDate)} - ${displayFormat.format(endDate)}',
+              ),
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),

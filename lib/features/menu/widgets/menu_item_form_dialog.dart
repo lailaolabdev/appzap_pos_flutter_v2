@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/constants/translations.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../../inventory/providers/inventory_provider.dart';
 import '../providers/menu_provider.dart';
 
@@ -69,13 +71,18 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
       text: (widget.item?.inventory?.lowStockThreshold ?? 10).toString(),
     );
     _initialStockController = TextEditingController(
-      text: widget.item == null ? '0' : (widget.item?.inventory?.currentStock ?? 0).toString(),
+      text:
+          widget.item == null
+              ? '0'
+              : (widget.item?.inventory?.currentStock ?? 0).toString(),
     );
 
     _selectedCategoryId = widget.item?.categoryId;
     _isActive = widget.item?.isActive ?? true;
     _taxIncluded = widget.item?.pricing.taxIncluded ?? false;
-    _trackStock = widget.item?.inventory?.trackStock ?? (widget.item == null ? true : false);
+    _trackStock =
+        widget.item?.inventory?.trackStock ??
+        (widget.item == null ? true : false);
   }
 
   @override
@@ -97,9 +104,12 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
     if (!_formKey.currentState!.validate()) return;
 
     if (_selectedCategoryId == null) {
+      final languageCode = ref.read(localizationProvider).languageCode;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a category'),
+        SnackBar(
+          content: Text(
+            Translations.get('select_category_required_message', languageCode),
+          ),
           backgroundColor: AppTheme.error,
         ),
       );
@@ -171,23 +181,30 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
 
     if (mounted) {
       if (success) {
-
         Navigator.pop(context);
-        
+
         // Show success message
+        final languageCode = ref.read(localizationProvider).languageCode;
+        final successMessage =
+            widget.item == null
+                ? (_trackStock
+                    ? Translations.get(
+                      'menu_item_created_with_inventory_success',
+                      languageCode,
+                    )
+                    : Translations.get(
+                      'menu_item_created_success',
+                      languageCode,
+                    ))
+                : Translations.get('menu_item_updated_success', languageCode);
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              widget.item == null
-                  ? _trackStock
-                    ? 'Menu item created successfully! Inventory entry will be created automatically.'
-                    : 'Menu item created successfully!'
-                  : 'Menu item updated successfully!',
-            ),
+            content: Text(successMessage),
             backgroundColor: AppTheme.success,
           ),
         );
-        
+
         // Refresh inventory after a short delay to allow backend processing
         if (widget.item == null && _trackStock) {
           Future.delayed(const Duration(milliseconds: 1500), () {
@@ -202,9 +219,13 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
           });
         }
       } else {
+        final languageCode = ref.read(localizationProvider).languageCode;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(ref.read(menuProvider).error ?? 'Operation failed'),
+            content: Text(
+              ref.read(menuProvider).error ??
+                  Translations.get('operation_failed', languageCode),
+            ),
             backgroundColor: AppTheme.error,
           ),
         );
@@ -216,18 +237,23 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
   Widget build(BuildContext context) {
     final categories = ref.watch(menuProvider).categories;
     final isMobile = MediaQuery.of(context).size.width < 600;
+    final languageCode = ref.watch(localizationProvider).languageCode;
 
     if (isMobile) {
       // Full screen for mobile
       return Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: false,
-          title: Text(widget.item == null ? 'Add Menu Item' : 'Edit Menu Item'),
+          title: Text(
+            widget.item == null
+                ? Translations.get('add_menu_item_title', languageCode)
+                : Translations.get('edit_menu_item_title', languageCode),
+          ),
           actions: [
             IconButton(
               icon: const Icon(Icons.close),
               onPressed: () => Navigator.pop(context),
-              tooltip: 'Close',
+              tooltip: Translations.get('close', languageCode),
             ),
           ],
         ),
@@ -241,10 +267,10 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                   // Name
                   TextFormField(
                     controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Name *',
+                    decoration: InputDecoration(
+                      labelText: Translations.get('name', languageCode),
                       hintText: 'e.g., Coca Cola 330ml',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
                     ),
                     validator:
                         (value) =>
@@ -256,10 +282,10 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                   // Description
                   TextFormField(
                     controller: _descriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Description',
+                    decoration: InputDecoration(
+                      labelText: Translations.get('description', languageCode),
                       hintText: 'Optional description',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
                     ),
                     maxLines: 2,
                   ),
@@ -268,9 +294,12 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                   // Category
                   DropdownButtonFormField<String>(
                     value: _selectedCategoryId,
-                    decoration: const InputDecoration(
-                      labelText: 'Category *',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: Translations.get(
+                        'category_label',
+                        languageCode,
+                      ),
+                      border: const OutlineInputBorder(),
                     ),
                     items:
                         categories.map((category) {
@@ -284,7 +313,12 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                     },
                     validator:
                         (value) =>
-                            value == null ? 'Category is required' : null,
+                            value == null
+                                ? Translations.get(
+                                  'category_required',
+                                  languageCode,
+                                )
+                                : null,
                   ),
                   const SizedBox(height: 16),
 
@@ -294,10 +328,16 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                       Expanded(
                         child: TextFormField(
                           controller: _basePriceController,
-                          decoration: const InputDecoration(
-                            labelText: 'Sale Price (LAK) *',
-                            hintText: '8000',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText: Translations.get(
+                              'sale_price_label',
+                              languageCode,
+                            ),
+                            hintText: Translations.get(
+                              'sale_price_hint',
+                              languageCode,
+                            ),
+                            border: const OutlineInputBorder(),
                           ),
                           keyboardType: TextInputType.number,
                           inputFormatters: [
@@ -306,9 +346,16 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                             ),
                           ],
                           validator: (value) {
-                            if (value?.isEmpty ?? true) return 'Required';
+                            if (value?.isEmpty ?? true)
+                              return Translations.get(
+                                'required_field',
+                                languageCode,
+                              );
                             if (double.tryParse(value!) == null)
-                              return 'Invalid';
+                              return Translations.get(
+                                'invalid_number',
+                                languageCode,
+                              );
                             return null;
                           },
                           onChanged: (_) => setState(() {}),
@@ -318,10 +365,16 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                       Expanded(
                         child: TextFormField(
                           controller: _costPriceController,
-                          decoration: const InputDecoration(
-                            labelText: 'Cost Price (LAK)',
-                            hintText: '6000',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText: Translations.get(
+                              'cost_price_label',
+                              languageCode,
+                            ),
+                            hintText: Translations.get(
+                              'cost_price_hint',
+                              languageCode,
+                            ),
+                            border: const OutlineInputBorder(),
                           ),
                           keyboardType: TextInputType.number,
                           inputFormatters: [
@@ -338,10 +391,16 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                   // Item Code, Barcode, SKU
                   TextFormField(
                     controller: _itemCodeController,
-                    decoration: const InputDecoration(
-                      labelText: 'Item Code',
-                      hintText: 'COKE330',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: Translations.get(
+                        'item_code_label',
+                        languageCode,
+                      ),
+                      hintText: Translations.get(
+                        'item_code_hint',
+                        languageCode,
+                      ),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -351,9 +410,15 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                       Expanded(
                         child: TextFormField(
                           controller: _barcodeController,
-                          decoration: const InputDecoration(
-                            labelText: 'Barcode',
-                            hintText: '8851959132012',
+                          decoration: InputDecoration(
+                            labelText: Translations.get(
+                              'barcode_label',
+                              languageCode,
+                            ),
+                            hintText: Translations.get(
+                              'barcode_hint',
+                              languageCode,
+                            ),
                             border: OutlineInputBorder(),
                           ),
                         ),
@@ -379,10 +444,16 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                       Expanded(
                         child: TextFormField(
                           controller: _taxRateController,
-                          decoration: const InputDecoration(
-                            labelText: 'Tax Rate (%)',
-                            hintText: '0',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText: Translations.get(
+                              'tax_rate_label',
+                              languageCode,
+                            ),
+                            hintText: Translations.get(
+                              'tax_rate_hint',
+                              languageCode,
+                            ),
+                            border: const OutlineInputBorder(),
                           ),
                           keyboardType: TextInputType.number,
                           inputFormatters: [
@@ -395,7 +466,9 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: CheckboxListTile(
-                          title: const Text('Tax Included'),
+                          title: Text(
+                            Translations.get('tax_included', languageCode),
+                          ),
                           value: _taxIncluded,
                           onChanged: (value) {
                             setState(() => _taxIncluded = value ?? false);
@@ -408,14 +481,17 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                   const SizedBox(height: 16),
 
                   // Stock Settings
-                  const Text(
-                    'Stock Management',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  Text(
+                    Translations.get('stock_management', languageCode),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
                   const SizedBox(height: 8),
 
                   CheckboxListTile(
-                    title: const Text('Track Stock'),
+                    title: Text(Translations.get('track_stock', languageCode)),
                     value: _trackStock,
                     onChanged: (value) {
                       setState(() => _trackStock = value ?? true);
@@ -429,22 +505,32 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                         Expanded(
                           child: TextFormField(
                             controller: _lowStockController,
-                            decoration: const InputDecoration(
-                              labelText: 'Low Stock Threshold',
-                              hintText: '10',
-                              border: OutlineInputBorder(),
+                            decoration: InputDecoration(
+                              labelText: Translations.get(
+                                'low_stock_threshold_label',
+                                languageCode,
+                              ),
+                              hintText: Translations.get(
+                                'low_stock_hint',
+                                languageCode,
+                              ),
+                              border: const OutlineInputBorder(),
                             ),
                             keyboardType: TextInputType.number,
                             inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,
                             ],
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Required';
-                              }
-                              if (int.tryParse(value) == null) {
-                                return 'Invalid number';
-                              }
+                              if (value == null || value.isEmpty)
+                                return Translations.get(
+                                  'required_field',
+                                  languageCode,
+                                );
+                              if (int.tryParse(value) == null)
+                                return Translations.get(
+                                  'invalid_number',
+                                  languageCode,
+                                );
                               return null;
                             },
                           ),
@@ -453,22 +539,32 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                         Expanded(
                           child: TextFormField(
                             controller: _initialStockController,
-                            decoration: const InputDecoration(
-                              labelText: 'Initial Stock',
-                              hintText: '0',
-                              border: OutlineInputBorder(),
+                            decoration: InputDecoration(
+                              labelText: Translations.get(
+                                'initial_stock_label',
+                                languageCode,
+                              ),
+                              hintText: Translations.get(
+                                'initial_stock_hint',
+                                languageCode,
+                              ),
+                              border: const OutlineInputBorder(),
                             ),
                             keyboardType: TextInputType.number,
                             inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,
                             ],
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Required';
-                              }
-                              if (int.tryParse(value) == null) {
-                                return 'Invalid number';
-                              }
+                              if (value == null || value.isEmpty)
+                                return Translations.get(
+                                  'required_field',
+                                  languageCode,
+                                );
+                              if (int.tryParse(value) == null)
+                                return Translations.get(
+                                  'invalid_number',
+                                  languageCode,
+                                );
                               return null;
                             },
                           ),
@@ -480,8 +576,10 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
 
                   // Active Status
                   SwitchListTile(
-                    title: const Text('Active'),
-                    subtitle: const Text('Item is available for sale'),
+                    title: Text(Translations.get('active', languageCode)),
+                    subtitle: Text(
+                      Translations.get('item_active_subtitle', languageCode),
+                    ),
                     value: _isActive,
                     onChanged: (value) {
                       setState(() => _isActive = value);
@@ -531,8 +629,14 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                                 )
                                 : Text(
                                   widget.item == null
-                                      ? 'Add Item'
-                                      : 'Save Changes',
+                                      ? Translations.get(
+                                        'add_item',
+                                        languageCode,
+                                      )
+                                      : Translations.get(
+                                        'save_changes',
+                                        languageCode,
+                                      ),
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -592,24 +696,32 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                 // Name
                 TextFormField(
                   controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name *',
-                    hintText: 'e.g., Coca Cola 330ml',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: Translations.get('name', languageCode),
+                    hintText: Translations.get(
+                      'item_name_example',
+                      languageCode,
+                    ),
+                    border: const OutlineInputBorder(),
                   ),
                   validator:
                       (value) =>
-                          value?.isEmpty ?? true ? 'Name is required' : null,
+                          value?.isEmpty ?? true
+                              ? Translations.get('name_required', languageCode)
+                              : null,
                 ),
                 const SizedBox(height: 16),
 
                 // Description
                 TextFormField(
                   controller: _descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
-                    hintText: 'Optional description',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: Translations.get('description', languageCode),
+                    hintText: Translations.get(
+                      'description_optional_hint',
+                      languageCode,
+                    ),
+                    border: const OutlineInputBorder(),
                   ),
                   maxLines: 2,
                 ),
@@ -618,9 +730,9 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                 // Category
                 DropdownButtonFormField<String>(
                   value: _selectedCategoryId,
-                  decoration: const InputDecoration(
-                    labelText: 'Category *',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: Translations.get('category_label', languageCode),
+                    border: const OutlineInputBorder(),
                   ),
                   items:
                       categories.map((category) {
@@ -698,10 +810,16 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                     Expanded(
                       child: TextFormField(
                         controller: _barcodeController,
-                        decoration: const InputDecoration(
-                          labelText: 'Barcode',
-                          hintText: '8851959132012',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: Translations.get(
+                            'barcode_label',
+                            languageCode,
+                          ),
+                          hintText: Translations.get(
+                            'barcode_hint',
+                            languageCode,
+                          ),
+                          border: const OutlineInputBorder(),
                         ),
                       ),
                     ),
@@ -709,10 +827,13 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                     Expanded(
                       child: TextFormField(
                         controller: _skuController,
-                        decoration: const InputDecoration(
-                          labelText: 'SKU',
-                          hintText: 'COKE-330ML',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: Translations.get(
+                            'sku_label',
+                            languageCode,
+                          ),
+                          hintText: Translations.get('sku_hint', languageCode),
+                          border: const OutlineInputBorder(),
                         ),
                       ),
                     ),
@@ -785,8 +906,10 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
 
                 // Active Status
                 SwitchListTile(
-                  title: const Text('Active'),
-                  subtitle: const Text('Item is available for sale'),
+                  title: Text(Translations.get('active', languageCode)),
+                  subtitle: Text(
+                    Translations.get('item_active_subtitle', languageCode),
+                  ),
                   value: _isActive,
                   onChanged: (value) {
                     setState(() => _isActive = value);
