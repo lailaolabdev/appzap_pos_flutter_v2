@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/product.dart';
+import '../../../core/services/inventory_service.dart';
 import '../../../core/services/menu_service.dart';
 import '../../../core/services/product_service.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../inventory/providers/inventory_provider.dart';
 
 /// Menu state
 class MenuState {
@@ -56,12 +56,14 @@ class MenuState {
 class MenuNotifier extends StateNotifier<MenuState> {
   final MenuService _menuService;
   final ProductService _productService;
+  final InventoryService _inventoryService;
   final String? _restaurantId;
   final String? _branchId;
 
   MenuNotifier(
     this._menuService,
     this._productService,
+    this._inventoryService,
     this._restaurantId,
     this._branchId,
   ) : super(const MenuState()) {
@@ -92,13 +94,62 @@ class MenuNotifier extends StateNotifier<MenuState> {
         _productService.getCategories(restaurantId: _restaurantId),
       ]);
 
+      var products = results[0] as List<Product>;
+
+      // Merge with real inventory data (stock, thresholds live in InventoryItem, not MenuItem)
+      if (_branchId != null) {
+        products = await _mergeWithInventoryData(products);
+      }
+
       state = state.copyWith(
-        items: results[0] as List<Product>,
+        items: products,
         categories: results[1] as List<Category>,
         isLoading: false,
       );
     } catch (e) {
       state = state.copyWith(error: e.toString(), isLoading: false);
+    }
+  }
+
+  /// Merge products with real inventory data (currentStock, lowStockThreshold)
+  Future<List<Product>> _mergeWithInventoryData(List<Product> products) async {
+    try {
+      final inventoryItems = await _inventoryService.getInventoryItems(
+        restaurantId: _restaurantId!,
+        branchId: _branchId!,
+      );
+
+      // Build lookup: menuItemId → inventory data
+      final inventoryMap = <String, Map<String, dynamic>>{};
+      for (final item in inventoryItems) {
+        if (item.itemId != null) {
+          inventoryMap[item.itemId!] = {
+            'currentStock': item.currentStock,
+            'lowStockThreshold': item.lowStockThreshold,
+            'isLowStock': item.isLowStock,
+            'unit': item.unit,
+          };
+        }
+      }
+
+      return products.map((product) {
+        final inv = inventoryMap[product.id];
+        if (inv != null) {
+          return product.copyWith(
+            inventory: ProductInventory(
+              trackStock: true,
+              currentStock: inv['currentStock'] as int,
+              lowStockThreshold: inv['lowStockThreshold'] as int,
+              isLowStock: inv['isLowStock'] as bool,
+              unit: inv['unit'] as String,
+            ),
+          );
+        }
+        return product;
+      }).toList();
+    } catch (e) {
+      print('⚠️ Failed to merge inventory data: $e');
+      return products;
     }
   }
 
@@ -134,12 +185,11 @@ class MenuNotifier extends StateNotifier<MenuState> {
     String? sku,
     required double basePrice,
     double? costPrice,
-    double taxRate = 0,
-    bool taxIncluded = false,
     bool trackStock = true,
     int lowStockThreshold = 10,
     int initialStock = 0,
     bool isActive = true,
+    String? imagePath,
   }) async {
     if (_restaurantId == null) return false;
 
@@ -155,43 +205,22 @@ class MenuNotifier extends StateNotifier<MenuState> {
         sku: sku,
         basePrice: basePrice,
         costPrice: costPrice,
-        taxRate: taxRate,
-        taxIncluded: taxIncluded,
         trackStock: trackStock,
         lowStockThreshold: lowStockThreshold,
         initialStock: initialStock,
         isActive: isActive,
       );
 
-      print('✅ Menu item created successfully!');
-      print('📊 Backend response data:');
-      print('   - Item ID: ${createdItem.id}');
-      print('   - Name: ${createdItem.name}');
-      print('   - Category ID: ${createdItem.categoryId}');
-      print('   - Base Price: ${createdItem.pricing.basePrice}');
-      print('   - Cost Price: ${createdItem.pricing.costPrice ?? 'Not set'}');
-      print('   - Track Stock: ${createdItem.inventory?.trackStock ?? false}');
-      print(
-        '   - Current Stock: ${createdItem.inventory?.currentStock ?? 'N/A'}',
-      );
-      print(
-        '   - Low Stock Threshold: ${createdItem.inventory?.lowStockThreshold ?? 'N/A'}',
-      );
-      print('   - Is Active: ${createdItem.isActive}');
-      print('   - Item Code: ${createdItem.itemCode ?? 'Not set'}');
-      print('   - Barcode: ${createdItem.barcode ?? 'Not set'}');
-      print('   - SKU: ${createdItem.sku ?? 'Not set'}');
-      print('   - Full item data: ${createdItem.toJson()}');
-
-      // Sync with inventory if stock tracking is enabled
-      if (trackStock && costPrice != null) {
-        print('🔄 Syncing menu item with inventory...');
-        await _syncMenuItemWithInventory(
-          menuItem: createdItem,
-          costPrice: costPrice,
-          initialStock: initialStock,
-          lowStockThreshold: lowStockThreshold,
-        );
+      // Upload image if provided
+      if (imagePath != null) {
+        try {
+          await _menuService.uploadMenuItemImage(
+            itemId: createdItem.id,
+            imagePath: imagePath,
+          );
+        } catch (e) {
+          print('⚠️ Image upload failed: $e');
+        }
       }
 
       await loadMenu();
@@ -203,30 +232,6 @@ class MenuNotifier extends StateNotifier<MenuState> {
     }
   }
 
-  /// Private method to sync menu item with inventory
-  Future<void> _syncMenuItemWithInventory({
-    required Product menuItem,
-    required double costPrice,
-    required int initialStock,
-    required int lowStockThreshold,
-  }) async {
-    try {
-      // Get inventory service reference (this would normally be injected)
-      // For now, we'll use a temporary approach
-      print('🔄 Creating inventory entry for: ${menuItem.name}');
-      print(
-        '📊 Cost price: $costPrice, Initial stock: $initialStock, Threshold: $lowStockThreshold',
-      );
-
-      // The inventory creation would need to be handled by a separate service call
-      // or by triggering a refresh of the inventory provider
-      print('✅ Menu item sync with inventory requested');
-    } catch (e) {
-      print('❌ Failed to sync menu item with inventory: $e');
-      // Don't fail the menu item creation if inventory sync fails
-    }
-  }
-
   /// Update an existing menu item
   Future<bool> updateMenuItem({
     required String itemId,
@@ -235,11 +240,10 @@ class MenuNotifier extends StateNotifier<MenuState> {
     String? categoryId,
     double? basePrice,
     double? costPrice,
-    double? taxRate,
-    bool? taxIncluded,
     bool? trackStock,
     int? lowStockThreshold,
     bool? isActive,
+    String? imagePath,
   }) async {
     try {
       await _menuService.updateMenuItem(
@@ -249,12 +253,23 @@ class MenuNotifier extends StateNotifier<MenuState> {
         categoryId: categoryId,
         basePrice: basePrice,
         costPrice: costPrice,
-        taxRate: taxRate,
-        taxIncluded: taxIncluded,
         trackStock: trackStock,
         lowStockThreshold: lowStockThreshold,
         isActive: isActive,
+        restaurantId: _restaurantId,
+        branchId: _branchId,
       );
+
+      if (imagePath != null) {
+        try {
+          await _menuService.uploadMenuItemImage(
+            itemId: itemId,
+            imagePath: imagePath,
+          );
+        } catch (e) {
+          print('⚠️ Image upload failed during update: $e');
+        }
+      }
 
       await loadMenu();
       return true;
@@ -376,7 +391,14 @@ class MenuNotifier extends StateNotifier<MenuState> {
 final menuProvider = StateNotifierProvider<MenuNotifier, MenuState>((ref) {
   final menuService = ref.watch(menuServiceProvider);
   final productService = ref.watch(productServiceProvider);
+  final inventoryService = ref.watch(inventoryServiceProvider);
   final restaurantId = ref.watch(currentRestaurantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  return MenuNotifier(menuService, productService, restaurantId, branchId);
+  return MenuNotifier(
+    menuService,
+    productService,
+    inventoryService,
+    restaurantId,
+    branchId,
+  );
 });

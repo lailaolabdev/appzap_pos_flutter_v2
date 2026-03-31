@@ -172,82 +172,59 @@ class Product extends Equatable {
       return null;
     }
 
+    // Backend stores defaultSettings inside inventory config
+    final defaultSettings =
+        inventoryData['defaultSettings'] as Map<String, dynamic>?;
+
     // Parse current stock levels
     int? currentStock;
     bool isLowStock = false;
 
     // Parse stock data from nested structure
     if (currentStockData is Map<String, dynamic>) {
-      // Backend format: currentStock: { total: 100, available: 95, ... }
       currentStock =
           (currentStockData['available'] as num?)?.toInt() ??
           (currentStockData['total'] as num?)?.toInt();
-
-      if (currentStock == null) {
-        print('   ❌ No valid stock data in currentStock object');
-        return null;
-      }
-
       isLowStock = currentStockData['isOutOfStock'] as bool? ?? false;
-      print('   📦 Parsed from currentStock object: $currentStock (available)');
     } else if (currentStockData is num) {
-      // Direct number format: currentStock: 95
       currentStock = currentStockData.toInt();
-      print('   📦 Parsed from currentStock number: $currentStock');
     } else {
-      // Try nested inventory fields
       currentStock =
           (inventoryData['availableStock'] as num?)?.toInt() ??
           (inventoryData['totalStock'] as num?)?.toInt() ??
           (inventoryData['currentStock'] as num?)?.toInt();
-
-      if (currentStock == null) {
-        print('   ❌ No current stock data found in inventory object');
-        return null; // Return null if no real stock data found
-      }
-
-      print('   📦 Parsed from nested inventory fields: $currentStock');
     }
 
-    // Try to read lowStockThreshold from various field names and locations - NO DEFAULTS
+    // Try to read lowStockThreshold from all possible locations
     final lowStockThreshold =
-        // 1. Check nested inventory object
+        // 1. Check nested inventory object directly
         (inventoryData['lowStockThreshold'] as num?)?.toInt() ??
         (inventoryData['minStockLevel'] as num?)?.toInt() ??
-        // 2. Check parent item data (menu item level)
+        // 2. Check defaultSettings (backend stores it here on create)
+        (defaultSettings?['lowStockThreshold'] as num?)?.toInt() ??
+        // 3. Check parent item data
         (json['lowStockThreshold'] as num?)?.toInt() ??
-        (json['minStockLevel'] as num?)?.toInt() ??
-        // 3. Check if inventory field has lowStockThreshold directly
-        (json['inventory']?['lowStockThreshold'] as num?)?.toInt() ??
-        (json['inventory']?['minStockLevel'] as num?)?.toInt();
+        (json['minStockLevel'] as num?)?.toInt();
 
-    if (lowStockThreshold == null) {
-      print('   ❌ No lowStockThreshold data found in any location');
-      return null; // Return null if no real threshold data found
-    }
-
-    print('   ✅ Found lowStockThreshold: $lowStockThreshold');
-
+    // Read unit from inventory config (backend may store as stockUnit or unit)
     final unit =
+        inventoryData['stockUnit'] as String? ??
         inventoryData['unit'] as String? ??
-        inventoryData['unitOfMeasure'] as String?;
+        inventoryData['unitOfMeasure'] as String? ??
+        defaultSettings?['stockUnit'] as String? ??
+        json['unit'] as String? ??
+        'unit';
 
-    if (unit == null) {
-      print('   ❌ No unit data found');
-      return null; // Return null if no real unit data found
-    }
-
-    print('   ✅ Found unit: $unit');
-
-    // Determine if low stock (now that we have confirmed non-null values)
-    if (!isLowStock) {
-      isLowStock = currentStock <= lowStockThreshold;
-    }
+    // When tracking is enabled but no stock data (menu-item config only),
+    // still return a valid ProductInventory so the edit form shows correctly
+    final stock = currentStock ?? 0;
+    final threshold = lowStockThreshold ?? 10;
+    isLowStock = isLowStock || stock <= threshold;
 
     final result = ProductInventory(
       trackStock: true,
-      currentStock: currentStock,
-      lowStockThreshold: lowStockThreshold,
+      currentStock: stock,
+      lowStockThreshold: threshold,
       isLowStock: isLowStock,
       unit: unit,
     );
@@ -256,7 +233,6 @@ class Product extends Equatable {
     print('      - trackStock: ${result.trackStock}');
     print('      - currentStock: ${result.currentStock}');
     print('      - lowStockThreshold: ${result.lowStockThreshold}');
-    print('      - isLowStock: ${result.isLowStock}');
     print('      - unit: ${result.unit}');
 
     return result;
@@ -414,8 +390,16 @@ class ProductImage extends Equatable {
   const ProductImage({required this.url, this.size});
 
   factory ProductImage.fromJson(Map<String, dynamic> json) {
+    // Backend may return:
+    // - { url: "https://...", smallUrl: "https://..." }  (from controller transformation)
+    // - { original: { key, filename }, ... }             (raw lean() object, no url)
+    String? url = json['url'] as String?;
+    if (url == null || url.isEmpty) {
+      // Fallback: try smallUrl or mediumUrl
+      url = json['smallUrl'] as String? ?? json['mediumUrl'] as String?;
+    }
     return ProductImage(
-      url: json['url'] as String? ?? '',
+      url: url ?? '',
       size: json['size'] as String?,
     );
   }

@@ -218,12 +218,39 @@ class InventoryApiService {
     if (menuItemId != null)
       data['itemId'] = menuItemId; // ✅ Include menu item ID
 
-    final response = await _apiClient.put(
+    final response = await _apiClient.patch(
       '${ApiConstants.inventoryItems}/$itemId',
       data: data,
     );
 
     return InventoryItem.fromJson(response['data']);
+  }
+
+  /// Find inventory item by menu item ID (returns null if not found)
+  Future<InventoryItem?> findInventoryByMenuItemId({
+    required String menuItemId,
+    required String restaurantId,
+    required String branchId,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConstants.inventoryItems,
+      queryParameters: {
+        'itemId': menuItemId,
+        'itemType': 'menu_item',
+        'restaurantId': restaurantId,
+        'branchId': branchId,
+        'limit': 1,
+      },
+    );
+    final data = response['data'];
+    List<dynamic> items = [];
+    if (data is Map<String, dynamic>) {
+      items = data['items'] as List<dynamic>? ?? [];
+    } else if (data is List<dynamic>) {
+      items = data;
+    }
+    if (items.isEmpty) return null;
+    return InventoryItem.fromJson(items.first as Map<String, dynamic>);
   }
 
   /// Delete inventory item

@@ -254,8 +254,6 @@ class _EnhancedMenuItemFormDialogState
                       : _skuController.text.trim(),
               basePrice: _basePrice,
               costPrice: _costPrice > 0 ? _costPrice : null,
-              taxRate: _taxRate,
-              taxIncluded: _taxIncluded,
               trackStock: _trackInventory,
               lowStockThreshold:
                   _trackInventory
@@ -277,8 +275,6 @@ class _EnhancedMenuItemFormDialogState
               categoryId: _selectedCategoryId,
               basePrice: _basePrice,
               costPrice: _costPrice > 0 ? _costPrice : null,
-              taxRate: _taxRate,
-              taxIncluded: _taxIncluded,
               trackStock: _trackInventory,
               lowStockThreshold:
                   _trackInventory

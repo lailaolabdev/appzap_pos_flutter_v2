@@ -12,7 +12,7 @@ class ApiConstants {
   // Base URLs by environment
   static const Map<Environment, String> _baseUrls = {
     // Environment.development: 'http://10.237.190.208/api/v1',
-    Environment.development: 'http://192.168.1.177/api/v1',
+    Environment.development: 'http://192.168.1.25:80/api/v1',
     Environment.staging: 'https://api-v2.appzap.la:9090/api/v1',
     Environment.production: 'https://api-v2.appzap.la/api/v1',
   };

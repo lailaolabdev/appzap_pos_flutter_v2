@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/constants/translations.dart';
@@ -26,13 +29,13 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
   late final TextEditingController _skuController;
   late final TextEditingController _basePriceController;
   late final TextEditingController _costPriceController;
-  late final TextEditingController _taxRateController;
   late final TextEditingController _lowStockController;
   late final TextEditingController _initialStockController;
 
   String? _selectedCategoryId;
+  XFile? _selectedImage;
+  String? _existingImageUrl; // existing network image when editing
   bool _isActive = true;
-  bool _taxIncluded = false;
   bool _trackStock = true;
   bool _isLoading = false;
 
@@ -64,9 +67,6 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
     _costPriceController = TextEditingController(
       text: widget.item?.pricing.costPrice?.toString() ?? '',
     );
-    _taxRateController = TextEditingController(
-      text: widget.item?.pricing.taxRate?.toString() ?? '0',
-    );
     _lowStockController = TextEditingController(
       text: (widget.item?.inventory?.lowStockThreshold ?? 10).toString(),
     );
@@ -79,10 +79,20 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
 
     _selectedCategoryId = widget.item?.categoryId;
     _isActive = widget.item?.isActive ?? true;
-    _taxIncluded = widget.item?.pricing.taxIncluded ?? false;
     _trackStock =
         widget.item?.inventory?.trackStock ??
         (widget.item == null ? true : false);
+
+    // Load existing image URL when editing
+    if (widget.item != null) {
+      final images = widget.item.images as List<dynamic>?;
+      if (images != null && images.isNotEmpty) {
+        final url = images.first.url as String?;
+        if (url != null && url.isNotEmpty) {
+          _existingImageUrl = url;
+        }
+      }
+    }
   }
 
   @override
@@ -94,10 +104,158 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
     _skuController.dispose();
     _basePriceController.dispose();
     _costPriceController.dispose();
-    _taxRateController.dispose();
     _lowStockController.dispose();
     _initialStockController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage(BuildContext context) async {
+    final picker = ImagePicker();
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    ImageSource? source;
+    if (isMobile) {
+      source = await showModalBottomSheet<ImageSource>(
+        context: context,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder:
+            (_) => SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    leading: const Icon(Icons.camera_alt_outlined),
+                    title: const Text('Camera'),
+                    onTap: () => Navigator.pop(context, ImageSource.camera),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.photo_library_outlined),
+                    title: const Text('Gallery'),
+                    onTap: () => Navigator.pop(context, ImageSource.gallery),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+      );
+    } else {
+      source = ImageSource.gallery;
+    }
+
+    if (source == null) return;
+    final image = await picker.pickImage(source: source, imageQuality: 80);
+    if (image != null) setState(() => _selectedImage = image);
+  }
+
+  Widget _buildImageUpload(BuildContext context) {
+    // Determine which image to show: local pick > existing network > empty
+    final hasLocalImage = _selectedImage != null;
+    final hasNetworkImage = !hasLocalImage && _existingImageUrl != null;
+    final hasImage = hasLocalImage || hasNetworkImage;
+
+    return GestureDetector(
+      onTap: () => _pickImage(context),
+      child: Container(
+        width: double.infinity,
+        height: 140,
+        decoration: BoxDecoration(
+          color: AppTheme.neutral100,
+          border: Border.all(color: AppTheme.neutral300, width: 1.5),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child:
+            hasImage
+                ? Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(11),
+                      child:
+                          hasLocalImage
+                              ? Image.file(
+                                File(_selectedImage!.path),
+                                fit: BoxFit.cover,
+                              )
+                              : Image.network(
+                                _existingImageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder:
+                                    (_, __, ___) => const Center(
+                                      child: Icon(
+                                        Icons.broken_image_outlined,
+                                        size: 40,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                              ),
+                    ),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedImage = null;
+                            _existingImageUrl = null;
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+                : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.add_photo_alternate_outlined,
+                      size: 40,
+                      color: AppTheme.neutral400,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Upload Image',
+                      style: TextStyle(
+                        color: AppTheme.neutral600,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Tap to choose from gallery or camera',
+                      style: TextStyle(
+                        color: AppTheme.neutral400,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -144,13 +302,12 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                 _costPriceController.text.isEmpty
                     ? null
                     : double.parse(_costPriceController.text),
-            taxRate: double.parse(_taxRateController.text),
-            taxIncluded: _taxIncluded,
             trackStock: _trackStock,
             lowStockThreshold: int.parse(_lowStockController.text),
             initialStock:
                 _trackStock ? int.parse(_initialStockController.text) : 0,
             isActive: _isActive,
+            imagePath: _selectedImage?.path,
           );
     } else {
       // Update existing item
@@ -169,11 +326,10 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                 _costPriceController.text.isEmpty
                     ? null
                     : double.parse(_costPriceController.text),
-            taxRate: double.parse(_taxRateController.text),
-            taxIncluded: _taxIncluded,
             trackStock: _trackStock,
             lowStockThreshold: int.parse(_lowStockController.text),
             isActive: _isActive,
+            imagePath: _selectedImage?.path,
           );
     }
 
@@ -244,6 +400,7 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
       return Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: false,
+          scrolledUnderElevation: 0,
           title: Text(
             widget.item == null
                 ? Translations.get('add_menu_item_title', languageCode)
@@ -437,48 +594,49 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                     ],
                   ),
                   const SizedBox(height: 16),
-
-                  // Tax Rate
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _taxRateController,
-                          decoration: InputDecoration(
-                            labelText: Translations.get(
-                              'tax_rate_label',
-                              languageCode,
-                            ),
-                            hintText: Translations.get(
-                              'tax_rate_hint',
-                              languageCode,
-                            ),
-                            border: const OutlineInputBorder(),
-                          ),
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              RegExp(r'^\d+\.?\d{0,2}'),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: CheckboxListTile(
-                          title: Text(
-                            Translations.get('tax_included', languageCode),
-                          ),
-                          value: _taxIncluded,
-                          onChanged: (value) {
-                            setState(() => _taxIncluded = value ?? false);
-                          },
-                          controlAffinity: ListTileControlAffinity.leading,
-                        ),
-                      ),
-                    ],
-                  ),
+                  _buildImageUpload(context),
                   const SizedBox(height: 16),
+                  // Tax Rate
+                  // Row(
+                  //   children: [
+                  //     Expanded(
+                  //       child: TextFormField(
+                  //         controller: _taxRateController,
+                  //         decoration: InputDecoration(
+                  //           labelText: Translations.get(
+                  //             'tax_rate_label',
+                  //             languageCode,
+                  //           ),
+                  //           hintText: Translations.get(
+                  //             'tax_rate_hint',
+                  //             languageCode,
+                  //           ),
+                  //           border: const OutlineInputBorder(),
+                  //         ),
+                  //         keyboardType: TextInputType.number,
+                  //         inputFormatters: [
+                  //           FilteringTextInputFormatter.allow(
+                  //             RegExp(r'^\d+\.?\d{0,2}'),
+                  //           ),
+                  //         ],
+                  //       ),
+                  //     ),
+                  //     const SizedBox(width: 16),
+                  //     Expanded(
+                  //       child: CheckboxListTile(
+                  //         title: Text(
+                  //           Translations.get('tax_included', languageCode),
+                  //         ),
+                  //         value: _taxIncluded,
+                  //         onChanged: (value) {
+                  //           setState(() => _taxIncluded = value ?? false);
+                  //         },
+                  //         controlAffinity: ListTileControlAffinity.leading,
+                  //       ),
+                  //     ),
+                  //   ],
+                  // ),
+                  // const SizedBox(height: 16),
 
                   // Stock Settings
                   Text(
@@ -840,39 +998,7 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                   ],
                 ),
                 const SizedBox(height: 16),
-
-                // Tax Rate
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _taxRateController,
-                        decoration: const InputDecoration(
-                          labelText: 'Tax Rate (%)',
-                          hintText: '0',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(
-                            RegExp(r'^\d+\.?\d{0,2}'),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: CheckboxListTile(
-                        title: const Text('Tax Included'),
-                        value: _taxIncluded,
-                        onChanged: (value) {
-                          setState(() => _taxIncluded = value ?? false);
-                        },
-                        controlAffinity: ListTileControlAffinity.leading,
-                      ),
-                    ),
-                  ],
-                ),
+                _buildImageUpload(context),
                 const SizedBox(height: 16),
 
                 // Stock Settings

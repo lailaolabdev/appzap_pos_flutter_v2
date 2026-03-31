@@ -298,6 +298,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
         appBar:
             isMobile
                 ? AppBar(
+                  scrolledUnderElevation: 0,
                   toolbarHeight: 70,
                   title: Row(
                     children: [
@@ -491,14 +492,13 @@ class _POSScreenState extends ConsumerState<POSScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             children: [
-              // SAVE button (no icon, single line)
+              // SAVE button
               Expanded(
                 child: OutlinedButton(
                   onPressed:
                       cart.items.isEmpty
                           ? null
                           : () {
-                            // TODO: Implement save/on hold functionality
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(

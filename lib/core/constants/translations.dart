@@ -40,6 +40,8 @@ class Translations {
       'search_products_or_scan_barcode': 'Search products or scan barcode...',
 
       // Menu
+      'try_different_search': 'Try different search',
+      'no_results_found': 'No results found',
       'min_stock_level': 'Min Stock Level',
       'max_stock_level': 'Max Stock Level',
       'reorder_point': 'Reorder Point',
@@ -716,6 +718,8 @@ class Translations {
       'active_subtitle': 'ໝວດໝູ່ສະແດງໃນເມນູ',
 
       // Menu
+      'try_different_search': 'ລອງຄົ້ນຫາອື່ນ',
+      'no_results_found': 'ບໍ່ພົບຜົນທີ່ການຄົ້ນ',
       'min_stock_level': 'ລະດັບສະຕ໊ອກຕໍ່າສຸດ',
       'max_stock_level': 'ລະດັບສະຕ໊ອກສູງສຸດ',
       'unit_of_measure': 'ຫົວໜ່ວຍວັດແທກ',

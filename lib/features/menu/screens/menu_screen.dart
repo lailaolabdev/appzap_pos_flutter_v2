@@ -252,23 +252,9 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
     bool isMobile,
     String languageCode,
   ) {
-    if (menuState.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (menuState.items.isEmpty) {
-      return _buildEmptyState(
-        icon: Icons.restaurant_menu,
-        title: Translations.get('no_menu_items_yet', languageCode),
-        subtitle: Translations.get('add_first_product_to_sell', languageCode),
-        actionLabel: Translations.get('add_item', languageCode),
-        onAction: _showAddItemDialog,
-      );
-    }
-
     return Column(
       children: [
-        // Search bar
+        // Search bar — always visible so user can clear search
         Container(
           padding: const EdgeInsets.all(16),
           color: Colors.white,
@@ -294,7 +280,9 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            onChanged: (value) {
+            onChanged:
+                (_) => setState(() {}), // only update clear button visibility
+            onSubmitted: (value) {
               ref.read(menuProvider.notifier).search(value);
             },
           ),
@@ -372,15 +360,47 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
             ),
           ),
 
-        // Items list
+        // Items list, loading, or empty state
         Expanded(
-          child: ListView.builder(
-            itemCount: menuState.items.length,
-            itemBuilder: (context, index) {
-              final item = menuState.items[index];
-              return _buildMenuItemCard(item, isMobile, languageCode);
-            },
-          ),
+          child:
+              menuState.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : menuState.items.isEmpty
+                  ? _buildEmptyState(
+                    icon: Icons.restaurant_menu,
+                    title:
+                        menuState.searchQuery.isNotEmpty
+                            ? Translations.get('no_results_found', languageCode)
+                            : Translations.get(
+                              'no_menu_items_yet',
+                              languageCode,
+                            ),
+                    subtitle:
+                        menuState.searchQuery.isNotEmpty
+                            ? Translations.get(
+                              'try_different_search',
+                              languageCode,
+                            )
+                            : Translations.get(
+                              'add_first_product_to_sell',
+                              languageCode,
+                            ),
+                    actionLabel:
+                        menuState.searchQuery.isNotEmpty
+                            ? null
+                            : Translations.get('add_item', languageCode),
+                    onAction:
+                        menuState.searchQuery.isNotEmpty
+                            ? null
+                            : _showAddItemDialog,
+                  )
+                  : ListView.builder(
+                    itemCount: menuState.items.length,
+                    itemBuilder: (context, index) {
+                      final item = menuState.items[index];
+                      return _buildMenuItemCard(item, isMobile, languageCode);
+                    },
+                  ),
         ),
       ],
     );
@@ -434,19 +454,23 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: ListTile(
-        leading:
-            item.images?.isNotEmpty == true
-                ? ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    item.images!.first.url,
-                    width: 50,
-                    height: 50,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _buildDefaultItemIcon(),
-                  ),
-                )
-                : _buildDefaultItemIcon(),
+        leading: () {
+          final images = item.images as List<dynamic>;
+          final imageUrl =
+              images.isNotEmpty ? (images.first.url as String?) ?? '' : '';
+          return imageUrl.isNotEmpty
+              ? ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  imageUrl,
+                  width: 50,
+                  height: 50,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _buildDefaultItemIcon(),
+                ),
+              )
+              : _buildDefaultItemIcon();
+        }(),
         title: Text(
           item.name,
           style: const TextStyle(fontWeight: FontWeight.bold),
@@ -564,8 +588,8 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
     required IconData icon,
     required String title,
     required String subtitle,
-    required String actionLabel,
-    required VoidCallback onAction,
+    String? actionLabel,
+    VoidCallback? onAction,
   }) {
     return Center(
       child: SingleChildScrollView(
@@ -591,19 +615,21 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
               ).textTheme.bodySmall?.copyWith(color: AppTheme.neutral400),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: onAction,
-              icon: const Icon(Icons.add, size: 20),
-              label: Text(actionLabel),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryOrange,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: onAction,
+                icon: const Icon(Icons.add, size: 20),
+                label: Text(actionLabel),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryOrange,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),

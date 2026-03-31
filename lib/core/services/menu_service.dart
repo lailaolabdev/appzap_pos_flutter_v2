@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_client.dart';
@@ -33,8 +36,6 @@ class MenuService {
     String itemLevel = 'restaurant',
     required double basePrice,
     double? costPrice,
-    double taxRate = 0,
-    bool taxIncluded = false,
     String currency = 'LAK',
     bool trackStock = true,
     int lowStockThreshold = 10,
@@ -58,14 +59,13 @@ class MenuService {
         'pricing': {
           'basePrice': basePrice,
           if (costPrice != null) 'costPrice': costPrice,
-          'taxRate': taxRate,
-          'taxIncluded': taxIncluded,
           'currency': currency,
         },
         'inventory': {
-          'trackStock': trackStock,
+          'trackInventory': trackStock,
           'lowStockThreshold': lowStockThreshold,
-          'unit': unit,
+          'stockUnit': unit,
+          'currentStock': initialStock, // backend passes to inventoryActivationService
         },
         'isActive': isActive,
         'displayOrder': displayOrder,
@@ -100,98 +100,8 @@ class MenuService {
 
     final createdProduct = Product.fromJson(menuItemData);
 
-    // 🚀 AUTO-CREATE INVENTORY ITEM when trackStock is enabled
-    if (trackStock) {
-      try {
-        print('🔄 Creating inventory item for menu item: $name');
-        print('   Restaurant ID: $restaurantId');
-        print('   Branch ID: $branchId');
-        print('   Track Stock: $trackStock');
-        print('   Cost Price: $costPrice');
-
-        if (restaurantId == null || branchId == null) {
-          throw Exception(
-            'Restaurant ID and Branch ID are required for inventory creation',
-          );
-        }
-
-        print('🔄 Creating inventory item for menu item: $name');
-        print('   Restaurant ID: $restaurantId');
-        print('   Branch ID: $branchId');
-        print('   Track Stock: $trackStock');
-        print('   lowStockThreshold parameter received: $lowStockThreshold');
-        print('   Cost Price: ${costPrice ?? 0.0}');
-
-        final createdInventoryItem = await _inventoryService.createInventoryItem(
-          name: name,
-          description: description,
-          sku: sku,
-          barcode: barcode,
-          category: 'finished_good', // Menu items are typically finished goods
-          unit: unit,
-          costPerUnit: costPrice ?? 0.0,
-          sellingPrice: basePrice,
-          currentStock: initialStock, // Use the provided initial stock
-          minStockLevel:
-              lowStockThreshold, // ✅ This should be the real value from form
-          maxStockLevel: lowStockThreshold * 10, // Default to 10x min level
-          status: isActive ? 'active' : 'inactive',
-          trackStock: true,
-          itemId: createdProduct.id, // Use menu item ID as itemId
-          itemType: 'menu_item', // Set proper item type
-          restaurantId: restaurantId,
-          branchId: branchId,
-        );
-
-        print('✅ Auto-created inventory item for menu item: $name');
-        print('🔍 Verifying created inventory item threshold...');
-        print('   Expected minStockLevel: $lowStockThreshold');
-        print('   Actual minStockLevel: ${createdInventoryItem.minStockLevel}');
-
-        // 🛡️ WORKAROUND: If backend returned wrong threshold, update it
-        if (createdInventoryItem.minStockLevel != lowStockThreshold) {
-          print(
-            '⚠️ Backend returned incorrect minStockLevel! Attempting to fix...',
-          );
-          try {
-            await _inventoryService.updateInventoryItem(
-              itemId: createdInventoryItem.id,
-              name: name,
-              description: description,
-              sku: sku,
-              barcode: barcode,
-              category: 'finished_good',
-              unit: unit,
-              costPerUnit: costPrice ?? 0.0,
-              sellingPrice: basePrice,
-              minStockLevel: lowStockThreshold, // Force correct value
-              maxStockLevel: lowStockThreshold * 10,
-              status: isActive ? 'active' : 'inactive',
-              trackStock: true,
-              menuItemId: createdProduct.id,
-            );
-            print(
-              '✅ Successfully updated minStockLevel to correct value: $lowStockThreshold',
-            );
-          } catch (updateError) {
-            print('❌ Failed to update minStockLevel: $updateError');
-            print(
-              '   The inventory item was created with minStockLevel: ${createdInventoryItem.minStockLevel}',
-            );
-          }
-        }
-      } catch (e) {
-        // Don't fail menu creation if inventory creation fails
-        // Just log the error
-        print('❌ Failed to auto-create inventory item for $name: $e');
-        print(
-          '   This means the menu item was created but no inventory entry exists.',
-        );
-        print(
-          '   You may need to manually create the inventory entry or check the backend.',
-        );
-      }
-    }
+    // NOTE: Backend auto-creates inventory via inventoryActivationService
+    // when trackInventory: true is sent. No need to call inventory API manually.
 
     return createdProduct;
   }
@@ -204,8 +114,6 @@ class MenuService {
     String? categoryId,
     double? basePrice,
     double? costPrice,
-    double? taxRate,
-    bool? taxIncluded,
     bool? trackStock,
     int? lowStockThreshold,
     bool? isActive,
@@ -219,22 +127,20 @@ class MenuService {
     if (description != null) data['description'] = description;
     if (categoryId != null) data['categoryId'] = categoryId;
 
-    if (basePrice != null ||
-        costPrice != null ||
-        taxRate != null ||
-        taxIncluded != null) {
+    if (basePrice != null || costPrice != null) {
       data['pricing'] = {};
       if (basePrice != null) data['pricing']['basePrice'] = basePrice;
       if (costPrice != null) data['pricing']['costPrice'] = costPrice;
-      if (taxRate != null) data['pricing']['taxRate'] = taxRate;
-      if (taxIncluded != null) data['pricing']['taxIncluded'] = taxIncluded;
     }
 
     if (trackStock != null || lowStockThreshold != null) {
       data['inventory'] = {};
-      if (trackStock != null) data['inventory']['trackStock'] = trackStock;
-      if (lowStockThreshold != null)
+      if (trackStock != null) {
+        data['inventory']['trackInventory'] = trackStock;
+      }
+      if (lowStockThreshold != null) {
         data['inventory']['lowStockThreshold'] = lowStockThreshold;
+      }
     }
 
     if (isActive != null) data['isActive'] = isActive;
@@ -249,46 +155,61 @@ class MenuService {
     // NOT wrapped in { success, data }
     final updatedProduct = Product.fromJson(response);
 
-    // 🚀 AUTO-CREATE INVENTORY ITEM when trackStock is being enabled
-    if (trackStock == true) {
+    // 🚀 UPSERT INVENTORY when trackStock is enabled: create if not exists, update if exists
+    if (trackStock == true && restaurantId != null && branchId != null) {
+      // Use the form's lowStockThreshold directly (not from product response which may be null)
+      final threshold = lowStockThreshold ?? updatedProduct.inventory?.lowStockThreshold ?? 10;
       try {
-        // Check if inventory item already exists for this menu item
-        // For now, we'll attempt to create and handle duplicates gracefully
-        await _inventoryService.createInventoryItem(
-          name: updatedProduct.name,
-          description: updatedProduct.description,
-          sku: updatedProduct.sku,
-          barcode: updatedProduct.barcode,
-          category: 'finished_good',
-          unit: updatedProduct.inventory?.unit ?? 'unit',
-          costPerUnit: updatedProduct.pricing.costPrice ?? 0.0,
-          sellingPrice: updatedProduct.pricing.basePrice,
-          currentStock: 0, // Start with 0 stock
-          minStockLevel: updatedProduct.inventory?.lowStockThreshold ?? 10,
-          maxStockLevel:
-              (updatedProduct.inventory?.lowStockThreshold ?? 10) * 10,
-          status: updatedProduct.isActive ? 'active' : 'inactive',
-          trackStock: true,
-          itemId: updatedProduct.id, // Use menu item ID as itemId
-          itemType: 'menu_item', // Required: Type of item
+        // Step 1: check if inventory already exists for this menu item + branch
+        final existing = await _inventoryService.findInventoryByMenuItemId(
+          menuItemId: updatedProduct.id,
           restaurantId: restaurantId,
           branchId: branchId,
         );
 
-        print(
-          '✅ Auto-created inventory item for updated menu item: ${updatedProduct.name}',
-        );
-      } catch (e) {
-        // Handle case where inventory item might already exist
-        final errorMessage = e.toString();
-        if (errorMessage.contains('duplicate') ||
-            errorMessage.contains('exists')) {
-          print('ℹ️ Inventory item already exists for: ${updatedProduct.name}');
-        } else {
-          print(
-            '⚠️ Failed to auto-create inventory item for ${updatedProduct.name}: $e',
+        if (existing != null) {
+          // Step 2a: inventory exists → update it with latest values
+          await _inventoryService.updateInventoryItem(
+            itemId: existing.id,
+            name: updatedProduct.name,
+            description: updatedProduct.description,
+            sku: updatedProduct.sku,
+            barcode: updatedProduct.barcode,
+            category: 'finished_good',
+            unit: updatedProduct.inventory?.unit ?? 'unit',
+            costPerUnit: updatedProduct.pricing.costPrice ?? 0.0,
+            sellingPrice: updatedProduct.pricing.basePrice,
+            minStockLevel: threshold,
+            maxStockLevel: threshold * 10,
+            status: updatedProduct.isActive ? 'active' : 'inactive',
+            menuItemId: updatedProduct.id,
           );
+          print('✅ Updated existing inventory for: ${updatedProduct.name}');
+        } else {
+          // Step 2b: no inventory yet → create it
+          await _inventoryService.createInventoryItem(
+            name: updatedProduct.name,
+            description: updatedProduct.description,
+            sku: updatedProduct.sku,
+            barcode: updatedProduct.barcode,
+            category: 'finished_good',
+            unit: updatedProduct.inventory?.unit ?? 'unit',
+            costPerUnit: updatedProduct.pricing.costPrice ?? 0.0,
+            sellingPrice: updatedProduct.pricing.basePrice,
+            currentStock: 0,
+            minStockLevel: threshold,
+            maxStockLevel: threshold * 10,
+            status: updatedProduct.isActive ? 'active' : 'inactive',
+            trackStock: true,
+            itemId: updatedProduct.id,
+            itemType: 'menu_item',
+            restaurantId: restaurantId,
+            branchId: branchId,
+          );
+          print('✅ Created inventory for: ${updatedProduct.name}');
         }
+      } catch (e) {
+        print('⚠️ Failed to upsert inventory for ${updatedProduct.name}: $e');
       }
     }
 
@@ -321,9 +242,21 @@ class MenuService {
     required String itemId,
     required String imagePath,
   }) async {
-    // TODO: Implement multipart/form-data upload
-    // This requires FormData from dio package
-    throw UnimplementedError('Image upload not implemented yet');
+    final formData = FormData.fromMap({
+      'image': await MultipartFile.fromFile(
+        imagePath,
+        filename: imagePath.split(Platform.pathSeparator).last,
+      ),
+    });
+    final response = await _apiClient.post(
+      '${ApiConstants.menuItems}/$itemId/upload',
+      data: formData,
+    );
+    // Backend response: { success, data: { itemId, imageId, image: { id, original: {url}, ... } } }
+    final imageData =
+        (response['data']?['image'] ?? response['data'] ?? response)
+            as Map<String, dynamic>;
+    return MenuItemImage.fromJson(imageData);
   }
 
   /// Sync existing menu items with inventory (create inventory items for menu items with trackStock enabled)
@@ -518,10 +451,18 @@ class MenuItemImage {
   MenuItemImage({required this.imageId, required this.url, this.thumbnailUrl});
 
   factory MenuItemImage.fromJson(Map<String, dynamic> json) {
+    // Upload response: original is a String URL (from getImageUrls())
+    // GET list response: url is a top-level String added by the controller
+    String? resolveUrl(dynamic field) {
+      if (field is String && field.isNotEmpty) return field;
+      if (field is Map<String, dynamic>) return field['url'] as String?;
+      return null;
+    }
+
     return MenuItemImage(
-      imageId: json['imageId'] as String,
-      url: json['url'] as String,
-      thumbnailUrl: json['thumbnailUrl'] as String?,
+      imageId: json['id'] as String? ?? json['_id'] as String? ?? '',
+      url: resolveUrl(json['url']) ?? resolveUrl(json['original']) ?? '',
+      thumbnailUrl: resolveUrl(json['smallUrl']) ?? resolveUrl(json['small']),
     );
   }
 }

@@ -64,18 +64,21 @@ class CartPanel extends ConsumerWidget {
                   ),
                 ),
                 const Spacer(),
-                if (cart.isNotEmpty && onApplyLoyalty != null)
-                  TextButton.icon(
-                    onPressed: onApplyLoyalty,
-                    icon: const Icon(Icons.card_giftcard, size: 18),
-                    label: AppText(Translations.get('loyalty', languageCode)),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppTheme.primaryOrange,
-                    ),
-                  ),
+                // if (cart.isNotEmpty && onApplyLoyalty != null)
+                //   TextButton.icon(
+                //     onPressed: onApplyLoyalty,
+                //     icon: const Icon(Icons.card_giftcard, size: 18),
+                //     label: AppText(Translations.get('loyalty', languageCode)),
+                //     style: TextButton.styleFrom(
+                //       foregroundColor: AppTheme.primaryOrange,
+                //     ),
+                //   ),
                 if (cart.isNotEmpty)
                   TextButton(
-                    onPressed: onClearCart,
+                    onPressed: () {
+                      onClearCart();
+                      Navigator.of(context).pop();
+                    },
                     child: AppText(
                       Translations.get('clear', languageCode),
                       style: const TextStyle(color: AppTheme.error),
