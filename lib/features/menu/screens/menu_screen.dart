@@ -91,7 +91,7 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
   }
 
   Future<void> _deleteSelectedItems(String lang) async {
-    final count = _selectedItemIds.length;
+    // final count = _selectedItemIds.length;
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
@@ -672,7 +672,7 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
   }
 
   Future<void> _deleteSelectedCategories(String lang) async {
-    final count = _selectedCategoryIds.length;
+    // final count = _selectedCategoryIds.length;
     final confirmed = await showDialog<bool>(
       context: context,
       builder:

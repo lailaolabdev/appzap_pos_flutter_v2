@@ -124,7 +124,6 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     required double tendered,
     required dynamic cart,
   }) async {
-
     if (_branchId == null) {
       state = state.copyWith(
         processState: PaymentProcessState.failed,
