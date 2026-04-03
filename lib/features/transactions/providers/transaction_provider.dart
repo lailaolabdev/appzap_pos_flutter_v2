@@ -233,7 +233,15 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
 
   /// Load single transaction
   Future<void> loadTransaction(String transactionId) async {
-    state = state.copyWith(isLoading: true, clearError: true);
+    // Clear old data first so detail screen shows loading
+    state = TransactionState(
+      transactions: state.transactions,
+      pagination: state.pagination,
+      summary: state.summary,
+      filters: state.filters,
+      isLoading: true,
+      selectedTransaction: null,
+    );
 
     try {
       final transaction =
@@ -272,11 +280,12 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
         approvalCode: approvalCode,
       );
 
-      // Reload transactions and selected transaction
-      await loadTransactions();
-      if (state.selectedTransaction?.transactionId == transactionId) {
-        await loadTransaction(transactionId);
-      }
+      // Reload both in parallel
+      await Future.wait([
+        loadTransactions(),
+        if (state.selectedTransaction?.transactionId == transactionId)
+          loadTransaction(transactionId),
+      ]);
 
       return true;
     } catch (e) {
@@ -302,11 +311,12 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
         approvalCode: approvalCode,
       );
 
-      // Reload transactions and selected transaction
-      await loadTransactions();
-      if (state.selectedTransaction?.transactionId == transactionId) {
-        await loadTransaction(transactionId);
-      }
+      // Reload both in parallel
+      await Future.wait([
+        loadTransactions(),
+        if (state.selectedTransaction?.transactionId == transactionId)
+          loadTransaction(transactionId),
+      ]);
 
       return true;
     } catch (e) {

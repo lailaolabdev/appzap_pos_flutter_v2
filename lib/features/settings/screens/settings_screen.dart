@@ -2,13 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_shell.dart';
-import '../../../app/theme.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/app_sidebar.dart';
-import '../../../shared/widgets/error_banner.dart';
 import '../../../core/constants/translations.dart';
 import '../../../core/providers/localization_provider.dart';
-import '../providers/settings_provider.dart';
 import 'printer_settings_page.dart';
 import 'language_settings_page.dart';
 
@@ -20,96 +17,108 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+
   @override
   Widget build(BuildContext context) {
-    final settingsState = ref.watch(settingsProvider);
-    final localization = ref.watch(localizationProvider);
-    final lang = localization.languageCode;
+    final lang = ref.watch(localizationProvider).languageCode;
     final isMobile = Responsive.isMobile(context);
 
     return AppShell(
       child: Scaffold(
-        backgroundColor: AppTheme.scaffoldBackground,
+        key: _scaffoldKey,
+        backgroundColor: Colors.white,
         drawer:
             isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
-        appBar: AppBar(
-          leading:
-              isMobile
-                  ? Builder(
-                    builder:
-                        (context) => IconButton(
-                          icon: const Icon(Icons.menu),
-                          onPressed: () => Scaffold.of(context).openDrawer(),
-                        ),
-                  )
-                  : null,
-          title: Text(Translations.get('settings', lang)),
-        ),
-        body: Column(
-          children: [
-            if (settingsState.error != null)
-              ErrorBanner(message: settingsState.error!),
-            Expanded(child: _buildSettingsList(settingsState, lang)),
-          ],
+        body: SafeArea(
+          child: Column(
+            children: [
+              // AppBar
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                color: Colors.white,
+                child: Row(
+                  children: [
+                    if (isMobile)
+                      IconButton(
+                        icon: const Icon(Icons.menu, size: 24),
+                        onPressed:
+                            () => _scaffoldKey.currentState?.openDrawer(),
+                      ),
+                    if (!isMobile) const SizedBox(width: 16),
+                    Text(
+                      Translations.get('settings', lang),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: Color(0xFFE0E0E0)),
+
+              // Settings list
+              Expanded(
+                child: ListView(
+                  children: [
+                    // Printers
+                    _buildSettingsItem(
+                      icon: Icons.print,
+                      label: Translations.get('printers', lang),
+                      onTap:
+                          () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PrinterSettingsPage(),
+                            ),
+                          ),
+                    ),
+
+                    // Language
+                    _buildSettingsItem(
+                      icon: Icons.language,
+                      label: Translations.get('language', lang),
+                      onTap:
+                          () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const LanguageSettingsPage(),
+                            ),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSettingsList(SettingsState settingsState, String lang) {
-    if (settingsState.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Printer Settings Card
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.print, size: 32),
-              title: Text(
-                Translations.get('printer', lang),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios),
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const PrinterSettingsPage(),
-                  ),
-                );
-              },
+  Widget _buildSettingsItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Color(0xFFE0E0E0))),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 24, color: Colors.grey.shade600),
+            const SizedBox(width: 20),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
-          ),
-          const SizedBox(height: 12),
-
-          // Language Settings Card
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.language, size: 32),
-              title: Text(
-                Translations.get('language', lang),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios),
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const LanguageSettingsPage(),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -324,71 +324,106 @@ class TransactionService {
     transformed['transactionType'] = apiData['transactionType'] ?? 'sale';
     transformed['transactionStatus'] =
         apiData['transactionStatus'] ?? 'completed';
+    transformed['restaurantId'] = apiData['restaurantId'];
+    transformed['branchId'] = apiData['branchId'];
 
-    // Transform amount structure to consolidatedTotals
-    final amount = _extractAmountValue(apiData['amount']);
-    final paidAmount = _extractAmountValue(apiData['paidAmount']);
+    // Detect format: detail endpoint has 'totals', list endpoint has 'amount'
+    final isDetailFormat = apiData.containsKey('totals');
 
-    transformed['consolidatedTotals'] = {
-      'subtotal': {'amount': amount, 'currency': 'LAK'},
-      'tax': {'amount': 0.0, 'currency': 'LAK'},
-      'discounts': {'amount': 0.0, 'currency': 'LAK'},
-      'serviceCharge': {'amount': 0.0, 'currency': 'LAK'},
-      'grandTotal': {'amount': amount, 'currency': 'LAK'},
-    };
+    if (isDetailFormat) {
+      // ── Detail endpoint format ──
+      final totals = apiData['totals'] as Map<String, dynamic>? ?? {};
+      final currency = totals['currency'] as String? ?? 'LAK';
 
-    // Transform payment methods to payments array
-    final paymentMethods = apiData['paymentMethods'] as List<dynamic>? ?? [];
+      transformed['consolidatedTotals'] = {
+        'subtotal': totals['totalLineItems'] ?? {'amount': 0, 'currency': currency},
+        'tax': totals['totalTaxes'] ?? {'amount': 0, 'currency': currency},
+        'discounts': totals['totalDiscounts'] ?? {'amount': 0, 'currency': currency},
+        'serviceCharge': totals['totalFees'] ?? {'amount': 0, 'currency': currency},
+        'grandTotal': totals['grandTotal'] ?? {'amount': 0, 'currency': currency},
+      };
 
-    transformed['payments'] =
-        paymentMethods.isNotEmpty
-            ? paymentMethods
-                .map(
-                  (method) => {
-                    'paymentId': 'pay_${DateTime.now().millisecondsSinceEpoch}',
-                    'method': method.toString(),
-                    'status': 'completed',
-                    'customerAmount': {'amount': paidAmount, 'currency': 'LAK'},
-                    'tenderedAmount': {'amount': paidAmount, 'currency': 'LAK'},
-                    'changeAmount': {'amount': 0.0, 'currency': 'LAK'},
-                  },
-                )
-                .toList()
-            : [
-              {
-                'paymentId': 'pay_${DateTime.now().millisecondsSinceEpoch}',
-                'method': 'cash',
-                'status': 'completed',
-                'customerAmount': {'amount': paidAmount, 'currency': 'LAK'},
-                'tenderedAmount': {'amount': paidAmount, 'currency': 'LAK'},
-                'changeAmount': {'amount': 0.0, 'currency': 'LAK'},
-              },
-            ];
+      // Transform payments array - map changeGiven to changeAmount
+      final payments = apiData['payments'] as List<dynamic>? ?? [];
+      transformed['payments'] = payments.map((p) {
+        final pay = p as Map<String, dynamic>;
+        return {
+          ...pay,
+          'changeAmount': pay['changeGiven'] ?? pay['changeAmount'],
+        };
+      }).toList();
 
-    // Create payment summary
-    transformed['paymentSummary'] = {
-      'totalPaid': {'amount': paidAmount, 'currency': 'LAK'},
-      'changeGiven': {'amount': 0.0, 'currency': 'LAK'},
-      'paymentMethodBreakdown':
+      transformed['paymentSummary'] = apiData['paymentSummary'];
+
+      // Extract line items from orders
+      final orders = apiData['orders'] as List<dynamic>? ?? [];
+      final lineItems = <Map<String, dynamic>>[];
+      for (final order in orders) {
+        final orderMap = order as Map<String, dynamic>;
+        final items = orderMap['items'] as List<dynamic>? ?? [];
+        for (final item in items) {
+          final itemMap = item as Map<String, dynamic>;
+          lineItems.add({
+            'itemType': itemMap['itemType'] ?? 'menu_item',
+            'menuItemId': itemMap['menuItemId'],
+            'name': itemMap['name'] ?? '',
+            'quantity': itemMap['quantity'] ?? 1,
+            'unitPrice': itemMap['unitPrice'] ?? itemMap['price'],
+            'subtotal': itemMap['subtotal'] ?? itemMap['lineTotal'],
+            'tax': itemMap['tax'] ?? 0,
+            'total': itemMap['lineTotal'] ?? itemMap['subtotal'],
+          });
+        }
+      }
+      transformed['lineItems'] = lineItems.isNotEmpty
+          ? lineItems
+          : (apiData['lineItems'] ?? []);
+
+      // Copy staff structure directly
+      transformed['staff'] = apiData['staff'];
+    } else {
+      // ── List endpoint format ──
+      final amount = _extractAmountValue(apiData['amount']);
+      final paidAmount = _extractAmountValue(apiData['paidAmount']);
+
+      transformed['consolidatedTotals'] = {
+        'subtotal': {'amount': amount, 'currency': 'LAK'},
+        'tax': {'amount': 0.0, 'currency': 'LAK'},
+        'discounts': {'amount': 0.0, 'currency': 'LAK'},
+        'serviceCharge': {'amount': 0.0, 'currency': 'LAK'},
+        'grandTotal': {'amount': amount, 'currency': 'LAK'},
+      };
+
+      // Transform paymentMethods to payments array
+      final paymentMethods = apiData['paymentMethods'] as List<dynamic>? ?? [];
+      transformed['payments'] =
           paymentMethods.isNotEmpty
               ? paymentMethods
-                  .map(
-                    (method) => {
-                      'method': method.toString(),
-                      'amount': {'amount': paidAmount, 'currency': 'LAK'},
-                    },
-                  )
+                  .map((method) => {
+                    'method': method.toString(),
+                    'status': 'completed',
+                    'grossAmount': {'amount': paidAmount, 'currency': 'LAK'},
+                    'changeAmount': {'amount': 0.0, 'currency': 'LAK'},
+                  })
                   .toList()
               : [
                 {
                   'method': 'cash',
-                  'amount': {'amount': paidAmount, 'currency': 'LAK'},
+                  'status': 'completed',
+                  'grossAmount': {'amount': paidAmount, 'currency': 'LAK'},
+                  'changeAmount': {'amount': 0.0, 'currency': 'LAK'},
                 },
-              ],
-    };
+              ];
 
-    // Create empty line items if not present
-    transformed['lineItems'] = apiData['lineItems'] ?? [];
+      transformed['lineItems'] = apiData['lineItems'] ?? [];
+
+      // Create staff structure from processedBy
+      if (apiData['processedBy'] != null) {
+        transformed['staff'] = {
+          'processedBy': apiData['processedBy'],
+        };
+      }
+    }
 
     // Copy timing
     transformed['timing'] =
@@ -398,42 +433,26 @@ class TransactionService {
           'completedAt': DateTime.now().toIso8601String(),
         };
 
-    // Create staff structure
-    if (apiData['processedBy'] != null) {
-      transformed['staff'] = {
-        'processedBy': apiData['processedBy'],
-        'cashier': apiData['processedBy'],
-      };
-    }
-
     // Copy other fields
     transformed['tableInfo'] = apiData['tableInfo'];
     transformed['tableSessionId'] = apiData['tableSessionId'];
     transformed['countInTotals'] = apiData['countInTotals'] ?? true;
+    transformed['createdAt'] = apiData['createdAt'];
+    transformed['updatedAt'] = apiData['updatedAt'];
 
     print('✅ API response transformed successfully');
     return transformed;
   }
 
-  /// Helper method to extract amount value from API response
-  /// Handles both direct numbers and {amount: number, currency: string} objects
+  /// Helper to extract amount from a number or {amount, currency} map
   double _extractAmountValue(dynamic value) {
     if (value == null) return 0.0;
-
-    // If it's already a number, return it
     if (value is num) return value.toDouble();
-
-    // If it's a Map with 'amount' field, extract the amount
     if (value is Map<String, dynamic> && value.containsKey('amount')) {
       final amount = value['amount'];
       if (amount is num) return amount.toDouble();
     }
-
-    // Fallback: try to parse as string or return 0
-    if (value is String) {
-      return double.tryParse(value) ?? 0.0;
-    }
-
+    if (value is String) return double.tryParse(value) ?? 0.0;
     return 0.0;
   }
 }

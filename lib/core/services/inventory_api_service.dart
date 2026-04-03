@@ -82,11 +82,6 @@ class InventoryApiService {
           itemType ?? 'product', // Use parameter or default to 'product'
     };
 
-    print('📦 Inventory API Service - Creating item with data:');
-    print('   - name: $name');
-    print('   - minStockLevel: $minStockLevel (this should be the user input)');
-    print('   - currentStock: $currentStock');
-    print('   - maxStockLevel: $maxStockLevel');
 
     // Add required fields if provided
     if (itemId != null) itemData['itemId'] = itemId;
@@ -104,18 +99,12 @@ class InventoryApiService {
       'items': [itemData],
     };
 
-    print('🚨 === CRITICAL DEBUG: SENDING TO BACKEND ===');
-    print('🚨 Full request data being sent: $data');
-    print('🚨 itemData[minStockLevel] = ${itemData['minStockLevel']}');
-    print('🚨 This value MUST be $minStockLevel');
 
     final response = await _apiClient.post(
       ApiConstants.inventoryItems,
       data: data,
     );
 
-    print('🚨 === CRITICAL DEBUG: BACKEND RESPONSE ===');
-    print('🚨 Full response: $response');
 
     // Extract the first (and only) item from the response
     final responseData = response['data'];
@@ -123,29 +112,12 @@ class InventoryApiService {
       final items = responseData['items'] as List;
       if (items.isNotEmpty) {
         final itemJson = items[0] as Map<String, dynamic>;
-        print('🚨 Backend returned item: $itemJson');
-        print(
-          '🚨 Backend returned minStockLevel: ${itemJson['minStockLevel']}',
-        );
-        print('🚨 Expected minStockLevel: $minStockLevel');
-        if (itemJson['minStockLevel'] != minStockLevel) {
-          print('🚨 ❌❌❌ BACKEND BUG DETECTED! ❌❌❌');
-          print(
-            '🚨 Backend changed $minStockLevel to ${itemJson['minStockLevel']}',
-          );
-          print(
-            '🚨 This is a BACKEND ISSUE - the backend is not saving the correct value!',
-          );
-        }
         return InventoryItem.fromJson(itemJson);
       }
     }
 
     // Fallback for direct item response format
-    print('🚨 Using fallback response format');
     final itemJson = response['data'] as Map<String, dynamic>;
-    print('🚨 Backend returned item: $itemJson');
-    print('🚨 Backend returned minStockLevel: ${itemJson['minStockLevel']}');
     return InventoryItem.fromJson(itemJson);
   }
 

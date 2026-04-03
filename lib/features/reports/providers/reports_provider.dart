@@ -75,74 +75,51 @@ class ReportsNotifier extends StateNotifier<ReportsState> {
       List<SalesByProductItem> topProducts = [];
       List<SalesByStaffItem> employeePerformance = [];
 
-      // Try to load daily summary (may fail with 404)
-      try {
-        summary = await _reportService.getSummaryForDateRange(
+      // Load all reports in parallel
+      final results = await Future.wait<dynamic>([
+        _reportService.getSummaryForDateRange(
           branchId: _branchId,
           startDate: state.startDate,
           endDate: state.endDate,
-        );
-      } catch (e) {
-        // Ignore daily summary errors - endpoint may not exist
-        print('Daily summary failed: $e');
-      }
-
-      // Try to load products report and extract payment methods data
-      try {
-        // First, get products the normal way
-        topProducts = await _reportService.getSalesByProductForDateRange(
+        ).then<DailySalesSummary?>((v) => v).catchError((_) => null),
+        _reportService.getSalesByProductForDateRange(
           branchId: _branchId,
           startDate: state.startDate,
           endDate: state.endDate,
-        );
-
-        // Then try to get payment methods data by calling getSalesByProduct directly
-        // which should return more detailed response including summary
-        try {
-          final startStr = state.startDate.toIso8601String().split('T')[0];
-          final endStr = state.endDate.toIso8601String().split('T')[0];
-
-          // Create a temporary summary with payment data from products
-          if (topProducts.isNotEmpty) {
-            final totalSales = topProducts.fold<double>(
-              0.0,
-              (sum, product) => sum + product.totalRevenue,
-            );
-
-            // Default to cash payment method for now
-            final Map<String, double> paymentsMap = {'cash': totalSales};
-
-            summary = DailySalesSummary(
-              period: Period(startDate: startStr, endDate: endStr),
-              sales: SalesData(
-                totalSales: totalSales,
-                totalOrders: topProducts.fold<int>(
-                  0,
-                  (sum, product) => sum + product.quantitySold,
-                ),
-                averageOrderValue:
-                    totalSales > 0 ? totalSales / topProducts.length : 0.0,
-                totalTax: 0.0, // No tax data available from current API
-              ),
-              payments: paymentsMap,
-            );
-          }
-        } catch (e) {
-          print('Failed to create summary from products data: $e');
-        }
-      } catch (e) {
-        print('Products report failed: $e');
-      }
-
-      // Try to load staff report
-      try {
-        employeePerformance = await _reportService.getSalesByStaffForDateRange(
+        ).catchError((_) => <SalesByProductItem>[]),
+        _reportService.getSalesByStaffForDateRange(
           branchId: _branchId,
           startDate: state.startDate,
           endDate: state.endDate,
+        ).catchError((_) => <SalesByStaffItem>[]),
+      ]);
+
+      summary = results[0] as DailySalesSummary?;
+      topProducts = results[1] as List<SalesByProductItem>;
+      employeePerformance = results[2] as List<SalesByStaffItem>;
+
+      // Build summary from products data if summary API failed
+      if (summary == null && topProducts.isNotEmpty) {
+        final startStr = state.startDate.toIso8601String().split('T')[0];
+        final endStr = state.endDate.toIso8601String().split('T')[0];
+        final totalSales = topProducts.fold<double>(
+          0.0,
+          (sum, product) => sum + product.totalRevenue,
         );
-      } catch (e) {
-        print('Staff report failed: $e');
+        summary = DailySalesSummary(
+          period: Period(startDate: startStr, endDate: endStr),
+          sales: SalesData(
+            totalSales: totalSales,
+            totalOrders: topProducts.fold<int>(
+              0,
+              (sum, product) => sum + product.quantitySold,
+            ),
+            averageOrderValue:
+                totalSales > 0 ? totalSales / topProducts.length : 0.0,
+            totalTax: 0.0,
+          ),
+          payments: {'cash': totalSales},
+        );
       }
 
       state = state.copyWith(

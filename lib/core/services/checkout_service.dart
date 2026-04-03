@@ -3,12 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../constants/api_constants.dart';
 import '../models/cart.dart';
-import 'inventory_service.dart';
 
 final checkoutServiceProvider = Provider<CheckoutService>((ref) {
   final apiClient = ref.watch(apiClientProvider);
-  final inventoryService = ref.watch(inventoryServiceProvider);
-  return CheckoutService(apiClient, inventoryService);
+  return CheckoutService(apiClient);
 });
 
 /// Checkout request models
@@ -47,15 +45,6 @@ class LineItem {
     if (options != null && options!.isNotEmpty) {
       json['options'] = options!;
     }
-
-    // ✅ CRITICAL FIX: Force backend to generate fresh cost breakdown
-    // This prevents stock-tracked items from using invalid calculationSource values
-    // The backend will generate valid cost breakdown with proper enum values
-    json['forceFreshCostBreakdown'] = true;
-
-    // ✅ ADDITIONAL FIX: Explicitly prevent any cost breakdown contamination
-    // Never send costBreakdown field to avoid invalid enum values like 'inventory_average_cost'
-    json['skipStoredCostBreakdown'] = true;
 
     return json;
   }
@@ -260,9 +249,8 @@ class CheckoutResponse {
 /// Service for unified checkout operations
 class CheckoutService {
   final ApiClient _apiClient;
-  final InventoryService _inventoryService;
 
-  CheckoutService(this._apiClient, this._inventoryService);
+  CheckoutService(this._apiClient);
 
   /// Step 1: Calculate pricing (optional but recommended)
   Future<CheckoutPricing> calculatePricing({
@@ -297,10 +285,6 @@ class CheckoutService {
     String? notes,
     String? idempotencyKey,
   }) async {
-    print('🏪 CheckoutService.processPayment called');
-    print('   Line items: ${lineItems.length}');
-    print('   Payments: ${payments.length}');
-    print('   Expected total: $expectedTotal');
 
     // Generate idempotency key if not provided
     final key =
@@ -320,15 +304,10 @@ class CheckoutService {
                   'notes': item.notes,
                 if (item.options != null && item.options!.isNotEmpty)
                   'options': item.options,
-                // ✅ CRITICAL: Force fresh cost breakdown generation for ALL items
-                'forceFreshCostBreakdown': true,
-                // ✅ ADDITIONAL: Skip any stored cost breakdown to prevent contamination
-                'skipStoredCostBreakdown': true,
               },
             )
             .toList();
 
-    print('📤 Making API call to ${ApiConstants.processPayment}');
     final response = await _apiClient.post(
       ApiConstants.processPayment,
       data: {
@@ -343,47 +322,13 @@ class CheckoutService {
       },
     );
 
-    print('📥 API response received');
-    print('   Response keys: ${response.keys.toList()}');
-    print('   Has data key: ${response.containsKey('data')}');
 
-    if (response['data'] != null) {
-      print('   Data type: ${response['data'].runtimeType}');
-      if (response['data'] is Map) {
-        print('   Data keys: ${(response['data'] as Map).keys.toList()}');
-      }
-    }
-
-    print('🔄 Parsing CheckoutResponse...');
     final checkoutResponse = CheckoutResponse.fromJson(
       response['data'] as Map<String, dynamic>,
     );
-    print('✅ CheckoutResponse parsed successfully');
-    print('   Order ID: ${checkoutResponse.order.orderId}');
-    print('   Transaction ID: ${checkoutResponse.transaction.transactionId}');
 
-    // ✅ STOCK DEDUCTION: Process stock deduction after successful payment
-    try {
-      print('📦 Processing stock deduction for successful payment...');
-      print('📊 Order ID: ${checkoutResponse.order.orderId}');
-      print('📊 Line items to deduct: ${lineItems.length}');
-
-      for (final item in lineItems) {
-        print('   - ${item.name} (${item.menuItemId}): ${item.quantity} units');
-      }
-
-      await _processStockDeduction(
-        orderId: checkoutResponse.order.orderId,
-        lineItems: lineItems,
-      );
-      print('✅ Stock deduction completed successfully');
-      print('📊 Stock levels should now be updated in inventory');
-    } catch (e) {
-      print('⚠️ Stock deduction failed (order still successful): $e');
-      print('📋 Stack trace: ${StackTrace.current}');
-      // Don't fail the entire transaction if stock deduction fails
-      // The order is already processed successfully
-    }
+    // NOTE: Backend handles stock deduction inside the checkout transaction.
+    // No need for client-side stock deduction.
 
     return checkoutResponse;
   }
@@ -394,53 +339,11 @@ class CheckoutService {
     required double tenderedAmount,
     String? notes,
   }) async {
-    print('💳 CheckoutService.processCashPaymentFromCart called');
-    print('   Cart total: ${cart.total}');
-    print('   Tendered amount: $tenderedAmount');
-    print('   Cart items: ${cart.items.length}');
+    // NOTE: Backend handles all validation (inventory tracking, stock availability,
+    // order creation, payment processing, stock deduction) in one transaction.
+    // No need for redundant client-side checks — just send the request.
 
-    // ✅ VALIDATION: Only allow payment for items WITH inventory tracking
-    print('🔍 Validating inventory tracking for all cart items...');
-    for (final item in cart.items) {
-      // Check if item has inventory tracking by verifying if it exists in inventory service
-      final hasInventoryTracking = await _inventoryService.hasInventoryTracking(
-        item.productId,
-      );
-      print(
-        '   📦 ${item.productName} (${item.productId}): hasInventoryTracking=${hasInventoryTracking}',
-      );
-
-      if (!hasInventoryTracking) {
-        print(
-          '❌ Payment blocked: ${item.productName} does not have inventory tracking enabled',
-        );
-        print(
-          '   Only items with inventory tracking can be processed for payment',
-        );
-        throw Exception(
-          'Payment not allowed: ${item.productName} requires inventory tracking to be enabled for payment processing. Please enable inventory tracking for this item or remove it from cart.',
-        );
-      }
-    }
-    print('✅ All items have inventory tracking enabled - payment allowed');
-
-    // ✅ STOCK VALIDATION: Check if there's enough stock before payment
-    print('📦 Validating stock availability...');
-    final cartItemsForValidation =
-        cart.items
-            .map(
-              (item) => {
-                'menuItemId': item.productId,
-                'name': item.productName,
-                'quantity': item.quantity,
-              },
-            )
-            .toList();
-
-    await _inventoryService.validateStockAvailability(cartItemsForValidation);
-    print('✅ Stock validation passed - sufficient stock available');
-
-    // Transform cart items to LineItems - let backend generate costBreakdown
+    // Transform cart items to LineItems
     final lineItems =
         cart.items
             .map(
@@ -457,7 +360,6 @@ class CheckoutService {
             )
             .toList();
 
-    print('✅ Line items created: ${lineItems.length}');
 
     // ✅ Create payment method with correct API format
     final payment = PaymentMethod(
@@ -466,9 +368,6 @@ class CheckoutService {
       tenderedAmount: MoneyAmount(amount: tenderedAmount, currency: 'LAK'),
     );
 
-    print('✅ Payment method created: cash');
-    print('   Customer amount: ${cart.total} LAK');
-    print('   Tendered amount: $tenderedAmount LAK');
 
     // Create customer info if available
     CustomerInfo? customerInfo;
@@ -478,12 +377,8 @@ class CheckoutService {
         name: cart.customer!.name,
         phone: cart.customer!.phone,
       );
-      print('✅ Customer info created: ${cart.customer!.name}');
-    } else {
-      print('ℹ️  No customer info in cart');
     }
 
-    print('🔄 Calling processPayment...');
     // Process payment
     final result = await processPayment(
       lineItems: lineItems,
@@ -494,7 +389,6 @@ class CheckoutService {
       notes: notes ?? cart.notes,
     );
 
-    print('✅ processCashPaymentFromCart completed successfully');
     return result;
   }
 
@@ -505,46 +399,6 @@ class CheckoutService {
     Map<String, dynamic>? paymentDetails,
     String? notes,
   }) async {
-    // ✅ VALIDATION: Only allow payment for items WITH inventory tracking
-    print('🔍 Validating inventory tracking for PhayPay payment...');
-    for (final item in cart.items) {
-      // Check if item has inventory tracking by verifying if it exists in inventory service
-      final hasInventoryTracking = await _inventoryService.hasInventoryTracking(
-        item.productId,
-      );
-      print(
-        '   📦 ${item.productName} (${item.productId}): hasInventoryTracking=${hasInventoryTracking}',
-      );
-
-      if (!hasInventoryTracking) {
-        print(
-          '❌ PhayPay payment blocked: ${item.productName} does not have inventory tracking enabled',
-        );
-        throw Exception(
-          'Payment not allowed: ${item.productName} requires inventory tracking to be enabled for payment processing. Please enable inventory tracking for this item or remove it from cart.',
-        );
-      }
-    }
-    print(
-      '✅ All items have inventory tracking enabled - PhayPay payment allowed',
-    );
-
-    // ✅ STOCK VALIDATION: Check if there's enough stock before PhayPay payment
-    print('📦 Validating stock availability for PhayPay payment...');
-    final phayPayCartItems =
-        cart.items
-            .map(
-              (item) => {
-                'menuItemId': item.productId,
-                'name': item.productName,
-                'quantity': item.quantity,
-              },
-            )
-            .toList();
-
-    await _inventoryService.validateStockAvailability(phayPayCartItems);
-    print('✅ PhayPay stock validation passed - sufficient stock available');
-
     // Transform cart items to LineItems - let backend generate costBreakdown
     final lineItems =
         cart.items
@@ -597,51 +451,6 @@ class CheckoutService {
     required Cart cart,
     String? notes,
   }) async {
-    print('💾 CheckoutService.saveOrderAsPending called');
-    print('   Cart items: ${cart.items.length}');
-    print('   Total: ${cart.total}');
-
-    // ✅ VALIDATION: Only allow pending orders for items WITH inventory tracking
-    print('🔍 Validating inventory tracking for pending order...');
-    for (final item in cart.items) {
-      // Check if item has inventory tracking by verifying if it exists in inventory service
-      final hasInventoryTracking = await _inventoryService.hasInventoryTracking(
-        item.productId,
-      );
-      print(
-        '   📦 ${item.productName} (${item.productId}): hasInventoryTracking=${hasInventoryTracking}',
-      );
-
-      if (!hasInventoryTracking) {
-        print(
-          '❌ Pending order blocked: ${item.productName} does not have inventory tracking enabled',
-        );
-        throw Exception(
-          'Order not allowed: ${item.productName} requires inventory tracking to be enabled for order processing. Please enable inventory tracking for this item or remove it from cart.',
-        );
-      }
-    }
-    print(
-      '✅ All items have inventory tracking enabled - pending order allowed',
-    );
-
-    // ✅ STOCK VALIDATION: Check if there's enough stock before creating pending order
-    print('📦 Validating stock availability for pending order...');
-    final pendingOrderItems =
-        cart.items
-            .map(
-              (item) => {
-                'menuItemId': item.productId,
-                'name': item.productName,
-                'quantity': item.quantity,
-              },
-            )
-            .toList();
-
-    await _inventoryService.validateStockAvailability(pendingOrderItems);
-    print(
-      '✅ Pending order stock validation passed - sufficient stock available',
-    );
 
     // Transform cart items to LineItems - let backend generate costBreakdown
     final lineItems =
@@ -688,30 +497,20 @@ class CheckoutService {
     List<dynamic>? promotions,
     String? notes,
   }) async {
-    print('📤 Saving pending order to API...');
 
     final requestBody = {
-      'orderType': 'dine_in',
-      'status': 'pending', // Set status as pending
       'lineItems': lineItems.map((item) => item.toJson()).toList(),
-      'totalAmount': {'amount': expectedTotal, 'currency': 'LAK'},
+      'holdReason': 'customer_request',
       if (customer != null) 'customer': customer.toJson(),
-      if (promotions != null && promotions.isNotEmpty) 'promotions': promotions,
       if (notes != null && notes.isNotEmpty) 'notes': notes,
-      'createdAt': DateTime.now().toIso8601String(),
     };
 
-    print('📋 Request body: $requestBody');
-
     try {
-      // Use createOrder endpoint for creating pending orders
       final response = await _apiClient.post(
-        ApiConstants.createOrder,
+        '${ApiConstants.createOrder}/on-hold',
         data: requestBody,
       );
 
-      print('📥 API Response status: ${response['status'] ?? 'unknown'}');
-      print('📋 API Response body: $response');
 
       // For pending orders, create a simplified CheckoutResponse
       final orderData = response['data'] ?? response;
@@ -754,11 +553,8 @@ class CheckoutService {
         message: 'Order saved as pending successfully',
       );
 
-      print('✅ savePendingOrder completed successfully');
       return result;
     } catch (e) {
-      print('❌ createOrder endpoint failed: $e');
-      print('🔄 Trying alternative approach with checkout system...');
 
       // Alternative approach: Use checkout system but with no payments to create pending order
       try {
@@ -775,57 +571,24 @@ class CheckoutService {
           'idempotencyKey': 'pending-${DateTime.now().millisecondsSinceEpoch}',
         };
 
-        print('📋 Alternative request body: $alternativeBody');
 
         final response = await _apiClient.post(
           ApiConstants.processPayment,
           data: alternativeBody,
         );
 
-        print('📥 Alternative API Response: $response');
 
         // Parse the checkout response
         final result = CheckoutResponse.fromJson(
           response['data'] as Map<String, dynamic>,
         );
 
-        print('✅ savePendingOrder completed via alternative approach');
         return result;
       } catch (alternativeError) {
-        print('❌ Alternative approach also failed: $alternativeError');
-        print(
-          '💡 Suggestion: Check if your backend supports order creation endpoints',
-        );
         rethrow;
       }
     }
   }
 
   /// Private method to process stock deduction after successful payment
-  Future<void> _processStockDeduction({
-    required String orderId,
-    required List<LineItem> lineItems,
-  }) async {
-    try {
-      // Convert LineItems to the format expected by inventory service
-      final orderItems =
-          lineItems
-              .map(
-                (item) => {
-                  'menuItemId': item.menuItemId,
-                  'name': item.name,
-                  'quantity': item.quantity,
-                },
-              )
-              .toList();
-
-      await _inventoryService.deductStockForOrder(
-        orderId: orderId,
-        orderItems: orderItems,
-      );
-    } catch (e) {
-      print('❌ Stock deduction error in checkout: $e');
-      rethrow;
-    }
-  }
 }

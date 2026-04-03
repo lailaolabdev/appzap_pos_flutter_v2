@@ -18,6 +18,7 @@ class Transaction extends Equatable {
   final TransactionTableInfo? tableInfo;
   final TransactionTiming timing;
   final bool countInTotals;
+  final int? qNumber;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -38,6 +39,7 @@ class Transaction extends Equatable {
     this.tableInfo,
     required this.timing,
     required this.countInTotals,
+    this.qNumber,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -92,6 +94,7 @@ class Transaction extends Equatable {
         json['timing'] as Map<String, dynamic>? ?? {},
       ),
       countInTotals: json['countInTotals'] as bool? ?? true,
+      qNumber: _parseQNumber(json),
       createdAt:
           json['createdAt'] != null
               ? DateTime.parse(json['createdAt'] as String)
@@ -101,6 +104,32 @@ class Transaction extends Equatable {
               ? DateTime.parse(json['updatedAt'] as String)
               : DateTime.now(),
     );
+  }
+
+  /// Short display ID: "ORD-bbd95ced-..." → "ORD-bbd9"
+  String get shortId {
+    final parts = transactionId.split('-');
+    if (parts.length >= 2) {
+      return '${parts[0]}-${parts[1].substring(0, parts[1].length.clamp(0, 4))}';
+    }
+    return transactionId.length > 8
+        ? transactionId.substring(0, 8)
+        : transactionId;
+  }
+
+  /// Parse qNumber from orderReference.orderId.qNumber or root level
+  static int? _parseQNumber(Map<String, dynamic> json) {
+    // Direct field
+    if (json['qNumber'] is num) return (json['qNumber'] as num).toInt();
+    // Nested in orderReference.orderId
+    final orderRef = json['orderReference'];
+    if (orderRef is Map<String, dynamic>) {
+      final order = orderRef['orderId'];
+      if (order is Map<String, dynamic> && order['qNumber'] is num) {
+        return (order['qNumber'] as num).toInt();
+      }
+    }
+    return null;
   }
 
   bool get isCompleted => transactionStatus == 'completed';

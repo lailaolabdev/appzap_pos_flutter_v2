@@ -33,251 +33,291 @@ class _TransactionDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    final transactionState = ref.watch(transactionProvider);
-    final transaction = transactionState.selectedTransaction;
-    final isLoading = transactionState.isLoading;
-    final error = transactionState.error;
-    final languageCode = ref.watch(localizationProvider).languageCode;
+    final state = ref.watch(transactionProvider);
+    final txn = state.selectedTransaction;
+    final lang = ref.watch(localizationProvider).languageCode;
 
     return Scaffold(
-      backgroundColor: AppTheme.scaffoldBackground,
+      backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
-        surfaceTintColor: AppTheme.scaffoldBackground,
-        title: Text(widget.transactionId),
-        actions: [
-          if (transaction != null && transaction.isCompleted)
-            IconButton(
-              icon: const Icon(Icons.receipt),
-              tooltip: Translations.get('view_receipt', languageCode),
-              onPressed: () => _viewReceipt(transaction, languageCode),
-            ),
-        ],
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          txn != null ? txn.shortId : '',
+          style: const TextStyle(
+            color: Colors.black,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
       body:
-          isLoading && transaction == null
+          state.isLoading && txn == null
               ? const Center(child: CircularProgressIndicator())
-              : error != null && transaction == null
+              : state.error != null && txn == null
               ? Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error, size: 48, color: AppTheme.error),
+                    Icon(Icons.error, size: 48, color: Colors.grey.shade400),
                     const SizedBox(height: 16),
-                    Text(error),
+                    Text(
+                      state.error!,
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
                     const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () {
-                        ref
-                            .read(transactionProvider.notifier)
-                            .loadTransaction(widget.transactionId);
-                      },
-                      child: Text(Translations.get('retry', languageCode)),
+                    TextButton(
+                      onPressed:
+                          () => ref
+                              .read(transactionProvider.notifier)
+                              .loadTransaction(widget.transactionId),
+                      child: Text(
+                        Translations.get('retry', lang),
+                        style: const TextStyle(color: AppTheme.primaryOrange),
+                      ),
                     ),
                   ],
                 ),
               )
-              : transaction == null
+              : txn == null
               ? Center(
                 child: Text(
-                  Translations.get('transaction_not_found', languageCode),
+                  Translations.get('transaction_not_found', lang),
+                  style: TextStyle(color: Colors.grey.shade500),
                 ),
               )
-              : SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header Card
-                    _buildHeaderCard(transaction, languageCode),
-                    const SizedBox(height: 16),
-
-                    // Amount Summary Card
-                    _buildAmountSummaryCard(transaction, languageCode),
-                    const SizedBox(height: 16),
-
-                    // Payment Info Card
-                    if (transaction.payments.isNotEmpty)
-                      _buildPaymentInfoCard(transaction, languageCode),
-                    if (transaction.payments.isNotEmpty)
-                      const SizedBox(height: 16),
-
-                    // Line Items
-                    _buildLineItemsCard(transaction, languageCode),
-                    const SizedBox(height: 16),
-
-                    // Additional Info
-                    _buildAdditionalInfoCard(transaction, languageCode),
-                  ],
-                ),
-              ),
+              : _buildContent(txn, lang),
     );
   }
 
-  Widget _buildHeaderCard(Transaction transaction, String languageCode) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+  Widget _buildContent(Transaction txn, String lang) {
+    final total = txn.consolidatedTotals.grandTotal.amount;
+    final subtotal = txn.consolidatedTotals.subtotal.amount;
+    final tax = txn.consolidatedTotals.tax.amount;
+    final discount = txn.consolidatedTotals.discounts.amount;
+    final payment = txn.payments.isNotEmpty ? txn.payments.first : null;
+    final methodLabel =
+        payment != null ? _methodLabel(payment.method, lang) : '';
+    final methodIcon =
+        payment != null ? _methodIcon(payment.method) : Icons.payments_outlined;
+    final staffName = txn.staff?.processedBy?.name;
+    final staffRole = txn.staff?.processedBy?.role;
+    final orderType =
+        txn.transactionType == 'sale' ? 'Takeaway' : txn.transactionType;
+    final date = (txn.timing.initiatedAt ?? txn.createdAt).toLocal();
+    final isRefund =
+        txn.transactionType == 'refund' || txn.transactionStatus == 'refunded';
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // ─── Receipt Card ───
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                // ─── Status Banner ───
+                const SizedBox(height: 20),
+                Container(
+                  child: Text(
+                    isRefund
+                        ? Translations.get('refunded', lang)
+                        : Translations.get('completed', lang),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isRefund ? AppTheme.error : AppTheme.primaryOrange,
+                    ),
+                  ),
+                ),
+                // ─── Total Amount ───
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                  child: Text(
+                    CurrencyFormatter.formatLAKWithSymbol(total),
+                    style: const TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -1,
+                    ),
+                  ),
+                ),
+                Text(
+                  Translations.get('total', lang),
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
+                ),
+                const SizedBox(height: 20),
+
+                // ─── Info Rows ───
+                _divider(),
+                if (staffName != null)
+                  _infoRow(
+                    Icons.person_outline,
+                    Translations.get('employee', lang),
+                    '$staffName${staffRole != null ? ' ($staffRole)' : ''}',
+                  ),
+                if (txn.qNumber != null)
+                  _infoRow(
+                    Icons.tag,
+                    Translations.get('queue', lang),
+                    '#${txn.qNumber}',
+                  ),
+                _infoRow(
+                  Icons.access_time,
+                  Translations.get('date', lang),
+                  DateFormat('dd MMM yyyy, h:mm a').format(date),
+                ),
+                _infoRow(
+                  orderType == 'Takeaway'
+                      ? Icons.shopping_bag_outlined
+                      : Icons.restaurant,
+                  Translations.get('type', lang),
+                  orderType == 'Takeaway'
+                      ? Translations.get('takeaway', lang)
+                      : orderType,
+                ),
+
+                // ─── Line Items Section ───
+                _divider(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                  child: Row(
                     children: [
                       Text(
-                        Translations.get('transaction_id', languageCode),
-                        style: TextStyle(
-                          color: AppTheme.neutral600,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        transaction.transactionId,
+                        '${Translations.get('items', lang)} (${txn.lineItems.length})',
                         style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.primaryOrange,
                         ),
                       ),
                     ],
                   ),
                 ),
-                _buildStatusBadge(transaction.transactionStatus, languageCode),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Icon(
-                  Icons.access_time,
-                  size: 16,
-                  color: AppTheme.neutral600,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  DateFormat('MMM d, yyyy • h:mm a').format(
-                    transaction.timing.initiatedAt ?? transaction.createdAt,
+                ...txn.lineItems.map((item) => _buildLineItem(item)),
+
+                // ─── Summary Section ───
+                _divider(),
+                const SizedBox(height: 8),
+                if (subtotal != total) ...[
+                  _summaryRow(Translations.get('subtotal', lang), subtotal),
+                  if (tax > 0) _summaryRow(Translations.get('tax', lang), tax),
+                  if (discount > 0)
+                    _summaryRow(
+                      Translations.get('discount', lang),
+                      -discount,
+                      isRed: true,
+                    ),
+                  const SizedBox(height: 4),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Divider(height: 1, color: Colors.grey.shade200),
                   ),
-                  style: const TextStyle(color: AppTheme.neutral600),
-                ),
-              ],
-            ),
-            if (transaction.timing.completedAt != null) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.check_circle,
-                    size: 16,
-                    color: AppTheme.success,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${Translations.get('completed', languageCode)}: ${DateFormat('h:mm a').format(transaction.timing.completedAt!)}',
-                    style: const TextStyle(color: AppTheme.neutral600),
-                  ),
+                  const SizedBox(height: 4),
                 ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAmountSummaryCard(Transaction transaction, String languageCode) {
-    final totals = transaction.consolidatedTotals;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              Translations.get('amount_summary', languageCode),
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            _buildAmountRow(
-              Translations.get('subtotal', languageCode),
-              totals.subtotal.amount,
-            ),
-            const SizedBox(height: 8),
-            _buildAmountRow(
-              Translations.get('tax', languageCode),
-              totals.tax.amount,
-            ),
-            if (totals.discounts.amount > 0) ...[
-              const SizedBox(height: 8),
-              _buildAmountRow(
-                Translations.get('discount', languageCode),
-                -totals.discounts.amount,
-                color: AppTheme.error,
-              ),
-            ],
-            if (totals.serviceCharge.amount > 0) ...[
-              const SizedBox(height: 8),
-              _buildAmountRow(
-                Translations.get('service_charge', languageCode),
-                totals.serviceCharge.amount,
-              ),
-            ],
-            const Divider(height: 24),
-            _buildAmountRow(
-              Translations.get('grand_total', languageCode),
-              totals.grandTotal.amount,
-              isTotal: true,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPaymentInfoCard(Transaction transaction, String languageCode) {
-    final payment = transaction.payments.first;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              Translations.get('payment_information', languageCode),
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Icon(
-                  _getPaymentIcon(payment.method),
-                  color: _getPaymentColor(payment.method),
-                  size: 32,
+                _summaryRow(
+                  Translations.get('total', lang),
+                  total,
+                  isBold: true,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 4),
+
+                // ─── Payment Method ───
+                _divider(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 14,
+                  ),
+                  child: Row(
                     children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryOrange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          methodIcon,
+                          size: 20,
+                          color: AppTheme.primaryOrange,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              methodLabel,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (payment?.changeAmount != null &&
+                                payment!.changeAmount!.amount > 0)
+                              Text(
+                                '${Translations.get('change', lang)}: ${CurrencyFormatter.formatLAKWithSymbol(payment.changeAmount!.amount)}',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey.shade500,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                       Text(
-                        _getPaymentMethodLabel(payment.method),
+                        CurrencyFormatter.formatLAKWithSymbol(total),
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                    ],
+                  ),
+                ),
+
+                // ─── Footer ───
+                _divider(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 14,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
                       Text(
-                        CurrencyFormatter.formatLAKWithSymbol(
-                          payment.grossAmount.amount,
+                        DateFormat('d/M/yy h:mm a').format(date),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade400,
                         ),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: AppTheme.neutral600,
+                      ),
+                      Text(
+                        txn.shortId,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade400,
                         ),
                       ),
                     ],
@@ -285,79 +325,67 @@ class _TransactionDetailScreenState
                 ),
               ],
             ),
-            if (payment.changeAmount != null &&
-                payment.changeAmount!.amount > 0) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.success.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      Translations.get('change_given', languageCode),
-                      style: TextStyle(
-                        color: AppTheme.success,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      CurrencyFormatter.formatLAKWithSymbol(
-                        payment.changeAmount!.amount,
-                      ),
-                      style: const TextStyle(
-                        color: AppTheme.success,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
+          ),
+
+          const SizedBox(height: 24),
+        ],
       ),
     );
   }
 
-  Widget _buildLineItemsCard(Transaction transaction, String languageCode) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${Translations.get('items', languageCode)} (${transaction.lineItems.length})',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            ...transaction.lineItems.map((item) => _buildLineItem(item)),
-          ],
-        ),
+  Widget _divider() {
+    return Divider(
+      height: 1,
+      indent: 20,
+      endIndent: 20,
+      color: Colors.grey.shade100,
+    );
+  }
+
+  Widget _infoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Colors.grey.shade400),
+          const SizedBox(width: 12),
+          Text(
+            label,
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildLineItem(TransactionLineItem item) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Quantity badge
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            width: 28,
+            height: 28,
             decoration: BoxDecoration(
-              color: AppTheme.neutral200,
-              borderRadius: BorderRadius.circular(4),
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(6),
             ),
-            child: Text(
-              '${item.quantity}x',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            child: Center(
+              child: Text(
+                '${item.quantity}',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade700,
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -367,234 +395,84 @@ class _TransactionDetailScreenState
               children: [
                 Text(
                   item.name,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-                const SizedBox(height: 2),
                 Text(
                   CurrencyFormatter.formatLAKWithSymbol(item.unitPrice),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.neutral600,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
                 ),
               ],
             ),
           ),
           Text(
             CurrencyFormatter.formatLAKWithSymbol(item.total),
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildAdditionalInfoCard(
-    Transaction transaction,
-    String languageCode,
-  ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              Translations.get('additional', languageCode),
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            if (transaction.customer != null) ...[
-              _buildInfoRow(
-                Translations.get('customer', languageCode),
-                transaction.customer!.name ?? 'Unknown',
-                icon: Icons.person,
-              ),
-              if (transaction.customer!.phone != null) ...[
-                const SizedBox(height: 8),
-                _buildInfoRow(
-                  Translations.get('phone', languageCode),
-                  transaction.customer!.phone!,
-                  icon: Icons.phone,
-                ),
-              ],
-              const SizedBox(height: 8),
-            ],
-            if (transaction.staff?.processedBy != null) ...[
-              _buildInfoRow(
-                Translations.get('processed_by', languageCode),
-                transaction.staff!.processedBy!.name,
-                icon: Icons.person_outline,
-              ),
-              const SizedBox(height: 8),
-            ],
-            if (transaction.tableInfo != null) ...[
-              _buildInfoRow(
-                Translations.get('table', languageCode),
-                '${Translations.get('table', languageCode)} ${transaction.tableInfo!.tableNumber} - ${transaction.tableInfo!.zoneName}',
-                icon: Icons.table_restaurant,
-              ),
-              const SizedBox(height: 8),
-            ],
-            if (transaction.receiptId != null)
-              _buildInfoRow(
-                Translations.get('receipt_id', languageCode),
-                transaction.receiptId!,
-                icon: Icons.receipt,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAmountRow(
+  Widget _summaryRow(
     String label,
     double amount, {
-    Color? color,
-    bool isTotal = false,
+    bool isBold = false,
+    bool isRed = false,
   }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: isTotal ? 18 : 14,
-            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-            color: color,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: isBold ? 16 : 14,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w400,
+              color:
+                  isRed
+                      ? AppTheme.error
+                      : (isBold ? Colors.black : Colors.grey.shade600),
+            ),
           ),
-        ),
-        Text(
-          CurrencyFormatter.formatLAKWithSymbol(amount),
-          style: TextStyle(
-            fontSize: isTotal ? 20 : 14,
-            fontWeight: isTotal ? FontWeight.bold : FontWeight.w600,
-            color: color ?? (isTotal ? AppTheme.primaryOrange : null),
+          Text(
+            CurrencyFormatter.formatLAKWithSymbol(amount),
+            style: TextStyle(
+              fontSize: isBold ? 16 : 14,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+              color: isRed ? AppTheme.error : Colors.black,
+            ),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value, {IconData? icon}) {
-    return Row(
-      children: [
-        if (icon != null) ...[
-          Icon(icon, size: 16, color: AppTheme.neutral600),
-          const SizedBox(width: 8),
         ],
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.neutral600,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatusBadge(String status, String languageCode) {
-    Color color;
-    String label;
-
-    switch (status) {
-      case 'completed':
-        color = AppTheme.success;
-        label = Translations.get('completed', languageCode);
-        break;
-      case 'pending':
-        color = AppTheme.warning;
-        label = Translations.get('pending', languageCode);
-        break;
-      case 'voided':
-        color = AppTheme.error;
-        label = Translations.get('voided', languageCode);
-        break;
-      case 'refunded':
-      case 'partially_refunded':
-        color = Colors.purple;
-        label =
-            status == 'refunded'
-                ? Translations.get('refunded', languageCode)
-                : Translations.get('partial_refund', languageCode);
-        break;
-      default:
-        color = AppTheme.neutral500;
-        label = status;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
       ),
     );
   }
 
-  IconData _getPaymentIcon(String method) {
-    if (method == 'cash') return Icons.payments;
+  IconData _methodIcon(String method) {
+    if (method == 'cash') return Icons.payments_outlined;
     if (method.contains('card')) return Icons.credit_card;
     if (method.contains('qr') || method.contains('bank'))
       return Icons.qr_code_2;
     return Icons.payment;
   }
 
-  Color _getPaymentColor(String method) {
-    if (method == 'cash') return AppTheme.success;
-    if (method.contains('card')) return Colors.blue;
-    if (method.contains('qr') || method.contains('bank')) {
-      return AppTheme.primaryOrange;
-    }
-    return AppTheme.neutral600;
-  }
-
-  String _getPaymentMethodLabel(String method) {
+  String _methodLabel(String method, String lang) {
     switch (method) {
       case 'cash':
-        return 'Cash Payment';
+        return Translations.get('cash', lang);
       case 'card':
-        return 'Card Payment';
+        return Translations.get('card', lang);
       case 'bank_qr_jdb':
-        return 'JDB QR Code';
+        return Translations.get('jdb_qr', lang);
       case 'bank_qr_bcel':
-        return 'BCEL QR Code';
+        return Translations.get('bcel_qr', lang);
       case 'bank_qr_ldb':
-        return 'LDB QR Code';
-      case 'bank_qr_ib':
-        return 'Indochina Bank QR Code';
+        return Translations.get('ldb_qr', lang);
       default:
-        return method.replaceAll('_', ' ').toUpperCase();
+        return method.replaceAll('_', ' ');
     }
-  }
-
-  void _viewReceipt(Transaction transaction, String languageCode) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          Translations.get('receipt_viewing_coming_soon', languageCode),
-        ),
-      ),
-    );
   }
 }

@@ -673,24 +673,57 @@ class PrinterService {
 
       await SunmiPrinter.lineWrap(1);
 
-      // Items table header
+      // Items table — using SunmiPrinter.printRow for proper columns
       if (items.isNotEmpty) {
-        await SunmiPrinter.printText(
-          'ລາຍການ | ຈຳນວນ | ລາຄາ',
-          style: SunmiTextStyle(fontSize: 24, bold: true),
+        await SunmiPrinter.line();
+
+        // Header row
+        await SunmiPrinter.printRow(
+          cols: [
+            SunmiColumn(
+              text: 'ລາຍການ',
+              width: 2,
+              style: SunmiTextStyle(bold: true, align: SunmiPrintAlign.LEFT),
+            ),
+            SunmiColumn(
+              text: 'ຈຳນວນ',
+              width: 1,
+              style: SunmiTextStyle(bold: true, align: SunmiPrintAlign.CENTER),
+            ),
+            SunmiColumn(
+              text: 'ລາຄາ',
+              width: 1,
+              style: SunmiTextStyle(bold: true, align: SunmiPrintAlign.RIGHT),
+            ),
+          ],
         );
         await SunmiPrinter.line();
 
-        // Items
+        // Data rows
         for (var item in items) {
-          final name = item['name'] ?? '';
+          final name = (item['name'] ?? '') as String;
           final quantity = item['quantity'] ?? 1;
           final price = item['price'] ?? 0.0;
-          final itemTotal = (price * quantity).toStringAsFixed(0);
+          final itemTotal = _formatPrice(price * quantity);
 
-          await SunmiPrinter.printText('$name x$quantity');
-          await SunmiPrinter.printText(
-            'ລາຄາ: ${_formatPrice(double.parse(itemTotal))}',
+          await SunmiPrinter.printRow(
+            cols: [
+              SunmiColumn(
+                text: name,
+                width: 2,
+                style: SunmiTextStyle(align: SunmiPrintAlign.LEFT),
+              ),
+              SunmiColumn(
+                text: 'x$quantity',
+                width: 1,
+                style: SunmiTextStyle(align: SunmiPrintAlign.CENTER),
+              ),
+              SunmiColumn(
+                text: itemTotal,
+                width: 1,
+                style: SunmiTextStyle(align: SunmiPrintAlign.RIGHT),
+              ),
+            ],
           );
         }
 
@@ -731,7 +764,7 @@ class PrinterService {
 
       await SunmiPrinter.lineWrap(1);
       await SunmiPrinter.printText(
-        'ຂອບໃຈທີ່ໄປກິນອາຫານ',
+        'ຂອບໃຈທີ່ມາກິນອາຫານ',
         style: SunmiTextStyle(align: SunmiPrintAlign.CENTER, bold: true),
       );
 
@@ -1474,6 +1507,9 @@ class PrinterService {
     }
   }
 
+  /// Pad 3 columns into a fixed-width row for receipt printing (32 char width)
+  /// Format 3-column row with simple fixed spacing
+  /// Uses enough spaces between columns to keep them visually separated
   String _formatPrice(double price) {
     final formatted = price.toStringAsFixed(0);
     final parts = <String>[];

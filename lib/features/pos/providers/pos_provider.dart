@@ -6,7 +6,6 @@ import '../../../core/models/product.dart';
 import '../../../core/services/product_service.dart';
 import '../../../core/services/inventory_service.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../inventory/providers/inventory_provider.dart';
 
 // ============ PRODUCTS PROVIDER ============
 
@@ -96,10 +95,6 @@ class ProductsNotifier extends StateNotifier<ProductsState> {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      print('\\n📦 === LOADING PRODUCTS ===');
-      print('   Restaurant ID: $_restaurantId');
-      print('   Branch ID: $_branchId');
-
       final results = await Future.wait([
         _productService.getProducts(
           restaurantId: _restaurantId,
@@ -111,21 +106,8 @@ class ProductsNotifier extends StateNotifier<ProductsState> {
       final products = results[0] as List<Product>;
       final categories = results[1] as List<Category>;
 
-      print('   Loaded ${products.length} products:');
-      for (int i = 0; i < products.length; i++) {
-        final product = products[i];
-        print(
-          '      [$i] ${product.name} (ID: ${product.id}) - In Stock: ${product.isInStock}',
-        );
-      }
-      print('   Loaded ${categories.length} categories');
-
       // ✅ NEW: Merge with inventory data
-      print('\\n📦 === MERGING INVENTORY DATA ===');
       final mergedProducts = await _mergeWithInventoryData(products);
-      print('=== END MERGING INVENTORY DATA ===\\n');
-
-      print('=== END LOADING PRODUCTS ===\\n');
 
       state = state.copyWith(
         products: mergedProducts,
@@ -133,7 +115,6 @@ class ProductsNotifier extends StateNotifier<ProductsState> {
         isLoading: false,
       );
     } catch (e) {
-      print('❌ Error loading products: $e');
       state = state.copyWith(error: e.toString(), isLoading: false);
     }
   }
@@ -151,43 +132,25 @@ class ProductsNotifier extends StateNotifier<ProductsState> {
         branchId: _branchId!,
       );
 
-      print(
-        '   📊 Loaded ${inventoryItems.length} inventory items for merging',
-      );
-
       // Create a map for quick lookup: itemId -> inventory data
       final inventoryMap = <String, dynamic>{};
-      print('   🔍 Building inventory lookup map:');
       for (final item in inventoryItems) {
         if (item.itemId != null) {
-          print(
-            '      - ${item.name}: itemId=${item.itemId}, stock=${item.currentStock}, threshold=${item.lowStockThreshold}',
-          );
           inventoryMap[item.itemId!] = {
             'currentStock': item.currentStock,
             'lowStockThreshold': item.lowStockThreshold,
             'isLowStock': item.isLowStock,
             'unit': item.unit,
           };
-        } else {
-          print('      - ${item.name}: ❌ No itemId found');
         }
       }
-      print('   📊 Inventory map has ${inventoryMap.length} entries');
 
       // Merge inventory data with products
       final mergedProducts =
           products.map((product) {
-            print(
-              '   🔍 Looking for inventory data for ${product.name} (ID: ${product.id})',
-            );
             final inventoryData = inventoryMap[product.id];
 
             if (inventoryData != null) {
-              print(
-                '   ✅ Found inventory for ${product.name}: stock=${inventoryData['currentStock']}, threshold=${inventoryData['lowStockThreshold']}',
-              );
-
               // Create updated product with merged inventory
               return product.copyWith(
                 inventory: ProductInventory(
@@ -199,12 +162,6 @@ class ProductsNotifier extends StateNotifier<ProductsState> {
                 ),
               );
             } else {
-              print(
-                '   ⚠️  No inventory data found for ${product.name} (ID: ${product.id})',
-              );
-              print(
-                '      Available inventory itemIds: ${inventoryMap.keys.toList()}',
-              );
               return product;
             }
           }).toList();
@@ -212,7 +169,6 @@ class ProductsNotifier extends StateNotifier<ProductsState> {
       container.dispose();
       return mergedProducts;
     } catch (e) {
-      print('❌ Error merging inventory data: $e');
       return products; // Return original products if merging fails
     }
   }
@@ -232,7 +188,6 @@ class ProductsNotifier extends StateNotifier<ProductsState> {
 
   /// Refresh products (force reload from API)
   Future<void> refresh() async {
-    print('🔄 Force refreshing products from API...');
     await loadProducts();
   }
 
@@ -256,10 +211,8 @@ class ProductsNotifier extends StateNotifier<ProductsState> {
         return state.products.firstWhere((p) => p.barcode == barcode);
       } catch (e) {
         // Not found locally, search via API
-        print('🔍 Searching for barcode via API: $barcode');
 
         if (_branchId == null || _restaurantId == null) {
-          print('❌ No branch ID or restaurant ID available for barcode search');
           return null;
         }
 
@@ -270,19 +223,15 @@ class ProductsNotifier extends StateNotifier<ProductsState> {
         );
 
         if (product != null) {
-          print('✅ Found product via API: ${product.name}');
-
           // Add the product to local state for future use
           state = state.copyWith(products: [...state.products, product]);
 
           return product;
         } else {
-          print('❌ Product not found via API for barcode: $barcode');
           return null;
         }
       }
     } catch (e) {
-      print('❌ Error searching for product by barcode: $e');
       return null;
     }
   }
@@ -294,17 +243,9 @@ class ProductsNotifier extends StateNotifier<ProductsState> {
     int? lowStockThreshold,
     String? unit,
   }) {
-    print('🔄 Updating product inventory for ID: $productId');
-    print('   - New stock level: $newStockLevel');
-
     final updatedProducts =
         state.products.map((product) {
           if (product.id == productId) {
-            print('   - Found matching product: ${product.name}');
-            print(
-              '   - Current inventory stock: ${product.inventory?.currentStock ?? "NULL"}',
-            );
-
             final updatedProduct = product.copyWith(
               inventory:
                   product.inventory?.copyWith(
@@ -326,18 +267,12 @@ class ProductsNotifier extends StateNotifier<ProductsState> {
                   ),
             );
 
-            print(
-              '   - Updated inventory stock: ${updatedProduct.inventory?.currentStock}',
-            );
-            print('   - Updated isInStock: ${updatedProduct.isInStock}');
-
             return updatedProduct;
           }
           return product;
         }).toList();
 
     state = state.copyWith(products: updatedProducts);
-    print('✅ Product inventory updated successfully');
   }
 }
 
@@ -353,146 +288,13 @@ final productsProvider = StateNotifierProvider<ProductsNotifier, ProductsState>(
 
 // ============ CART PROVIDER ============
 
-/// Cart notifier with stock validation
+/// Cart notifier
 class CartNotifier extends StateNotifier<Cart> {
-  final StateNotifierProviderRef<CartNotifier, Cart> _ref;
+  CartNotifier() : super(const Cart());
 
-  CartNotifier(this._ref) : super(const Cart());
-
-  /// Add product to cart with stock validation
-  bool addProduct(Product product, {int quantity = 1}) {
-    print('\n🛒 === ADDING PRODUCT TO CART ===');
-    print('   Product: ${product.name}');
-    print('   Product ID: ${product.id}');
-    print('   Requested quantity: $quantity');
-    print('   Product.isInStock: ${product.isInStock}');
-
-    // First check if product is in stock from product model
-    if (!product.isInStock) {
-      print(
-        '❌ REJECTED: Product ${product.name} is marked as out of stock in product model',
-      );
-      print('   product.isInStock = ${product.isInStock}');
-      return false;
-    }
-    print(
-      '✅ Product model check passed: ${product.name} is marked as in stock',
-    );
-
-    // Check detailed stock levels from inventory
-    print('\n🏪 Checking inventory stock levels...');
-    final inventoryNotifier = _ref.read(inventoryProvider.notifier);
-    final inventoryState = _ref.read(inventoryProvider);
-
-    print('   Inventory state:');
-    print('      Total inventory items loaded: ${inventoryState.items.length}');
-    print('      Inventory loading: ${inventoryState.isLoading}');
-    print('      Inventory error: ${inventoryState.error}');
-
-    // ✅ ALLOW IMMEDIATE ADDITION: If inventory is loading or has no items yet,
-    // allow addition based on product model and defer detailed stock checking
-    if (inventoryState.isLoading || inventoryState.items.isEmpty) {
-      print(
-        '⏳ DEFERRED VALIDATION: Inventory loading or empty, allowing addition based on product model',
-      );
-      print('   Product shows in stock: ${product.isInStock}');
-      print(
-        '   Adding ${product.name} to cart (will validate stock when inventory loads)',
-      );
-      print('=== END CART DEBUG ===\n');
-
-      state = state.addProduct(product, quantity: quantity);
-      return true;
-    }
-
-    // Look for matching inventory item
-    final matchingInventoryItems =
-        inventoryState.items
-            .where(
-              (inv) =>
-                  inv.itemId ==
-                      product.id || // ✅ Use itemId field for menu item linking
-                  inv.id == product.id || // Fallback: direct ID match
-                  inv.name.toLowerCase() ==
-                      product.name.toLowerCase(), // Fallback: name match
-            )
-            .toList();
-
-    print('   Searching for inventory item:');
-    print('      Looking for ID: ${product.id}');
-    print('      Looking for name: ${product.name}');
-    print(
-      '      Found ${matchingInventoryItems.length} matching inventory items:',
-    );
-
-    for (int i = 0; i < matchingInventoryItems.length; i++) {
-      final inv = matchingInventoryItems[i];
-      print(
-        '         [$i] ID: ${inv.id}, Name: ${inv.name}, Stock: ${inv.currentStock}',
-      );
-    }
-
-    // Calculate total requested quantity (existing in cart + new quantity)
-    final currentCartItem =
-        state.items.where((item) => item.productId == product.id).firstOrNull;
-    final existingQuantityInCart = currentCartItem?.quantity ?? 0;
-    final totalRequestedQuantity = existingQuantityInCart + quantity;
-
-    print('   Cart calculations:');
-    print('      Existing in cart: $existingQuantityInCart');
-    print('      New quantity: $quantity');
-    print('      Total requested: $totalRequestedQuantity');
-
-    // Check if we have sufficient stock
-    final hasStock = inventoryNotifier.checkStock(
-      product.id,
-      totalRequestedQuantity,
-    );
-    final availableStock = inventoryNotifier.getStockLevel(product.id);
-
-    print('   Stock validation results:');
-    print(
-      '      inventoryNotifier.checkStock(${product.id}, $totalRequestedQuantity): $hasStock',
-    );
-    print(
-      '      inventoryNotifier.getStockLevel(${product.id}): $availableStock',
-    );
-
-    if (!hasStock) {
-      print('❌ REJECTED: Insufficient stock for ${product.name}');
-      print(
-        '   Available stock: ${availableStock ?? "NULL (item not found in inventory)"}',
-      );
-      print('   Requested quantity: $totalRequestedQuantity');
-      print('   Reason: Inventory provider checkStock returned false');
-      print('   ');
-      print('   🔍 DIAGNOSIS:');
-      if (availableStock == null) {
-        print('      - Item not found in inventory system');
-        print('      - Menu item exists but no corresponding inventory item');
-        print(
-          '      - Check if inventory was created when menu item was added',
-        );
-      } else if (availableStock == 0) {
-        print('      - Item exists in inventory but has 0 stock');
-        print('      - Initial stock may not have been set properly');
-      } else {
-        print(
-          '      - Item has $availableStock stock but requesting $totalRequestedQuantity',
-        );
-        print('      - Not enough stock available');
-      }
-      print('=== END CART DEBUG ===\n');
-      return false;
-    }
-
-    print('✅ ACCEPTED: Adding ${product.name} to cart');
-    print('   Available stock: ${availableStock ?? "Unknown"}');
-    print('   Adding quantity: $quantity');
-    print('=== END CART DEBUG ===\n');
-
+  /// Add product to cart
+  void addProduct(Product product, {int quantity = 1}) {
     state = state.addProduct(product, quantity: quantity);
-    return true;
   }
 
   /// Remove item from cart
@@ -500,21 +302,11 @@ class CartNotifier extends StateNotifier<Cart> {
     state = state.removeItem(productId);
   }
 
-  /// Update item quantity with stock validation
+  /// Update item quantity
   bool updateQuantity(String productId, int quantity) {
     final currentItem =
         state.items.where((item) => item.productId == productId).firstOrNull;
     if (currentItem == null) return false;
-
-    // Check stock for the new quantity
-    final inventoryNotifier = _ref.read(inventoryProvider.notifier);
-    if (!inventoryNotifier.checkStock(productId, quantity)) {
-      final availableStock = inventoryNotifier.getStockLevel(productId) ?? 0;
-      print(
-        '❌ Insufficient stock for ${currentItem.productName}: Available $availableStock, Requested $quantity',
-      );
-      return false;
-    }
 
     state = state.updateQuantity(productId, quantity);
     return true;
@@ -573,7 +365,7 @@ class CartNotifier extends StateNotifier<Cart> {
 
 /// Cart provider with dependency injection
 final cartProvider = StateNotifierProvider<CartNotifier, Cart>((ref) {
-  return CartNotifier(ref);
+  return CartNotifier();
 });
 
 /// Cart item count provider

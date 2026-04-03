@@ -37,7 +37,7 @@ class SplashScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 32),
-            
+
             // App Name
             const Text(
               'AppZap POS',
@@ -49,7 +49,7 @@ class SplashScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            
+
             // Tagline
             Text(
               'Universal Point of Sale',
@@ -60,16 +60,12 @@ class SplashScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 48),
-            
+
             // Loading indicator
-            const SpinKitThreeBounce(
-              color: Colors.white,
-              size: 30,
-            ),
+            const SpinKitThreeBounce(color: Colors.white, size: 30),
           ],
         ),
       ),
     );
   }
 }
-

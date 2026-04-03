@@ -5,6 +5,8 @@ class Translations {
       'app_name': 'AppZap POS',
       'cancel': 'Cancel',
       'save': 'Save',
+      'saved_successfully': 'Saved successfully',
+      'app_language': 'App Language',
       'delete': 'Delete',
       'edit': 'Edit',
       'add': 'Add',
@@ -40,6 +42,16 @@ class Translations {
       'search_products_or_scan_barcode': 'Search products or scan barcode...',
 
       // Menu
+      'delete_modifiers': 'Delete Modifiers',
+      'delete_modifiers_confirmation':
+          'Are you sure you want to delete modifier?',
+      'delete_menu_item_confirmation':
+          'Are you sure you want to delete the menu item?',
+      'delete_menu_item_title': 'Delete Menu Item',
+      'delete_category_title': 'Delete Category',
+      'delete_category_confirmation':
+          'Are you sure you want to delete the category?',
+      'sku_helper': 'Unique identifier assigned to an item',
       'min_stock_level': 'Min Stock Level',
       'max_stock_level': 'Max Stock Level',
       'reorder_point': 'Reorder Point',
@@ -104,10 +116,14 @@ class Translations {
       'description_optional_hint': 'Optional description',
       'item_active_subtitle': 'Item is available for sale',
       'item_name_example': 'E.g., Coca Cola 330ml',
-      'low_stock_hint': '10',
+      'low_stock_hint':
+          'Quantity at which you will be notified about low stock',
       'initial_stock_hint': '0',
 
       // Settings
+      'printers': 'Printers',
+      'connect_printers_hint': 'connect printer hint',
+      'no_printers_yet': 'You have no printers yet',
       'settings': 'Settings',
       'printer': 'Printer',
       'language': 'Language',
@@ -117,6 +133,16 @@ class Translations {
       'language_note': 'Language changes will be applied after app restart.',
 
       // Printer
+      'print_test': 'Print Test',
+      'delete_printer_confirm': 'Are you sure you want to delete this printer?',
+      'group_identical_items': 'group identical items',
+      'print_single_item': 'print single item',
+      'auto_print_receipt': 'auto print receipt',
+      'print_orders': 'print orders',
+      'print_receipts_bills': 'print receipts bills',
+      'printer_model': 'printer model',
+      'edit_printer': 'Edit Printer',
+      'create_printer': 'Create Printer',
       'printer_settings': 'Printer Settings',
       'printer_config': 'Printer Config',
       'receipt_config': 'Receipt Config',
@@ -283,6 +309,7 @@ class Translations {
       'print_receipt': 'Print Receipt',
 
       // Payment
+      'pay': 'Pay',
       'payment': 'Payment',
       'cash': 'Cash',
       'card': 'Card',
@@ -290,6 +317,7 @@ class Translations {
       'change': 'Change',
       'checkout': 'Checkout',
       'cash_payment': 'Cash Payment',
+      'payment_method': 'Payment Method',
       'amount_to_pay': 'Amount to Pay',
       'insufficient': 'Insufficient',
       'exact': 'Exact',
@@ -647,6 +675,9 @@ class Translations {
       'error_loading_staff_performance': 'Error Loading Staff Performance',
 
       // POS
+      'charge': 'Charge',
+      'ticket': 'Ticket',
+      'all_items': 'All Items',
       'sales': 'Sales',
       'added_product': 'Added Product',
       'current_order': 'Current Order',
@@ -682,6 +713,36 @@ class Translations {
       'noProductsFound': 'No products found',
       'outOfStock': 'Out of Stock',
       'lowStock': 'Low',
+      'more': 'More',
+      'logout': 'Logout',
+      'logout_confirm': 'Are you sure you want to logout?',
+      'user': 'User',
+      'employee': 'Employee',
+      'queue': 'Queue',
+      'date': 'Date',
+      'type': 'Type',
+      'takeaway': 'Takeaway',
+      'bank_qr': 'Bank QR',
+      'transfer': 'Transfer',
+      'jdb_qr': 'JDB QR',
+      'bcel_qr': 'BCEL QR',
+      'ldb_qr': 'LDB QR',
+      'ib_qr': 'IB QR',
+      'modifiers': 'Modifiers',
+      'done': 'Done',
+      'try_again': 'Try Again',
+      'scan_to_pay': 'Scan to Pay',
+      'select_bank': 'Select Bank',
+      'name_is_required': 'Name is required',
+      'option_name': 'Option name',
+      'modifier_name': 'Modifier name',
+      'add_option': 'ADD OPTION',
+      'edit_modifier': 'Edit modifier',
+      'create_modifier': 'Create modifier',
+      'enter_valid_email': 'Enter a valid email',
+      'no_modifiers_yet': 'You have no item modifiers yet',
+      'no_modifiers_hint':
+          'Create sets of options that can be applied to items.',
     },
 
     'lo': {
@@ -689,6 +750,8 @@ class Translations {
       'app_name': 'AppZap POS',
       'cancel': 'ຍົກເລີກ',
       'save': 'ບັນທຶກ',
+      'saved_successfully': 'ບັນທຶກສຳເລັດແລ້ວ',
+      'app_language': 'ພາສາແອັບ',
       'delete': 'ລຶບ',
       'edit': 'ແກ້ໄຂ',
       'add': 'ເພີ່ມ',
@@ -716,6 +779,15 @@ class Translations {
       'active_subtitle': 'ໝວດໝູ່ສະແດງໃນເມນູ',
 
       // Menu
+      'delete_modifiers': 'ລຶບຕົວດັດແປງ',
+      'delete_modifiers_confirmation':
+          'ທ່ານແນ່ໃຈບໍ່ວ່າທ່ານຕ້ອງການລຶບຕົວດັດແປງ?',
+      'delete_menu_item_confirmation':
+          'ທ່ານແນ່ໃຈບໍ່ວ່າທ່ານຕ້ອງການລຶບລາຍການເມນູ?',
+      'delete_menu_item_title': 'ລຶບລາຍການເມນູ',
+      'delete_category_title': 'ລຶບໝວດໝູ່',
+      'delete_category_confirmation': 'ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການລຶບໝວດໝູ່?',
+      'sku_helper': 'ຕົວລະບຸທີ່ເປັນເອກະລັກຖືກກຳນົດໃຫ້ກັບລາຍການແລ້ວ',
       'min_stock_level': 'ລະດັບສະຕ໊ອກຕໍ່າສຸດ',
       'max_stock_level': 'ລະດັບສະຕ໊ອກສູງສຸດ',
       'unit_of_measure': 'ຫົວໜ່ວຍວັດແທກ',
@@ -775,10 +847,6 @@ class Translations {
       'invalid_number': 'ເລກບໍ່ຖືກ',
       'description_optional_hint': 'ຄໍາອະທິບາຍບໍ່ຈຳເປັນ',
       'item_active_subtitle': 'ສິນຄ້າມີພ້ອມຂາຍ',
-      'delete_menu_item_title': 'ລຶບລາຍການເມນູ',
-      'delete_category_title': 'ລຶບໝວດໝູ່',
-      'delete_menu_item_confirmation': 'ທ່ານແນ່ໃຈບໍ່ວ່າຈະລຶບ "{name}" ຫຼື?',
-      'delete_category_confirmation': 'ທ່ານແນ່ໃຈບໍ່ວ່າຈະລຶບ "{name}" ຫຼື?',
       'item_deleted_successfully': 'ລາຍການຖືກລຶບສຳເລັດ',
       'failed_to_delete_item': 'ລຶບລາຍການບໍ່ສຳເລັດ',
       'category_deleted_successfully': 'ໝວດໝູ່ຖືກລຶບສຳເລັດ',
@@ -791,8 +859,13 @@ class Translations {
       'loyalty_points': 'ແຕ້ມ',
       'cannot_add_product': 'ບໍ່ສາມາດເພີ່ມໄດ້',
       'search_products_or_scan_barcode': 'ຄົ້ນຫາສິນຄ້າ ຫຼື ສະແກນບາໂຄດ...',
+      'low_stock_hint':
+          'ຈຳນວນທີ່ທ່ານຈະໄດ້ຮັບການແຈ້ງເຕືອນກ່ຽວກັບສິນຄ້າຄົງຄັງຕໍ່າ',
 
       // Settings
+      'printers': 'ເຄື່ອງພິມ',
+      'connect_printers_hint': 'ຄຳແນະນຳກ່ຽວກັບການເຊື່ອມຕໍ່ເຄື່ອງພິມ',
+      'no_printers_yet': 'ທ່ານຍັງບໍ່ມີເຄື່ອງພິມເທື່ອ',
       'settings': 'ການຕັ້ງຄ່າ',
       'printer': 'ເຄື່ອງພິມ',
       'language': 'ພາສາ',
@@ -802,6 +875,16 @@ class Translations {
       'language_note': 'ການປ່ຽນພາສາຈະຖືກນຳໃຊ້ຫຼັງຈາກລີສະຕາດແອັບແລ້ວ',
 
       // Printer
+      'print_test': 'ທົດສອບການພິມ',
+      'delete_printer_confirm': 'ທ່ານແນ່ໃຈບໍ່ວ່າທ່ານຕ້ອງການລຶບເຄື່ອງພິມນີ້?',
+      'group_identical_items': 'ຈັດກຸ່ມລາຍການທີ່ຄືກັນ',
+      'print_single_item': 'ພິມລາຍການດຽວ',
+      'auto_print_receipt': 'ໃບຮັບເງິນພິມອັດຕະໂນມັດ',
+      'print_orders': 'ພິມການສັ່ງຊື້',
+      'print_receipts_bills': 'ພິມໃບຮັບເງິນ',
+      'printer_model': 'ຮຸ່ນເຄື່ອງພິມ',
+      'edit_printer': 'ແກ້ໄຂເຄື່ອງພິມ',
+      'create_printer': 'ສ້າງເຄື່ອງພິມ',
       'printer_settings': 'ການຕັ້ງຄ່າເຄື່ອງພິມ',
       'printer_config': 'ການຕັ້ງຄ່າເຄື່ອງພິມ',
       'receipt_config': 'ການຕັ້ງຄ່າໃບບິນ',
@@ -970,6 +1053,8 @@ class Translations {
       'ready': 'ພ້ອມ',
 
       // Payment
+      'pay': 'ຈ່າຍເງິນ',
+      'payment_method': 'ວິທີການຊໍາລະເງິນ',
       'payment': 'ການຈ່າຍເງິນ',
       'cash': 'ເງິນສົດ',
       'card': 'ບັດ',
@@ -1322,6 +1407,9 @@ class Translations {
       'sales_by_hour': 'ຂາຍຕາມຊົ່ວໂມງ',
 
       // POS
+      'charge': 'ຄິດເງິນ',
+      'ticket': 'ປີນ',
+      'all_items': 'ທັງໝົດ',
       'sales': 'ຂາຍ',
       'added_product': 'ເພີ່ມສິນຄ້າແລ້ວ',
       'current_order': 'ສັ່ງຊື້ປັດຈຸບັນ',
@@ -1361,6 +1449,35 @@ class Translations {
       'noProductsFound': 'ບໍ່ພົບສິນຄ້າ',
       'outOfStock': 'ບໍ່ມີສິນຄ້າ',
       'lowStock': 'ນ້ອຍ',
+      'more': 'ເພີ່ມເຕີມ',
+      'logout': 'ອອກຈາກລະບົບ',
+      'logout_confirm': 'ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການອອກຈາກລະບົບ?',
+      'user': 'ຜູ້ໃຊ້',
+      'employee': 'ພະນັກງານ',
+      'queue': 'ຄິວ',
+      'date': 'ວັນທີ',
+      'type': 'ປະເພດ',
+      'takeaway': 'ຊື້ກັບບ້ານ',
+      'bank_qr': 'QR ທະນາຄານ',
+      'transfer': 'ໂອນເງິນ',
+      'jdb_qr': 'JDB QR',
+      'bcel_qr': 'BCEL QR',
+      'ldb_qr': 'LDB QR',
+      'ib_qr': 'IB QR',
+      'modifiers': 'ຕົວປັບແຕ່ງ',
+      'done': 'ສຳເລັດ',
+      'try_again': 'ລອງໃໝ່',
+      'scan_to_pay': 'ສະແກນເພື່ອຈ່າຍ',
+      'select_bank': 'ເລືອກທະນາຄານ',
+      'name_is_required': 'ຕ້ອງໃສ່ຊື່',
+      'option_name': 'ຊື່ຕົວເລືອກ',
+      'modifier_name': 'ຊື່ຕົວປັບແຕ່ງ',
+      'add_option': 'ເພີ່ມຕົວເລືອກ',
+      'edit_modifier': 'ແກ້ໄຂຕົວປັບແຕ່ງ',
+      'create_modifier': 'ສ້າງຕົວປັບແຕ່ງ',
+      'enter_valid_email': 'ໃສ່ອີເມວທີ່ຖືກຕ້ອງ',
+      'no_modifiers_yet': 'ທ່ານຍັງບໍ່ມີຕົວປັບແຕ່ງລາຍການເທື່ອ',
+      'no_modifiers_hint': 'ສ້າງຊຸດຕົວເລືອກທີ່ສາມາດນຳໃຊ້ກັບລາຍການ.',
     },
   };
 

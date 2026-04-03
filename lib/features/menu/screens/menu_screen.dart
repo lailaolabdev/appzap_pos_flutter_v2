@@ -7,12 +7,14 @@ import '../../../core/models/product.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/app_sidebar.dart';
-import '../../../shared/widgets/error_banner.dart';
 import '../../../core/constants/translations.dart';
 import '../../../core/providers/localization_provider.dart';
 import '../providers/menu_provider.dart';
 import '../widgets/category_form_dialog.dart';
 import '../widgets/menu_item_form_dialog.dart';
+import '../widgets/modifier_form_dialog.dart';
+import '../../../core/models/modifier.dart';
+import '../../../core/services/modifier_service.dart';
 
 class MenuScreen extends ConsumerStatefulWidget {
   const MenuScreen({super.key});
@@ -21,149 +23,120 @@ class MenuScreen extends ConsumerStatefulWidget {
   ConsumerState<MenuScreen> createState() => _MenuScreenState();
 }
 
-class _MenuScreenState extends ConsumerState<MenuScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  final TextEditingController _searchController = TextEditingController();
+class _MenuScreenState extends ConsumerState<MenuScreen> {
+  // 0 = main list, 1 = items, 2 = categories
+  int _currentPage = 0;
+  bool _isSearchVisible = false;
+  final _searchController = TextEditingController();
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
+  // Multi-select
+  final Set<String> _selectedItemIds = {};
+  bool get _isItemSelectMode => _selectedItemIds.isNotEmpty;
+  final Set<String> _selectedCategoryIds = {};
+  bool get _isCategorySelectMode => _selectedCategoryIds.isNotEmpty;
+  final Set<String> _selectedModifierIds = {};
+  bool get _isModifierSelectMode => _selectedModifierIds.isNotEmpty;
+
+  // Modifiers
+  List<Modifier> _modifiers = [];
+  bool _modifiersLoading = false;
 
   @override
   void dispose() {
-    _tabController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
+  void _goToPage(int page) => setState(() {
+    _currentPage = page;
+    _isSearchVisible = false;
+    _searchController.clear();
+    if (page != 1) ref.read(menuProvider.notifier).search('');
+  });
+
+  void _goBack() => _goToPage(0);
+
+  // ─── Dialogs ───
   void _showAddItemDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => const MenuItemFormDialog(),
-    );
+    showDialog(context: context, builder: (_) => const MenuItemFormDialog());
   }
 
   void _showEditItemDialog(dynamic item) {
     showDialog(
       context: context,
-      builder: (context) => MenuItemFormDialog(item: item),
+      builder: (_) => MenuItemFormDialog(item: item),
     );
   }
 
   void _showAddCategoryDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => const CategoryFormDialog(),
-    );
+    showDialog(context: context, builder: (_) => const CategoryFormDialog());
   }
 
   void _showEditCategoryDialog(dynamic category) {
     showDialog(
       context: context,
-      builder: (context) => CategoryFormDialog(category: category),
+      builder: (_) => CategoryFormDialog(category: category),
     );
   }
 
-  Future<void> _deleteItem(String itemId, String itemName) async {
-    final languageCode = ref.read(localizationProvider).languageCode;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text(
-              Translations.get('delete_menu_item_title', languageCode),
-            ),
-            content: Text(
-              Translations.get(
-                'delete_menu_item_confirmation',
-                languageCode,
-              ).replaceAll('{name}', itemName),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text(Translations.get('cancel', languageCode)),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.error,
-                ),
-                child: Text(Translations.get('delete', languageCode)),
-              ),
-            ],
-          ),
-    );
-
-    if (confirmed == true) {
-      final success = await ref
-          .read(menuProvider.notifier)
-          .deleteMenuItem(itemId);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              success
-                  ? Translations.get('item_deleted_successfully', languageCode)
-                  : Translations.get('failed_to_delete_item', languageCode),
-            ),
-            backgroundColor: success ? AppTheme.success : AppTheme.error,
-          ),
-        );
+  void _toggleItemSelection(String id) {
+    setState(() {
+      if (_selectedItemIds.contains(id)) {
+        _selectedItemIds.remove(id);
+      } else {
+        _selectedItemIds.add(id);
       }
-    }
+    });
   }
 
-  Future<void> _deleteCategory(String categoryId, String categoryName) async {
-    final languageCode = ref.read(localizationProvider).languageCode;
+  Future<void> _deleteSelectedItems(String lang) async {
+    final count = _selectedItemIds.length;
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
-          (context) => AlertDialog(
-            title: Text(
-              Translations.get('delete_category_title', languageCode),
-            ),
+          (_) => AlertDialog(
+            title: Text(Translations.get('delete_menu_item_title', lang)),
             content: Text(
-              Translations.get(
-                'delete_category_confirmation',
-                languageCode,
-              ).replaceAll('{name}', categoryName),
+              Translations.get('delete_menu_item_confirmation', lang),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: Text(Translations.get('cancel', languageCode)),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.error,
+                child: Text(
+                  Translations.get('cancel', lang).toUpperCase(),
+                  style: const TextStyle(color: AppTheme.primaryOrange),
                 ),
-                child: Text(Translations.get('delete', languageCode)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(
+                  Translations.get('delete', lang).toUpperCase(),
+                  style: const TextStyle(color: AppTheme.error),
+                ),
               ),
             ],
           ),
     );
 
     if (confirmed == true) {
-      final success = await ref
-          .read(menuProvider.notifier)
-          .deleteCategory(categoryId);
+      final ids = List<String>.from(_selectedItemIds);
+      setState(() => _selectedItemIds.clear());
+
+      int successCount = 0;
+      for (final id in ids) {
+        final ok = await ref.read(menuProvider.notifier).deleteMenuItem(id);
+        if (ok) successCount++;
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              success
-                  ? Translations.get(
-                    'category_deleted_successfully',
-                    languageCode,
-                  )
-                  : Translations.get('failed_to_delete_category', languageCode),
+              '$successCount ${successCount == 1 ? 'item' : 'items'} deleted',
             ),
-            backgroundColor: success ? AppTheme.success : AppTheme.error,
+            backgroundColor:
+                successCount > 0 ? AppTheme.success : AppTheme.error,
           ),
         );
       }
@@ -173,440 +146,968 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
   @override
   Widget build(BuildContext context) {
     final menuState = ref.watch(menuProvider);
-    final localization = ref.watch(localizationProvider);
-    final languageCode = localization.languageCode;
+    final lang = ref.watch(localizationProvider).languageCode;
     final isMobile = Responsive.isMobile(context);
 
     return AppShell(
       child: Scaffold(
-        backgroundColor: AppTheme.scaffoldBackground,
+        key: _scaffoldKey,
+        backgroundColor: Colors.white,
         drawer:
             isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
-        appBar: AppBar(
-          leading:
-              isMobile
-                  ? Builder(
-                    builder:
-                        (context) => IconButton(
-                          icon: const Icon(Icons.menu),
-                          onPressed: () => Scaffold.of(context).openDrawer(),
-                        ),
-                  )
-                  : null,
-          title: Text(Translations.get('menu_management', languageCode)),
-          bottom: TabBar(
-            controller: _tabController,
-            tabs: [
-              Tab(
-                text: Translations.get('menu_items_tab', languageCode),
-                icon: const Icon(Icons.restaurant_menu),
-              ),
-              Tab(
-                text: Translations.get('categories_tab', languageCode),
-                icon: const Icon(Icons.category),
-              ),
-            ],
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: Translations.get('refresh', languageCode),
-              onPressed: () {
-                ref.read(menuProvider.notifier).refresh();
-                ref.read(menuProvider.notifier).filterByCategory(null);
-              },
-            ),
-          ],
+        body: SafeArea(
+          child:
+              _currentPage == 0
+                  ? _buildMainList(lang)
+                  : _currentPage == 1
+                  ? _buildItemsPage(menuState, lang)
+                  : _currentPage == 2
+                  ? _buildCategoriesPage(menuState, lang)
+                  : _buildModifiersPage(lang),
         ),
-        body: Column(
-          children: [
-            if (menuState.error != null) ErrorBanner(message: menuState.error!),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildMenuItemsTab(menuState, isMobile, languageCode),
-                  _buildCategoriesTab(menuState, isMobile, languageCode),
-                ],
-              ),
-            ),
-          ],
-        ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            if (_tabController.index == 0) {
-              _showAddItemDialog();
-            } else {
-              _showAddCategoryDialog();
-            }
-          },
-          backgroundColor: AppTheme.primaryOrange,
-          child: const Icon(Icons.add),
-        ),
+        floatingActionButton:
+            _currentPage != 0
+                ? FloatingActionButton(
+                  onPressed:
+                      _currentPage == 1
+                          ? _showAddItemDialog
+                          : _currentPage == 2
+                          ? _showAddCategoryDialog
+                          : _showAddModifierDialog,
+                  backgroundColor: AppTheme.primaryOrange,
+                  child: const Icon(Icons.add, color: Colors.white),
+                )
+                : null,
       ),
     );
   }
 
-  Widget _buildMenuItemsTab(
-    MenuState menuState,
-    bool isMobile,
-    String languageCode,
-  ) {
-    if (menuState.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+  // ═══════════════════════════════════════════════════════════════════
+  // Main List Page (Image 1)
+  // ═══════════════════════════════════════════════════════════════════
 
-    if (menuState.items.isEmpty) {
-      return _buildEmptyState(
-        icon: Icons.restaurant_menu,
-        title: Translations.get('no_menu_items_yet', languageCode),
-        subtitle: Translations.get('add_first_product_to_sell', languageCode),
-        actionLabel: Translations.get('add_item', languageCode),
-        onAction: _showAddItemDialog,
-      );
-    }
-
+  Widget _buildMainList(String lang) {
     return Column(
       children: [
-        // Search bar
+        // AppBar
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           color: Colors.white,
-          child: TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: Translations.get(
-                'search_items_placeholder',
-                languageCode,
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.menu, size: 24),
+                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
               ),
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon:
-                  _searchController.text.isNotEmpty
-                      ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          ref.read(menuProvider.notifier).search('');
-                        },
-                      )
-                      : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+              const SizedBox(width: 8),
+              Text(
+                Translations.get('menu_items_tab', lang),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            onChanged: (value) {
-              ref.read(menuProvider.notifier).search(value);
-            },
+            ],
           ),
         ),
+        const Divider(height: 1, color: AppTheme.neutral200),
 
-        // Category filter chips with visible scrollbar
-        if (menuState.categories.isNotEmpty)
-          SizedBox(
-            height: 60,
-            child: Scrollbar(
-              thumbVisibility: true, // Always show scrollbar
-              thickness: 4, // Make it more visible
-              radius: const Radius.circular(2),
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
-                      onTap: () {
-                        ref.read(menuProvider.notifier).filterByCategory(null);
-                      },
-                      child: FilterChip(
-                        label: Text(Translations.get('all', languageCode)),
-                        selected: menuState.categoryFilter == null,
-                        onSelected:
-                            null, // Disable built-in handler, use GestureDetector
-                        backgroundColor: AppTheme.neutral100,
-                        selectedColor: AppTheme.primaryOrange,
-                        labelStyle: TextStyle(
-                          color:
-                              menuState.categoryFilter == null
-                                  ? Colors.white
-                                  : AppTheme.neutral700,
-                          fontWeight:
-                              menuState.categoryFilter == null
-                                  ? FontWeight.w600
-                                  : FontWeight.w500,
-                        ),
-                        showCheckmark: false,
-                      ),
-                    ),
-                  ),
-                  ...menuState.categories.map((category) {
-                    final isSelected = menuState.categoryFilter == category.id;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: GestureDetector(
-                        onTap: () {
-                          ref
-                              .read(menuProvider.notifier)
-                              .filterByCategory(category.id);
-                        },
-                        child: FilterChip(
-                          label: Text(category.name),
-                          selected: isSelected,
-                          onSelected:
-                              null, // Disable built-in handler, use GestureDetector
-                          backgroundColor: AppTheme.neutral100,
-                          selectedColor: AppTheme.primaryOrange,
-                          labelStyle: TextStyle(
-                            color:
-                                isSelected ? Colors.white : AppTheme.neutral700,
-                            fontWeight:
-                                isSelected ? FontWeight.w600 : FontWeight.w500,
-                          ),
-                          showCheckmark: false,
-                        ),
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ),
-
-        // Items list
+        // Menu sections
         Expanded(
-          child: ListView.builder(
-            itemCount: menuState.items.length,
-            itemBuilder: (context, index) {
-              final item = menuState.items[index];
-              return _buildMenuItemCard(item, isMobile, languageCode);
-            },
+          child: ListView(
+            children: [
+              _buildMenuItem(
+                icon: Icons.format_list_bulleted,
+                label: Translations.get('menu_items_tab', lang),
+                onTap: () => _goToPage(1),
+              ),
+              _buildMenuItem(
+                icon: Icons.copy_outlined,
+                label: Translations.get('categories_tab', lang),
+                onTap: () => _goToPage(2),
+              ),
+              _buildMenuItem(
+                icon: Icons.tune,
+                label: Translations.get('modifiers', lang),
+                onTap: () {
+                  _goToPage(3);
+                  _loadModifiers();
+                },
+              ),
+            ],
           ),
         ),
       ],
     );
   }
 
-  Widget _buildCategoriesTab(
-    MenuState menuState,
-    bool isMobile,
-    String languageCode,
-  ) {
-    if (menuState.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (menuState.categories.isEmpty) {
-      return _buildEmptyState(
-        icon: Icons.category,
-        title: Translations.get('no_categories_yet', languageCode),
-        subtitle: Translations.get(
-          'create_categories_to_organize',
-          languageCode,
-        ),
-        actionLabel: Translations.get('add_category', languageCode),
-        onAction: _showAddCategoryDialog,
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: menuState.categories.length,
-      itemBuilder: (context, index) {
-        final category = menuState.categories[index];
-        return _buildCategoryCard(category, languageCode);
-      },
-    );
-  }
-
-  Widget _buildMenuItemCard(dynamic item, bool isMobile, String languageCode) {
-    Category? category;
-    try {
-      category = ref
-          .read(menuProvider)
-          .categories
-          .firstWhere((c) => c.id == item.categoryId);
-    } catch (e) {
-      category = null;
-    }
-    final categoryName =
-        category?.name ?? Translations.get('no_category', languageCode);
-
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: ListTile(
-        leading:
-            item.images?.isNotEmpty == true
-                ? ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    item.images!.first.url,
-                    width: 50,
-                    height: 50,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _buildDefaultItemIcon(),
-                  ),
-                )
-                : _buildDefaultItemIcon(),
-        title: Text(
-          item.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(categoryName),
-            const SizedBox(height: 4),
-            Text(
-              CurrencyFormatter.format(item.pricing.basePrice),
-              style: TextStyle(
-                color: AppTheme.success,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            if (!item.isActive)
-              Text(
-                Translations.get('inactive', languageCode),
-                style: const TextStyle(color: AppTheme.error),
-              ),
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit, color: AppTheme.info),
-              onPressed: () => _showEditItemDialog(item),
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete, color: AppTheme.error),
-              onPressed: () => _deleteItem(item.id, item.name),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryCard(dynamic category, String languageCode) {
-    final itemCount =
-        ref
-            .read(menuProvider)
-            .items
-            .where((item) => item.categoryId == category.id)
-            .length;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor:
-              category.color != null
-                  ? Color(int.parse(category.color!.replaceAll('#', '0xFF')))
-                  : AppTheme.primaryOrange,
-          child: Text(
-            category.name.substring(0, 1).toUpperCase(),
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        title: Text(
-          category.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (category.description != null) Text(category.description!),
-            const SizedBox(height: 4),
-            Text(
-              '$itemCount ${Translations.get('items', languageCode)}',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            if (!category.isActive)
-              Text(
-                Translations.get('inactive', languageCode),
-                style: const TextStyle(color: AppTheme.error),
-              ),
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit, color: AppTheme.info),
-              onPressed: () => _showEditCategoryDialog(category),
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete, color: AppTheme.error),
-              onPressed: () => _deleteCategory(category.id, category.name),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDefaultItemIcon() {
-    return Container(
-      width: 50,
-      height: 50,
-      decoration: BoxDecoration(
-        color: AppTheme.neutral200,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: const Icon(Icons.restaurant, color: AppTheme.neutral500),
-    );
-  }
-
-  Widget _buildEmptyState({
+  Widget _buildMenuItem({
     required IconData icon,
-    required String title,
-    required String subtitle,
-    required String actionLabel,
-    required VoidCallback onAction,
+    required String label,
+    required VoidCallback onTap,
   }) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppTheme.neutral200)),
+        ),
+        child: Row(
           children: [
-            Icon(icon, size: 56, color: AppTheme.neutral300),
-            const SizedBox(height: 12),
+            Icon(icon, size: 24, color: AppTheme.neutral600),
+            const SizedBox(width: 20),
             Text(
-              title,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(color: AppTheme.neutral500),
-              textAlign: TextAlign.center,
+              label,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
-            const SizedBox(height: 6),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Items Page (Image 2)
+  // ═══════════════════════════════════════════════════════════════════
+
+  Widget _buildItemsPage(MenuState menuState, String lang) {
+    return Column(
+      children: [
+        // AppBar — switches between normal and selection mode
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          color: _isItemSelectMode ? AppTheme.primaryOrangeLight : Colors.white,
+          child:
+              _isItemSelectMode
+                  ? Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed:
+                            () => setState(() => _selectedItemIds.clear()),
+                      ),
+                      Text(
+                        '${_selectedItemIds.length}',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.white,
+                        ),
+                        onPressed: () => _deleteSelectedItems(lang),
+                      ),
+                    ],
+                  )
+                  : Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: _goBack,
+                      ),
+                      if (_isSearchVisible)
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            autofocus: true,
+                            onSubmitted:
+                                (v) =>
+                                    ref.read(menuProvider.notifier).search(v),
+                            style: const TextStyle(fontSize: 16),
+                            decoration: InputDecoration(
+                              hintText: Translations.get(
+                                'search_items_placeholder',
+                                lang,
+                              ),
+                              border: InputBorder.none,
+                              hintStyle: TextStyle(color: Colors.grey.shade400),
+                            ),
+                          ),
+                        )
+                      else ...[
+                        Expanded(
+                          child: PopupMenuButton<String>(
+                            onSelected: (value) {
+                              ref
+                                  .read(menuProvider.notifier)
+                                  .filterByCategory(
+                                    value == '_all_' ? null : value,
+                                  );
+                            },
+                            offset: const Offset(0, 40),
+                            color: Colors.white,
+                            elevation: 4,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            itemBuilder:
+                                (_) => [
+                                  PopupMenuItem<String>(
+                                    value: '_all_',
+                                    child: Text(
+                                      Translations.get('all_items', lang),
+                                      style: TextStyle(
+                                        fontWeight:
+                                            menuState.categoryFilter == null
+                                                ? FontWeight.w600
+                                                : FontWeight.w400,
+                                      ),
+                                    ),
+                                  ),
+                                  ...menuState.categories.map(
+                                    (cat) => PopupMenuItem<String>(
+                                      value: cat.id,
+                                      child: Text(
+                                        cat.name,
+                                        style: TextStyle(
+                                          fontWeight:
+                                              menuState.categoryFilter == cat.id
+                                                  ? FontWeight.w600
+                                                  : FontWeight.w400,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _getSelectedCategoryName(menuState, lang),
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.arrow_drop_down, size: 28),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                      IconButton(
+                        icon: Icon(
+                          _isSearchVisible ? Icons.close : Icons.search,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isSearchVisible = !_isSearchVisible;
+                            if (!_isSearchVisible) {
+                              _searchController.clear();
+                              ref.read(menuProvider.notifier).search('');
+                            }
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+        ),
+        Divider(
+          height: 1,
+          color:
+              _isItemSelectMode
+                  ? AppTheme.primaryOrangeLight
+                  : AppTheme.neutral200,
+        ),
+
+        // Items list
+        Expanded(
+          child:
+              menuState.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : menuState.items.isEmpty
+                  ? Center(
+                    child: Text(
+                      Translations.get('no_menu_items_yet', lang),
+                      style: TextStyle(
+                        color: Colors.grey.shade400,
+                        fontSize: 16,
+                      ),
+                    ),
+                  )
+                  : RefreshIndicator(
+                    onRefresh: () => ref.read(menuProvider.notifier).refresh(),
+                    child: ListView.separated(
+                      itemCount: menuState.items.length,
+                      separatorBuilder:
+                          (_, __) => const Divider(
+                            height: 1,
+                            color: AppTheme.neutral200,
+                          ),
+                      itemBuilder:
+                          (_, i) => _buildItemRow(menuState.items[i], lang),
+                    ),
+                  ),
+        ),
+      ],
+    );
+  }
+
+  String _getSelectedCategoryName(MenuState state, String lang) {
+    if (state.categoryFilter == null)
+      return Translations.get('all_items', lang);
+    try {
+      return state.categories
+          .firstWhere((c) => c.id == state.categoryFilter)
+          .name;
+    } catch (_) {
+      return Translations.get('all_items', lang);
+    }
+  }
+
+  Widget _buildItemRow(Product item, String lang) {
+    final hasImage = item.images.isNotEmpty && item.images.first.url.isNotEmpty;
+    final stock = item.inventory?.currentStock;
+    final isLowStock = item.inventory?.isLowStock ?? false;
+    final price = item.pricing.basePrice;
+    final colorIndex = item.name.hashCode % _fallbackColors.length;
+    final circleColor = _fallbackColors[colorIndex.abs()];
+    final isSelected = _selectedItemIds.contains(item.id);
+
+    return InkWell(
+      onTap:
+          _isItemSelectMode
+              ? () => _toggleItemSelection(item.id)
+              : () => _showEditItemDialog(item),
+      onLongPress: () {
+        if (!_isItemSelectMode) {
+          _toggleItemSelection(item.id);
+        }
+      },
+      child: Container(
+        color:
+            isSelected ? AppTheme.primaryOrange.withValues(alpha: 0.1) : null,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            // Check circle when selected, otherwise image/shape
+            SizedBox(
+              width: 48,
+              height: 48,
+              child:
+                  isSelected
+                      ? Container(
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppTheme.neutral800,
+                        ),
+                        child: const Icon(
+                          Icons.check,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      )
+                      : hasImage
+                      ? ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: Image.network(
+                          item.images.first.url,
+                          fit: BoxFit.cover,
+                          errorBuilder:
+                              (_, __, ___) =>
+                                  _colorCircle(item.name, circleColor),
+                        ),
+                      )
+                      : _colorCircle(item.name, circleColor),
+            ),
+            const SizedBox(width: 16),
+
+            // Name + stock
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (stock != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '$stock ${Translations.get('in_stock', lang)}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color:
+                            isLowStock ? AppTheme.error : Colors.grey.shade500,
+                        fontWeight:
+                            isLowStock ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            // Price
             Text(
-              subtitle,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: AppTheme.neutral400),
-              textAlign: TextAlign.center,
+              price > 0
+                  ? CurrencyFormatter.formatLAKWithSymbol(price)
+                  : 'Variable',
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
             ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: onAction,
-              icon: const Icon(Icons.add, size: 20),
-              label: Text(actionLabel),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryOrange,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Categories Page (Image 3)
+  // ═══════════════════════════════════════════════════════════════════
+
+  Widget _buildCategoriesPage(MenuState menuState, String lang) {
+    return Column(
+      children: [
+        // AppBar — switches between normal and selection mode
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          color:
+              _isCategorySelectMode
+                  ? AppTheme.primaryOrangeLight
+                  : Colors.white,
+          child:
+              _isCategorySelectMode
+                  ? Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed:
+                            () => setState(() => _selectedCategoryIds.clear()),
+                      ),
+                      Text(
+                        '${_selectedCategoryIds.length}',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.white,
+                        ),
+                        onPressed: () => _deleteSelectedCategories(lang),
+                      ),
+                    ],
+                  )
+                  : Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: _goBack,
+                      ),
+                      Text(
+                        Translations.get('categories_tab', lang),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                    ],
+                  ),
+        ),
+        Divider(
+          height: 1,
+          color:
+              _isCategorySelectMode
+                  ? AppTheme.primaryOrangeLight
+                  : AppTheme.neutral200,
+        ),
+
+        // Categories list
+        Expanded(
+          child:
+              menuState.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : menuState.categories.isEmpty
+                  ? Center(
+                    child: Text(
+                      Translations.get('no_categories_yet', lang),
+                      style: TextStyle(
+                        color: Colors.grey.shade400,
+                        fontSize: 16,
+                      ),
+                    ),
+                  )
+                  : ListView.separated(
+                    itemCount: menuState.categories.length,
+                    separatorBuilder:
+                        (_, __) => const Divider(
+                          height: 1,
+                          color: AppTheme.neutral200,
+                        ),
+                    itemBuilder:
+                        (_, i) => _buildCategoryRow(
+                          menuState.categories[i],
+                          menuState,
+                          lang,
+                        ),
+                  ),
+        ),
+      ],
+    );
+  }
+
+  void _toggleCategorySelection(String id) {
+    setState(() {
+      if (_selectedCategoryIds.contains(id)) {
+        _selectedCategoryIds.remove(id);
+      } else {
+        _selectedCategoryIds.add(id);
+      }
+    });
+  }
+
+  Future<void> _deleteSelectedCategories(String lang) async {
+    final count = _selectedCategoryIds.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (_) => AlertDialog(
+            title: Text(Translations.get('delete_category_title', lang)),
+            content: Text(
+              Translations.get('delete_category_confirmation', lang),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  Translations.get('cancel', lang).toUpperCase(),
+                  style: const TextStyle(color: AppTheme.primaryOrange),
                 ),
               ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(
+                  Translations.get('delete', lang).toUpperCase(),
+                  style: const TextStyle(color: AppTheme.error),
+                ),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmed == true) {
+      final ids = List<String>.from(_selectedCategoryIds);
+      setState(() => _selectedCategoryIds.clear());
+
+      int successCount = 0;
+      for (final id in ids) {
+        final ok = await ref.read(menuProvider.notifier).deleteCategory(id);
+        if (ok) successCount++;
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '$successCount ${successCount == 1 ? 'category' : 'categories'} deleted',
+            ),
+            backgroundColor:
+                successCount > 0 ? AppTheme.success : AppTheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildCategoryRow(Category cat, MenuState state, String lang) {
+    final itemCount =
+        state.items.where((item) => item.categoryId == cat.id).length;
+    final color =
+        cat.color != null
+            ? Color(int.parse(cat.color!.replaceAll('#', '0xFF')))
+            : AppTheme.neutral400;
+    final isSelected = _selectedCategoryIds.contains(cat.id);
+
+    return InkWell(
+      onTap:
+          _isCategorySelectMode
+              ? () => _toggleCategorySelection(cat.id)
+              : () => _showEditCategoryDialog(cat),
+      onLongPress: () {
+        if (!_isCategorySelectMode) {
+          _toggleCategorySelection(cat.id);
+        }
+      },
+      child: Container(
+        color:
+            isSelected ? AppTheme.primaryOrange.withValues(alpha: 0.1) : null,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            // Color circle or check
+            if (isSelected)
+              Container(
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.neutral800,
+                ),
+                child: const Icon(Icons.check, color: Colors.white, size: 24),
+              )
+            else
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+              ),
+            const SizedBox(width: 16),
+
+            // Name + count
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  cat.name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$itemCount ${itemCount == 1 ? 'item' : Translations.get('items', lang)}',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
   }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Modifiers Page (Page 3)
+  // ═══════════════════════════════════════════════════════════════════
+
+  Future<void> _loadModifiers() async {
+    setState(() => _modifiersLoading = true);
+    try {
+      final service = ref.read(modifierServiceProvider);
+      final result = await service.getModifiers();
+      if (mounted) setState(() => _modifiers = result);
+    } catch (_) {}
+    if (mounted) setState(() => _modifiersLoading = false);
+  }
+
+  void _showAddModifierDialog() async {
+    final result = await showDialog(
+      context: context,
+      builder: (_) => const ModifierFormDialog(),
+    );
+    if (result == true) _loadModifiers();
+  }
+
+  void _showEditModifierDialog(Modifier modifier) async {
+    final result = await showDialog(
+      context: context,
+      builder: (_) => ModifierFormDialog(modifier: modifier),
+    );
+    if (result == true) _loadModifiers();
+  }
+
+  void _toggleModifierSelection(String id) {
+    setState(() {
+      if (_selectedModifierIds.contains(id)) {
+        _selectedModifierIds.remove(id);
+      } else {
+        _selectedModifierIds.add(id);
+      }
+    });
+  }
+
+  Future<void> _deleteSelectedModifiers(String lang) async {
+    final count = _selectedModifierIds.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (_) => AlertDialog(
+            title: Text(Translations.get('delete_modifiers', lang)),
+            content: Text(
+              Translations.get(
+                'delete_modifiers_confirmation',
+                lang,
+              ).replaceAll('{count}', count.toString()),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  Translations.get('cancel', lang),
+                  style: TextStyle(color: AppTheme.primaryOrange),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(
+                  Translations.get('delete', lang),
+                  style: TextStyle(color: AppTheme.error),
+                ),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmed == true) {
+      final ids = List<String>.from(_selectedModifierIds);
+      setState(() => _selectedModifierIds.clear());
+      final service = ref.read(modifierServiceProvider);
+      for (final id in ids) {
+        try {
+          await service.deleteModifier(id);
+        } catch (_) {}
+      }
+      _loadModifiers();
+    }
+  }
+
+  Widget _buildModifiersPage(String lang) {
+    return Column(
+      children: [
+        // AppBar
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          color:
+              _isModifierSelectMode
+                  ? AppTheme.primaryOrangeLight
+                  : Colors.white,
+          child:
+              _isModifierSelectMode
+                  ? Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed:
+                            () => setState(() => _selectedModifierIds.clear()),
+                      ),
+                      Text(
+                        '${_selectedModifierIds.length}',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.white,
+                        ),
+                        onPressed: () => _deleteSelectedModifiers(lang),
+                      ),
+                    ],
+                  )
+                  : Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: _goBack,
+                      ),
+                      Text(
+                        Translations.get('modifiers', lang),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.search),
+                        onPressed: () {},
+                      ),
+                    ],
+                  ),
+        ),
+        Divider(
+          height: 1,
+          color:
+              _isModifierSelectMode
+                  ? AppTheme.primaryOrangeLight
+                  : AppTheme.neutral200,
+        ),
+
+        // Content
+        Expanded(
+          child:
+              _modifiersLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _modifiers.isEmpty
+                  ? _buildModifiersEmpty(lang)
+                  : ListView.separated(
+                    itemCount: _modifiers.length,
+                    separatorBuilder:
+                        (_, __) => const Divider(
+                          height: 1,
+                          color: AppTheme.neutral200,
+                        ),
+                    itemBuilder: (_, i) => _buildModifierRow(_modifiers[i]),
+                  ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModifiersEmpty(String lang) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.playlist_add_check,
+              size: 56,
+              color: Colors.grey.shade400,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            Translations.get('no_modifiers_yet', lang),
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 48),
+            child: Text(
+              Translations.get('no_modifiers_hint', lang),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModifierRow(Modifier mod) {
+    final isSelected = _selectedModifierIds.contains(mod.id);
+
+    return InkWell(
+      onTap:
+          _isModifierSelectMode
+              ? () => _toggleModifierSelection(mod.id)
+              : () => _showEditModifierDialog(mod),
+      onLongPress: () {
+        if (!_isModifierSelectMode) _toggleModifierSelection(mod.id);
+      },
+      child: Container(
+        color:
+            isSelected ? AppTheme.primaryOrange.withValues(alpha: 0.1) : null,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            // Icon or check
+            if (isSelected)
+              Container(
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.neutral800,
+                ),
+                child: const Icon(Icons.check, color: Colors.white, size: 24),
+              )
+            else
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.grey.shade200,
+                ),
+                child: Icon(Icons.tune, color: Colors.grey.shade500, size: 24),
+              ),
+            const SizedBox(width: 16),
+
+            // Name + options summary
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    mod.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (mod.optionsSummary.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      mod.optionsSummary,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Helpers ───
+
+  Widget _colorCircle(String name, Color color) {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+      child: Center(
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : '?',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+      ),
+    );
+  }
+
+  static const _fallbackColors = [
+    Color(0xFFFF6B00),
+    Color(0xFFE4B800),
+    Color(0xFFE53935),
+    Color(0xFF7B1FA2),
+    Color(0xFF1E88E5),
+    Color(0xFF43A047),
+    Color(0xFF00897B),
+    Color(0xFF6D4C41),
+    Color(0xFF546E7A),
+    Color(0xFFC2185B),
+  ];
 }

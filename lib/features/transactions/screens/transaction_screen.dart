@@ -12,8 +12,6 @@ import '../../../shared/widgets/app_sidebar.dart';
 import '../../../core/constants/translations.dart';
 import '../../../core/providers/localization_provider.dart';
 import '../providers/transaction_provider.dart';
-import '../widgets/transaction_filter_dialog.dart';
-import '../widgets/transaction_summary_cards.dart';
 
 class TransactionScreen extends ConsumerStatefulWidget {
   const TransactionScreen({super.key});
@@ -23,25 +21,27 @@ class TransactionScreen extends ConsumerStatefulWidget {
 }
 
 class _TransactionScreenState extends ConsumerState<TransactionScreen> {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+  final _searchController = TextEditingController();
+  bool _isSearchVisible = false;
   DateTime? _startDate;
   DateTime? _endDate;
 
   @override
-  void initState() {
-    super.initState();
-    // Load transactions on init
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadInitialData();
-    });
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
-  void _loadInitialData() {
-    // Set default date range (last 7 days)
-    final now = DateTime.now();
-    _startDate = DateTime(now.year, now.month, now.day - 7);
-    _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
-
-    ref.read(transactionProvider.notifier).setDateRange(_startDate, _endDate);
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final now = DateTime.now();
+      _startDate = DateTime(now.year, now.month, now.day - 30);
+      _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+      ref.read(transactionProvider.notifier).setDateRange(_startDate, _endDate);
+    });
   }
 
   Future<void> _pickDateRange() async {
@@ -54,7 +54,6 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
               ? DateTimeRange(start: _startDate!, end: _endDate!)
               : null,
     );
-
     if (picked != null) {
       setState(() {
         _startDate = picked.start;
@@ -64,561 +63,309 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     }
   }
 
-  void _showFilters() async {
-    final result = await showDialog<TransactionFilters>(
-      context: context,
-      builder:
-          (context) => TransactionFilterDialog(
-            currentFilters: ref.read(transactionProvider).filters,
-          ),
-    );
-
-    if (result != null) {
-      ref.read(transactionProvider.notifier).applyFilters(result);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final transactionState = ref.watch(transactionProvider);
+    final state = ref.watch(transactionProvider);
+    final lang = ref.watch(localizationProvider).languageCode;
     final isMobile = Responsive.isMobile(context);
-    final languageCode = ref.watch(localizationProvider).languageCode;
 
     return AppShell(
       child: Scaffold(
-        backgroundColor: AppTheme.scaffoldBackground,
+        key: _scaffoldKey,
+        backgroundColor: Colors.white,
         drawer:
             isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
         appBar: AppBar(
-          title: Text(Translations.get('transactions', languageCode)),
-          surfaceTintColor: AppTheme.scaffoldBackground,
+          backgroundColor: Colors.white,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.menu, color: Colors.black),
+            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+          title:
+              _isSearchVisible
+                  ? TextField(
+                    controller: _searchController,
+                    autofocus: true,
+                    onSubmitted: (v) {
+                      setState(() {});
+                    },
+                    style: const TextStyle(fontSize: 16),
+                    decoration: InputDecoration(
+                      hintText: Translations.get('search', lang),
+                      border: InputBorder.none,
+                      hintStyle: TextStyle(color: Colors.grey.shade400),
+                    ),
+                  )
+                  : Text(
+                    Translations.get('transactions', lang),
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
           actions: [
-            // Date range button
             IconButton(
-              icon: const Icon(Icons.calendar_today),
-              tooltip: Translations.get('date_range', languageCode),
-              onPressed: _pickDateRange,
+              icon: Icon(
+                _isSearchVisible ? Icons.close : Icons.search,
+                color: Colors.black,
+              ),
+              onPressed: () {
+                setState(() {
+                  _isSearchVisible = !_isSearchVisible;
+                  if (!_isSearchVisible) {
+                    _searchController.clear();
+                    setState(() {});
+                  }
+                });
+              },
             ),
-            // Filter button
-            IconButton(
-              icon: const Icon(Icons.filter_list),
-              tooltip: Translations.get('filters', languageCode),
-              onPressed: _showFilters,
-            ),
-            // Refresh button
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: Translations.get('refresh', languageCode),
-              onPressed: () => ref.read(transactionProvider.notifier).refresh(),
-            ),
-            const SizedBox(width: 8),
           ],
         ),
-        body:
-            transactionState.isLoading && transactionState.transactions.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : transactionState.error != null
-                ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error, size: 48, color: AppTheme.error),
-                      const SizedBox(height: 16),
-                      Text(transactionState.error!),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed:
+        body: Column(
+          children: [
+            Divider(height: 1, color: Colors.grey.shade200),
+
+            // Date filter bar
+            InkWell(
+              onTap: _pickDateRange,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                color: Colors.white,
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.calendar_today,
+                      size: 18,
+                      color: AppTheme.primaryOrange,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      _startDate != null && _endDate != null
+                          ? '${DateFormat('dd/MM/yyyy').format(_startDate!)} - ${DateFormat('dd/MM/yyyy').format(_endDate!)}'
+                          : Translations.get('select_date_range', lang),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
+                  ],
+                ),
+              ),
+            ),
+            Divider(height: 1, color: Colors.grey.shade200),
+
+            // Transaction list
+            Expanded(
+              child:
+                  state.isLoading && state.transactions.isEmpty
+                      ? const Center(child: CircularProgressIndicator())
+                      : state.transactions.isEmpty
+                      ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.receipt_long,
+                              size: 64,
+                              color: Colors.grey.shade300,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              Translations.get('no_transactions_found', lang),
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                      : RefreshIndicator(
+                        onRefresh:
                             () =>
                                 ref
                                     .read(transactionProvider.notifier)
                                     .refresh(),
-                        child: const Text('Retry'),
+                        child: _buildGroupedList(state.transactions, lang),
                       ),
-                    ],
-                  ),
-                )
-                : RefreshIndicator(
-                  onRefresh:
-                      () => ref.read(transactionProvider.notifier).refresh(),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Date range display
-                        _buildDateRangeDisplay(languageCode),
-                        const SizedBox(height: 16),
-
-                        // Active filters chips
-                        if (transactionState.filters.hasActiveFilters)
-                          _buildActiveFilters(
-                            transactionState.filters,
-                            languageCode,
-                          ),
-
-                        // Summary cards
-                        if (transactionState.summary != null) ...[
-                          const SizedBox(height: 16),
-                          TransactionSummaryCards(
-                            summary: transactionState.summary!,
-                          ),
-                          const SizedBox(height: 24),
-                        ],
-
-                        // Transactions list
-                        _buildTransactionsList(
-                          transactionState,
-                          isMobile,
-                          languageCode,
-                        ),
-
-                        // Pagination
-                        if (transactionState.pagination != null) ...[
-                          const SizedBox(height: 16),
-                          _buildPagination(
-                            transactionState.pagination!,
-                            languageCode,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-      ),
-    );
-  }
-
-  Widget _buildDateRangeDisplay(String languageCode) {
-    final dateFormat = DateFormat('MMM d, yyyy');
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.primaryOrangeBackground,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.primaryOrange.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.calendar_today,
-            size: 20,
-            color: AppTheme.primaryOrange,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              _startDate != null && _endDate != null
-                  ? '${dateFormat.format(_startDate!)} - ${dateFormat.format(_endDate!)}'
-                  : Translations.get('select_date_range', languageCode),
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                color: AppTheme.primaryOrange,
-              ),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(
-              Icons.edit,
-              size: 20,
-              color: AppTheme.primaryOrange,
-            ),
-            onPressed: _pickDateRange,
-            tooltip: Translations.get('change_date_range', languageCode),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActiveFilters(TransactionFilters filters, String languageCode) {
-    final chips = <Widget>[];
-
-    if (filters.status != null) {
-      chips.add(
-        _buildFilterChip(
-          'Status: ${_getStatusLabel(filters.status!)}',
-          () => ref.read(transactionProvider.notifier).setStatusFilter(null),
-        ),
-      );
-    }
-
-    if (filters.method != null) {
-      chips.add(
-        _buildFilterChip(
-          'Method: ${_getMethodLabel(filters.method!, languageCode)}',
-          () => ref.read(transactionProvider.notifier).setMethodFilter(null),
-        ),
-      );
-    }
-
-    if (chips.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Text(
-              Translations.get('active_filters', languageCode),
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(width: 8),
-            ...chips,
-            const Spacer(),
-            TextButton.icon(
-              onPressed:
-                  () => ref.read(transactionProvider.notifier).clearFilters(),
-              icon: const Icon(Icons.clear, size: 16),
-              label: Text(Translations.get('clear_all', languageCode)),
             ),
           ],
         ),
-      ],
-    );
-  }
-
-  Widget _buildFilterChip(String label, VoidCallback onDeleted) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: Chip(
-        label: Text(label, style: const TextStyle(fontSize: 12)),
-        deleteIcon: const Icon(Icons.close, size: 16),
-        onDeleted: onDeleted,
-        backgroundColor: AppTheme.neutral100,
       ),
     );
   }
 
-  Widget _buildTransactionsList(
-    TransactionState state,
-    bool isMobile,
-    String languageCode,
-  ) {
-    if (state.transactions.isEmpty) {
+  /// Group transactions by date and build list
+  Widget _buildGroupedList(List<Transaction> allTransactions, String lang) {
+    // Client-side search filter
+    final query = _searchController.text.trim().toLowerCase();
+    final transactions =
+        query.isEmpty
+            ? allTransactions
+            : allTransactions.where((txn) {
+              return txn.transactionId.toLowerCase().contains(query) ||
+                  txn.lineItems.any(
+                    (item) => item.name.toLowerCase().contains(query),
+                  );
+            }).toList();
+
+    if (transactions.isEmpty) {
       return Center(
-        child: Column(
-          children: [
-            const SizedBox(height: 48),
-            Icon(Icons.receipt_long, size: 64, color: AppTheme.neutral300),
-            const SizedBox(height: 16),
-            Text(
-              Translations.get('no_transactions_found', languageCode),
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.neutral600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              Translations.get('try_adjusting_your_filters', languageCode),
-              style: TextStyle(color: AppTheme.neutral500),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.only(top: 64),
+          child: Text(
+            Translations.get('no_transactions_found', lang),
+            style: TextStyle(fontSize: 16, color: Colors.grey.shade500),
+          ),
         ),
       );
     }
+
+    final grouped = <String, List<Transaction>>{};
+    final dateFormat = DateFormat('EEEE, d MMMM yyyy');
+
+    for (final txn in transactions) {
+      final date = (txn.timing.initiatedAt ?? txn.createdAt).toLocal();
+      final key = dateFormat.format(date);
+      grouped.putIfAbsent(key, () => []).add(txn);
+    }
+
+    final entries = grouped.entries.toList();
 
     return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: state.transactions.length,
-      itemBuilder: (context, index) {
-        final transaction = state.transactions[index];
-        return _buildTransactionCard(transaction, isMobile, languageCode);
+      itemCount: entries.length,
+      itemBuilder: (_, groupIndex) {
+        final dateLabel = entries[groupIndex].key;
+        final items = entries[groupIndex].value;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Date header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              color: Colors.grey.shade50,
+              child: Text(
+                dateLabel,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.primaryOrange,
+                ),
+              ),
+            ),
+            Divider(height: 1, color: Colors.grey.shade200),
+
+            // Transaction rows
+            ...items.map(
+              (txn) => Column(
+                children: [
+                  _buildTransactionRow(txn, lang),
+                  Divider(height: 1, indent: 72, color: Colors.grey.shade200),
+                ],
+              ),
+            ),
+          ],
+        );
       },
     );
   }
 
-  Widget _buildTransactionCard(
-    Transaction transaction,
-    bool isMobile,
-    String languageCode,
-  ) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: () {
-          context.push('/transactions/${transaction.transactionId}');
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
+  Widget _buildTransactionRow(Transaction txn, String lang) {
+    final time = DateFormat(
+      'h:mm a',
+    ).format((txn.timing.initiatedAt ?? txn.createdAt).toLocal());
+    final amount = txn.consolidatedTotals.grandTotal.amount;
+    final method = _getPrimaryMethod(txn);
+    final isRefund =
+        txn.transactionType == 'refund' || txn.transactionStatus == 'refunded';
+
+    return InkWell(
+      onTap: () => context.push('/transactions/${txn.id}'),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            // Payment method icon
+            Icon(_getMethodIcon(method), size: 28, color: Colors.grey.shade600),
+            const SizedBox(width: 16),
+
+            // Amount + time
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: _getPaymentMethodColor(
-                        transaction,
-                      ).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      _getPaymentMethodIcon(transaction),
-                      color: _getPaymentMethodColor(transaction),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          transaction.transactionId,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                      ],
-                    ),
-                  ),
-                  _buildStatusBadge(
-                    transaction.transactionStatus,
-                    languageCode,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          DateFormat('MMM d, yyyy • h:mm a').format(
-                            transaction.timing.initiatedAt ??
-                                transaction.createdAt,
-                          ),
-                          style: const TextStyle(
-                            color: AppTheme.neutral600,
-                            fontSize: 13,
-                          ),
-                        ),
-                        if (transaction.staff?.processedBy != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            '${Translations.get('by', languageCode)} ${transaction.staff!.processedBy!.name}',
-                            style: const TextStyle(
-                              color: AppTheme.neutral500,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  if (transaction.paymentSummary != null &&
-                      transaction
-                          .paymentSummary!
-                          .paymentMethodBreakdown
-                          .isNotEmpty)
-                    Text(
-                      _getMethodLabel(
-                        transaction
-                            .paymentSummary!
-                            .paymentMethodBreakdown
-                            .first
-                            .method,
-                        languageCode,
-                      ),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.neutral600,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  const SizedBox(width: 12),
                   Text(
-                    CurrencyFormatter.formatLAKWithSymbol(
-                      transaction.consolidatedTotals.grandTotal.amount,
-                    ),
+                    CurrencyFormatter.formatLAKWithSymbol(amount),
                     style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                      color:
-                          transaction.isVoided
-                              ? AppTheme.error
-                              : AppTheme.neutral900,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: isRefund ? AppTheme.error : Colors.black,
                     ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    time,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+
+            // Transaction ID + refund label
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  txn.shortId,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                if (isRefund) ...[
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Refund',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.error,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildStatusBadge(String status, String languageCode) {
-    Color color;
-    String label;
-
-    switch (status) {
-      case 'completed':
-        color = AppTheme.success;
-        label = Translations.get('completed', languageCode);
-        break;
-      case 'pending':
-        color = AppTheme.warning;
-        label = Translations.get('pending', languageCode);
-        break;
-      case 'voided':
-        color = AppTheme.error;
-        label = Translations.get('voided', languageCode);
-        break;
-      case 'refunded':
-      case 'partially_refunded':
-        color = Colors.purple;
-        label =
-            status == 'refunded'
-                ? Translations.get('refunded', languageCode)
-                : Translations.get('partial_refund', languageCode);
-        break;
-      default:
-        color = AppTheme.neutral500;
-        label = status;
+  String _getPrimaryMethod(Transaction txn) {
+    if (txn.paymentSummary == null ||
+        txn.paymentSummary!.paymentMethodBreakdown.isEmpty) {
+      return 'cash';
     }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
+    return txn.paymentSummary!.paymentMethodBreakdown.first.method;
   }
 
-  Widget _buildPagination(PaginationInfo pagination, String languageCode) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed:
-              pagination.hasPrev
-                  ? () {
-                    final currentPage =
-                        ref.read(transactionProvider).filters.page;
-                    ref
-                        .read(transactionProvider.notifier)
-                        .applyFilters(
-                          ref
-                              .read(transactionProvider)
-                              .filters
-                              .copyWith(page: currentPage - 1),
-                        );
-                  }
-                  : null,
-          icon: const Icon(Icons.chevron_left),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          '${Translations.get('page', languageCode)} ${pagination.page} ${Translations.get('of', languageCode)} ${pagination.totalPages}',
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(width: 8),
-        IconButton(
-          onPressed:
-              pagination.hasNext
-                  ? () {
-                    final currentPage =
-                        ref.read(transactionProvider).filters.page;
-                    ref
-                        .read(transactionProvider.notifier)
-                        .applyFilters(
-                          ref
-                              .read(transactionProvider)
-                              .filters
-                              .copyWith(page: currentPage + 1),
-                        );
-                  }
-                  : null,
-          icon: const Icon(Icons.chevron_right),
-        ),
-      ],
-    );
-  }
-
-  IconData _getPaymentMethodIcon(Transaction transaction) {
-    if (transaction.paymentSummary == null ||
-        transaction.paymentSummary!.paymentMethodBreakdown.isEmpty) {
-      return Icons.payments;
-    }
-
-    final method =
-        transaction.paymentSummary!.paymentMethodBreakdown.first.method;
-
-    if (method == 'cash') return Icons.payments;
+  IconData _getMethodIcon(String method) {
+    if (method == 'cash') return Icons.payments_outlined;
     if (method.contains('card')) return Icons.credit_card;
-    if (method.contains('qr') || method.contains('bank'))
+    if (method.contains('qr') || method.contains('bank')) {
       return Icons.qr_code_2;
+    }
     return Icons.payment;
-  }
-
-  Color _getPaymentMethodColor(Transaction transaction) {
-    if (transaction.paymentSummary == null ||
-        transaction.paymentSummary!.paymentMethodBreakdown.isEmpty) {
-      return AppTheme.neutral600;
-    }
-
-    final method =
-        transaction.paymentSummary!.paymentMethodBreakdown.first.method;
-
-    if (method == 'cash') return AppTheme.success;
-    if (method.contains('card')) return Colors.blue;
-    if (method.contains('qr') || method.contains('bank'))
-      return AppTheme.primaryOrange;
-    return AppTheme.neutral600;
-  }
-
-  String _getStatusLabel(String status) {
-    switch (status) {
-      case 'completed':
-        return 'Completed';
-      case 'pending':
-        return 'Pending';
-      case 'voided':
-        return 'Voided';
-      case 'refunded':
-        return 'Refunded';
-      default:
-        return status;
-    }
-  }
-
-  String _getMethodLabel(String method, String languageCode) {
-    switch (method) {
-      case 'cash':
-        return Translations.get('cash', languageCode);
-      case 'card':
-        return Translations.get('card', languageCode);
-      case 'bank_qr_jdb':
-        return 'JDB QR';
-      case 'bank_qr_bcel':
-        return 'BCEL QR';
-      case 'bank_qr_ldb':
-        return 'LDB QR';
-      case 'bank_qr_ib':
-        return 'IB QR';
-      default:
-        return method.replaceAll('_', ' ').toUpperCase();
-    }
   }
 }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-const storage = FlutterSecureStorage();
+const _kLanguageKey = 'app_language';
 
 class LocalizationState {
   final String languageCode;
@@ -20,13 +20,22 @@ class LocalizationNotifier extends StateNotifier<LocalizationState> {
   LocalizationNotifier() : super(LocalizationState(languageCode: 'en'));
 
   Future<void> loadFromStorage() async {
-    final savedLanguage = await storage.read(key: 'app_language') ?? 'en';
+    final prefs = await SharedPreferences.getInstance();
+    final savedLanguage = prefs.getString(_kLanguageKey) ?? 'en';
     state = LocalizationState(languageCode: savedLanguage);
   }
 
   Future<void> setLanguage(String languageCode) async {
-    await storage.write(key: 'app_language', value: languageCode);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kLanguageKey, languageCode);
     state = LocalizationState(languageCode: languageCode);
+  }
+
+  /// Clear language preference (call on logout)
+  Future<void> clearLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kLanguageKey);
+    state = LocalizationState(languageCode: 'en');
   }
 }
 

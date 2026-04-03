@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
@@ -19,511 +18,242 @@ class CategoryFormDialog extends ConsumerStatefulWidget {
 class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  late final TextEditingController _descriptionController;
-  late final TextEditingController _displayOrderController;
 
-  String? _selectedColor;
-  bool _isActive = true;
+  int _selectedColorIndex = 0;
   bool _isLoading = false;
 
-  final List<String> _colorOptions = [
-    '#FF5733', // Red-Orange
-    '#FFC300', // Yellow
-    '#DAF7A6', // Light Green
-    '#33FF57', // Green
-    '#33C3FF', // Light Blue
-    '#3357FF', // Blue
-    '#8E44AD', // Purple
-    '#E91E63', // Pink
-    '#FF6F61', // Coral
-    '#795548', // Brown
+  // Same 8 colors as menu item form
+  static const _colorHex = [
+    '#9E9E9E', // grey
+    '#E53935', // red
+    '#E91E90', // pink
+    '#FF6B00', // orange
+    '#BDB500', // yellow-green
+    '#43A047', // green
+    '#1E88E5', // blue
+    '#7B1FA2', // purple
   ];
 
-  bool get _isFormValid {
-    return _nameController.text.trim().isNotEmpty;
-  }
+  static const _colors = [
+    Color(0xFF9E9E9E),
+    Color(0xFFE53935),
+    Color(0xFFE91E90),
+    Color(0xFFFF6B00),
+    Color(0xFFBDB500),
+    Color(0xFF43A047),
+    Color(0xFF1E88E5),
+    Color(0xFF7B1FA2),
+  ];
 
   @override
   void initState() {
     super.initState();
-
     _nameController = TextEditingController(text: widget.category?.name ?? '');
-    _descriptionController = TextEditingController(
-      text: widget.category?.description ?? '',
-    );
-    _displayOrderController = TextEditingController(
-      text: widget.category?.displayOrder?.toString() ?? '0',
-    );
 
-    _selectedColor = widget.category?.color ?? _colorOptions[0];
-    _isActive = widget.category?.isActive ?? true;
+    // Initialize selected color from existing category
+    if (widget.category?.color != null) {
+      final idx = _colorHex.indexOf(widget.category!.color!);
+      if (idx >= 0) _selectedColorIndex = idx;
+    }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _descriptionController.dispose();
-    _displayOrderController.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
-    final languageCode = ref.read(localizationProvider).languageCode;
     if (!_formKey.currentState!.validate()) return;
+    final lang = ref.read(localizationProvider).languageCode;
 
     setState(() => _isLoading = true);
 
     final bool success;
     if (widget.category == null) {
-      // Create new category
       success = await ref
           .read(menuProvider.notifier)
           .createCategory(
             name: _nameController.text,
-            description:
-                _descriptionController.text.isEmpty
-                    ? null
-                    : _descriptionController.text,
-            displayOrder: int.parse(_displayOrderController.text),
-            color: _selectedColor,
+            color: _colorHex[_selectedColorIndex],
           );
     } else {
-      // Update existing category
       success = await ref
           .read(menuProvider.notifier)
           .updateCategory(
             categoryId: widget.category!.id,
             name: _nameController.text,
-            description:
-                _descriptionController.text.isEmpty
-                    ? null
-                    : _descriptionController.text,
-            displayOrder: int.parse(_displayOrderController.text),
-            isActive: _isActive,
-            color: _selectedColor,
+            color: _colorHex[_selectedColorIndex],
           );
     }
 
     setState(() => _isLoading = false);
 
-    if (mounted) {
-      if (success) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              widget.category == null
-                  ? Translations.get(
-                    'category_created_successfully',
-                    languageCode,
-                  )
-                  : Translations.get(
-                    'category_updated_successfully',
-                    languageCode,
-                  ),
-            ),
-            backgroundColor: AppTheme.success,
+    if (mounted && success) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.category == null
+                ? Translations.get('category_created_successfully', lang)
+                : Translations.get('category_updated_successfully', lang),
           ),
-        );
-      } else {
-        final errorMessage = ref.read(menuProvider).error;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              errorMessage ??
-                  Translations.get('operation_failed', languageCode),
-            ),
-            backgroundColor: AppTheme.error,
-          ),
-        );
-      }
+          backgroundColor: AppTheme.success,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final localization = ref.watch(localizationProvider);
-    final languageCode = localization.languageCode;
-    final isMobile = MediaQuery.of(context).size.width < 600;
+    final lang = ref.watch(localizationProvider).languageCode;
+    final isEditing = widget.category != null;
 
-    if (isMobile) {
-      // Full screen for mobile
-      return Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          title: Text(
-            Translations.get(
-              widget.category == null
-                  ? 'add_category_dialog_title'
-                  : 'edit_category_dialog_title',
-              languageCode,
-            ),
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () => Navigator.pop(context),
-              tooltip: Translations.get('close', languageCode),
-            ),
-          ],
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
         ),
-        body: Form(
-          key: _formKey,
-          child: Stack(
+        title: Text(
+          isEditing
+              ? Translations.get('edit_category_dialog_title', lang)
+              : Translations.get('add_category_dialog_title', lang),
+          style: const TextStyle(
+            color: Colors.black,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed:
+                (_isLoading || _nameController.text.trim().isEmpty)
+                    ? null
+                    : _save,
+            child:
+                _isLoading
+                    ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                    : Text(
+                      Translations.get('save', lang).toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color:
+                            _nameController.text.trim().isEmpty
+                                ? Colors.grey.shade400
+                                : AppTheme.primaryOrange,
+                      ),
+                    ),
+          ),
+        ],
+      ),
+      body: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ListView(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
-                children: [
-                  // Name
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: InputDecoration(
-                      labelText: Translations.get('name', languageCode),
-                      hintText: Translations.get('name_hint', languageCode),
-                      border: const OutlineInputBorder(),
-                    ),
-                    validator:
-                        (value) =>
-                            value?.isEmpty ?? true
-                                ? Translations.get(
-                                  'name_required',
-                                  languageCode,
-                                )
-                                : null,
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: 16),
+              Divider(height: 1, color: Colors.grey.shade200),
 
-                  // Description
-                  TextFormField(
-                    controller: _descriptionController,
-                    decoration: InputDecoration(
-                      labelText: Translations.get('description', languageCode),
-                      hintText: Translations.get(
-                        'description_hint',
-                        languageCode,
-                      ),
-                      border: const OutlineInputBorder(),
+              // ─── Category Name ───
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: TextFormField(
+                  controller: _nameController,
+                  style: const TextStyle(fontSize: 16),
+                  onChanged: (_) => setState(() {}),
+                  validator:
+                      (v) =>
+                          v?.isEmpty == true
+                              ? Translations.get('name_required', lang)
+                              : null,
+                  decoration: InputDecoration(
+                    labelText: Translations.get('name', lang),
+                    isDense: true,
+                    filled: false,
+                    labelStyle: TextStyle(color: Colors.grey.shade500),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey.shade300),
                     ),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Display Order
-                  TextFormField(
-                    controller: _displayOrderController,
-                    decoration: InputDecoration(
-                      labelText: Translations.get(
-                        'display_order',
-                        languageCode,
-                      ),
-                      hintText: Translations.get(
-                        'display_order_hint',
-                        languageCode,
-                      ),
-                      border: const OutlineInputBorder(),
-                      helperText: Translations.get(
-                        'display_order_helper',
-                        languageCode,
-                      ),
+                    focusedBorder: const UnderlineInputBorder(
+                      borderSide: BorderSide(color: AppTheme.primaryOrange),
                     ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Color Picker
-                  Text(
-                    Translations.get('category_color', languageCode),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                    errorBorder: const UnderlineInputBorder(
+                      borderSide: BorderSide(color: AppTheme.error),
+                    ),
+                    focusedErrorBorder: const UnderlineInputBorder(
+                      borderSide: BorderSide(color: AppTheme.error),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children:
-                        _colorOptions.map((color) {
-                          final isSelected = _selectedColor == color;
-                          return InkWell(
-                            onTap: () {
-                              setState(() => _selectedColor = color);
-                            },
-                            child: Container(
-                              width: 50,
-                              height: 50,
-                              decoration: BoxDecoration(
-                                color: Color(
-                                  int.parse(color.replaceAll('#', '0xFF')),
-                                ),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color:
-                                      isSelected
-                                          ? AppTheme.primaryOrange
-                                          : Colors.transparent,
-                                  width: 3,
-                                ),
-                                boxShadow: [
-                                  if (isSelected)
-                                    BoxShadow(
-                                      color: AppTheme.primaryOrange.withOpacity(
-                                        0.3,
-                                      ),
-                                      blurRadius: 8,
-                                      spreadRadius: 2,
-                                    ),
-                                ],
-                              ),
-                              child:
-                                  isSelected
-                                      ? const Icon(
-                                        Icons.check,
-                                        color: Colors.white,
-                                      )
-                                      : null,
-                            ),
-                          );
-                        }).toList(),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Active Status
-                  if (widget.category != null)
-                    SwitchListTile(
-                      title: Text(Translations.get('active', languageCode)),
-                      subtitle: Text(
-                        Translations.get('active_subtitle', languageCode),
-                      ),
-                      value: _isActive,
-                      onChanged: (value) {
-                        setState(() => _isActive = value);
-                      },
-                    ),
-                ],
+                ),
               ),
-              // Floating Save Button at Bottom
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, -2),
-                      ),
-                    ],
+
+              const SizedBox(height: 32),
+
+              // ─── Category Color Label ───
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  Translations.get('category_color', lang),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryOrange,
                   ),
-                  child: SafeArea(
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: _isLoading || !_isFormValid ? null : _save,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryOrange,
-                          disabledBackgroundColor: AppTheme.neutral300,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // ─── Color Grid (4x2) ───
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                  ),
+                  itemCount: _colors.length,
+                  itemBuilder: (_, i) {
+                    final selected = _selectedColorIndex == i;
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedColorIndex = i),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: _colors[i],
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child:
-                            _isLoading
-                                ? const SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
+                            selected
+                                ? const Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                  size: 28,
                                 )
-                                : Text(
-                                  widget.category == null
-                                      ? Translations.get(
-                                        'add_category',
-                                        languageCode,
-                                      )
-                                      : Translations.get(
-                                        'save_changes',
-                                        languageCode,
-                                      ),
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
+                                : null,
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
               ),
+              const SizedBox(height: 24),
+              Divider(height: 1, color: Colors.grey.shade200),
+
+              const SizedBox(height: 40),
             ],
-          ),
-        ),
-      );
-    }
-
-    // Dialog for tablet/desktop
-    return Dialog(
-      child: Container(
-        width: 500,
-        constraints: const BoxConstraints(maxHeight: 600),
-        child: Scaffold(
-          appBar: AppBar(
-            title: Text(
-              widget.category == null
-                  ? Translations.get('add_category_dialog_title', languageCode)
-                  : Translations.get(
-                    'edit_category_dialog_title',
-                    languageCode,
-                  ),
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () => Navigator.pop(context),
-            ),
-            actions: [
-              if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-              else
-                TextButton(
-                  onPressed: _save,
-                  child: Text(
-                    Translations.get('save', languageCode),
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-            ],
-          ),
-          body: Form(
-            key: _formKey,
-            child: ListView(
-              padding: const EdgeInsets.all(24),
-              children: [
-                // Name
-                TextFormField(
-                  controller: _nameController,
-                  decoration: InputDecoration(
-                    labelText: Translations.get('name', languageCode),
-                    hintText: 'e.g., Beverages',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator:
-                      (value) =>
-                          value?.isEmpty ?? true ? 'Name is required' : null,
-                ),
-                const SizedBox(height: 16),
-
-                // Description
-                TextFormField(
-                  controller: _descriptionController,
-                  decoration: InputDecoration(
-                    labelText: Translations.get('description', languageCode),
-                    hintText: 'Soft drinks, juices, water',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 16),
-
-                // Display Order
-                TextFormField(
-                  controller: _displayOrderController,
-                  decoration: InputDecoration(
-                    labelText: Translations.get('display_order', languageCode),
-                    hintText: '0',
-                    border: OutlineInputBorder(),
-                    helperText: 'Lower numbers appear first',
-                  ),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                ),
-                const SizedBox(height: 16),
-
-                // Color Picker
-                Text(
-                  Translations.get('category_color', languageCode),
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children:
-                      _colorOptions.map((color) {
-                        final isSelected = _selectedColor == color;
-                        return InkWell(
-                          onTap: () {
-                            setState(() => _selectedColor = color);
-                          },
-                          child: Container(
-                            width: 50,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              color: Color(
-                                int.parse(color.replaceAll('#', '0xFF')),
-                              ),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color:
-                                    isSelected
-                                        ? AppTheme.primaryOrange
-                                        : Colors.transparent,
-                                width: 3,
-                              ),
-                              boxShadow: [
-                                if (isSelected)
-                                  BoxShadow(
-                                    color: AppTheme.primaryOrange.withOpacity(
-                                      0.3,
-                                    ),
-                                    blurRadius: 8,
-                                    spreadRadius: 2,
-                                  ),
-                              ],
-                            ),
-                            child:
-                                isSelected
-                                    ? const Icon(
-                                      Icons.check,
-                                      color: Colors.white,
-                                    )
-                                    : null,
-                          ),
-                        );
-                      }).toList(),
-                ),
-                const SizedBox(height: 24),
-
-                // Active Status
-                if (widget.category != null)
-                  SwitchListTile(
-                    title: Text(Translations.get('active', languageCode)),
-                    subtitle: Text(
-                      Translations.get('active_subtitle', languageCode),
-                    ),
-                    value: _isActive,
-                    onChanged: (value) {
-                      setState(() => _isActive = value);
-                    },
-                  ),
-              ],
-            ),
           ),
         ),
       ),

@@ -4,10 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/router.dart';
 import '../../app/theme.dart';
+import '../../core/providers/localization_provider.dart';
 import '../../features/auth/providers/auth_provider.dart';
 
 /// Bottom navigation bar for mobile devices
-/// 
+///
 /// Shows main navigation items at bottom of screen
 /// Mobile-friendly design (Loyverse mobile style)
 class AppBottomNav extends ConsumerWidget {
@@ -75,87 +76,93 @@ class AppBottomNav extends ConsumerWidget {
       unselectedItemColor: AppTheme.neutral500,
       selectedFontSize: 12,
       unselectedFontSize: 11,
-      items: items.map((item) {
-        return BottomNavigationBarItem(
-          icon: Icon(item.icon),
-          label: item.label,
-        );
-      }).toList(),
+      items:
+          items.map((item) {
+            return BottomNavigationBarItem(
+              icon: Icon(item.icon),
+              label: item.label,
+            );
+          }).toList(),
     );
   }
 
   void _showMoreMenu(BuildContext context, WidgetRef ref, dynamic user) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'More',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-
-            // User Info
-            ListTile(
-              leading: CircleAvatar(
-                backgroundColor: AppTheme.primaryOrangeBackground,
-                child: Text(
-                  user?.name.substring(0, 1).toUpperCase() ?? 'U',
-                  style: const TextStyle(
-                    color: AppTheme.primaryOrange,
-                    fontWeight: FontWeight.bold,
+      builder:
+          (context) => Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'More',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                 ),
-              ),
-              title: Text(user?.name ?? 'User'),
-              subtitle: Text(user?.roleDisplayName ?? 'Staff'),
-            ),
-            const Divider(),
 
-            // Logout
-            ListTile(
-              leading: const Icon(Icons.logout, color: AppTheme.error),
-              title: const Text('Logout', style: TextStyle(color: AppTheme.error)),
-              onTap: () async {
-                Navigator.pop(context);
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Logout'),
-                    content: const Text('Are you sure you want to logout?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel'),
+                // User Info
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: AppTheme.primaryOrangeBackground,
+                    child: Text(
+                      user?.name.substring(0, 1).toUpperCase() ?? 'U',
+                      style: const TextStyle(
+                        color: AppTheme.primaryOrange,
+                        fontWeight: FontWeight.bold,
                       ),
-                      ElevatedButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Logout'),
-                      ),
-                    ],
+                    ),
                   ),
-                );
+                  title: Text(user?.name ?? 'User'),
+                  subtitle: Text(user?.roleDisplayName ?? 'Staff'),
+                ),
+                const Divider(),
 
-                if (confirmed == true) {
-                  await ref.read(authProvider.notifier).logout();
-                }
-              },
+                // Logout
+                ListTile(
+                  leading: const Icon(Icons.logout, color: AppTheme.error),
+                  title: const Text(
+                    'Logout',
+                    style: TextStyle(color: AppTheme.error),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder:
+                          (context) => AlertDialog(
+                            title: const Text('Logout'),
+                            content: const Text(
+                              'Are you sure you want to logout?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('Cancel'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('Logout'),
+                              ),
+                            ],
+                          ),
+                    );
+
+                    if (confirmed == true) {
+                      await ref.read(authProvider.notifier).logout();
+                      await ref.read(localizationProvider.notifier).clearLanguage();
+                    }
+                  },
+                ),
+
+                const SizedBox(height: 16),
+              ],
             ),
-            
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
+          ),
     );
   }
 }
@@ -173,4 +180,3 @@ class _BottomNavItem {
     this.enabled = true,
   });
 }
-

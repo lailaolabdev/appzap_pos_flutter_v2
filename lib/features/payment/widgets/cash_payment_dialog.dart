@@ -11,7 +11,6 @@ import '../../../core/utils/receipt_printer.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../providers/payment_provider.dart';
 
-/// Cash payment dialog
 class CashPaymentDialog extends ConsumerStatefulWidget {
   final double totalAmount;
   final Cart cart;
@@ -31,6 +30,14 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
   double _tenderedAmount = 0;
   bool _isProcessing = false;
   String? _errorMessage;
+  String _selectedMethod = 'cash';
+
+  @override
+  void initState() {
+    super.initState();
+    _tenderedAmount = widget.totalAmount;
+    _tenderedController.text = widget.totalAmount.toInt().toString();
+  }
 
   @override
   void dispose() {
@@ -38,716 +45,487 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
     super.dispose();
   }
 
-  void _setQuickAmount(double amount) {
-    print('🔘 Quick amount button clicked: $amount');
-    setState(() {
-      _tenderedAmount = amount;
-      _tenderedController.text = amount.toInt().toString();
-    });
-    print(
-      '✅ Updated _tenderedAmount=$_tenderedAmount, canComplete=$_canComplete',
-    );
-  }
-
   double get _change => _tenderedAmount - widget.totalAmount;
+
   bool get _canComplete {
-    // Try to get amount from state first, fallback to controller text
+    if (_selectedMethod != 'cash') return true;
     double amount = _tenderedAmount;
     if (amount == 0 && _tenderedController.text.isNotEmpty) {
       amount = double.tryParse(_tenderedController.text) ?? 0;
-      print(
-        '⚠️ Using controller text as fallback: ${_tenderedController.text} → $amount',
-      );
     }
-    final canComplete = amount >= widget.totalAmount;
-    print(
-      '🔍 _canComplete check: amount=$amount, total=${widget.totalAmount}, result=$canComplete',
-    );
-    return canComplete;
+    return amount >= widget.totalAmount;
   }
 
   @override
   Widget build(BuildContext context) {
     final total = widget.totalAmount;
-    final localization = ref.watch(localizationProvider);
-    // ✅ Watch payment provider to keep it alive during async operations
+    final lang = ref.watch(localizationProvider).languageCode;
     ref.watch(paymentProvider);
 
-    // Debug logging
-    print(
-      '💳 CashPaymentDialog build: _tenderedAmount=$_tenderedAmount, total=$total, canComplete=$_canComplete',
-    );
-
     return PopScope(
-      canPop: !_isProcessing, // Prevent back button during processing
+      canPop: !_isProcessing,
       child: Scaffold(
-        backgroundColor: AppTheme.neutral50,
+        backgroundColor: const Color(0xFFF5F5F5),
         appBar: AppBar(
-          elevation: 0,
           backgroundColor: Colors.white,
+          elevation: 0,
+          scrolledUnderElevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.close, color: AppTheme.neutral800),
-            onPressed:
-                _isProcessing
-                    ? null // Disable close button during processing
-                    : () {
-                      print('❌ User clicked X button - cancelling payment');
-                      Navigator.pop(context); // Returns null
-                    },
+            icon: const Icon(Icons.close, color: Colors.black),
+            onPressed: _isProcessing ? null : () => Navigator.pop(context),
           ),
           title: Text(
-            Translations.get('cash_payment', localization.languageCode),
+            Translations.get('checkout', lang),
             style: TextStyle(
-              color: AppTheme.neutral900,
-              fontWeight: FontWeight.bold,
+              color: Colors.black,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
             ),
           ),
           centerTitle: true,
         ),
-        body: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Replace your Container with this FIXED version:
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 8, // Slightly more vertical padding
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color:
-                                _canComplete
-                                    ? AppTheme.success
-                                    : AppTheme.primaryOrange,
-                            width: 1,
+        body: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 16),
+                    // Payment Method Options
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _buildPaymentOption(
+                              icon: Icons.attach_money,
+                              label: Translations.get('cash', lang),
+                              value: 'cash',
+                              iconColor: Colors.green,
+                            ),
                           ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            // FIXED: Smaller currency symbol
-                            Text(
-                              '₭',
-                              style: Theme.of(
-                                context,
-                              ).textTheme.headlineMedium?.copyWith(
-                                // Smaller than headlineLarge
-                                fontWeight: FontWeight.w500, // Medium weight
-                                color: AppTheme.neutral400,
-                                fontSize: 24, // Explicit smaller size
-                                height: 1.1,
-                              ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildPaymentOption(
+                              icon: Icons.wallet,
+                              label: Translations.get('transfer', lang),
+                              value: 'transfer',
+                              iconColor: Colors.orange,
                             ),
-                            const SizedBox(width: 12), // Proper spacing
-                            // FIXED: TextField with NO background + bigger placeholder
-                            Expanded(
-                              child: TextField(
-                                controller: _tenderedController,
-                                autofocus: true,
-                                keyboardType: TextInputType.number,
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.digitsOnly,
-                                ],
-                                style: Theme.of(
-                                  context,
-                                ).textTheme.displayLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color:
-                                      _canComplete
-                                          ? AppTheme.success
-                                          : AppTheme.primaryOrange,
-                                  fontSize:
-                                      24, // Slightly bigger for better visibility
-                                  height: 1.1,
-                                ),
-                                textAlign: TextAlign.start,
-                                decoration: InputDecoration(
-                                  hintText: '0',
-                                  hintStyle: Theme.of(
-                                    context,
-                                  ).textTheme.displayLarge?.copyWith(
-                                    fontSize: 24, // FIXED: Bigger placeholder
-                                    fontWeight:
-                                        FontWeight.w300, // Lighter weight
-                                    color: AppTheme.neutral300, // Softer gray
-                                    height: 1.1,
-                                  ),
-                                  // FIXED: NO BACKGROUND, NO PADDING
-                                  fillColor:
-                                      Colors
-                                          .transparent, // Transparent background
-                                  filled: false, // Disable fill completely
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                  disabledBorder: InputBorder.none,
-                                  errorBorder: InputBorder.none,
-                                  focusedErrorBorder: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 8,
-                                  ), // Tiny padding only vertical
-                                  isDense: true, // Compact mode
-                                ),
-                                onChanged: (value) {
-                                  final parsed = double.tryParse(value) ?? 0;
-                                  print(
-                                    '💰 TextField onChanged: value="$value", parsed=$parsed',
-                                  );
-                                  setState(() {
-                                    _tenderedAmount = parsed;
-                                  });
-                                  print(
-                                    '✅ Updated _tenderedAmount=$_tenderedAmount, canComplete=$_canComplete',
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      // Amount to Pay - Compact row
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 14,
-                          horizontal: 20,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryOrange.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppTheme.primaryOrange.withValues(
-                              alpha: 0.2,
-                            ),
-                            width: 1,
                           ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              Translations.get(
-                                'amount_to_pay',
-                                localization.languageCode,
-                              ),
-                              style: Theme.of(
-                                context,
-                              ).textTheme.bodyLarge?.copyWith(
-                                color: AppTheme.neutral700,
-                                fontWeight: FontWeight.w600,
-                              ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildPaymentOption(
+                              icon: Icons.qr_code_scanner,
+                              label: 'Bank QR',
+                              value: 'bankQR',
+                              iconColor: Colors.grey,
                             ),
-                            Text(
-                              CurrencyFormatter.formatLAKWithSymbol(total),
-                              style: Theme.of(
-                                context,
-                              ).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.primaryOrange,
-                              ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildPaymentOption(
+                              icon: Icons.card_giftcard,
+                              label: 'Points',
+                              value: 'points',
+                              iconColor: Colors.grey,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 12),
+                    ),
+                    const SizedBox(height: 24),
 
-                      // Change to Return - Compact row (similar to Amount to Pay but different)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 14,
-                          horizontal: 20,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                              _canComplete
-                                  ? AppTheme.success.withValues(alpha: 0.08)
-                                  : AppTheme.error.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
+                    // Amount input (shows total by default, user can change)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: SizedBox(
+                        height: 48,
+                        child: TextField(
+                          controller: _tenderedController,
+                          autofocus: false,
+                          textAlign: TextAlign.right,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
                             color:
                                 _canComplete
-                                    ? AppTheme.success.withValues(alpha: 0.3)
-                                    : AppTheme.error.withValues(alpha: 0.3),
-                            width: 1,
+                                    ? AppTheme.primaryOrange
+                                    : Colors.black,
                           ),
+                          decoration: _amountInputDecoration(total),
+                          onChanged:
+                              (v) => setState(
+                                () => _tenderedAmount = double.tryParse(v) ?? 0,
+                              ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Change
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 16,
                         ),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          mainAxisAlignment: MainAxisAlignment.start,
                           children: [
                             Row(
                               children: [
-                                Icon(
-                                  _canComplete
-                                      ? Icons.check_circle_outline
-                                      : Icons.warning_amber_rounded,
-                                  color:
-                                      _canComplete
-                                          ? AppTheme.success
-                                          : AppTheme.error,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
                                 Text(
-                                  Translations.get(
-                                    'change',
-                                    localization.languageCode,
-                                  ),
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.bodyLarge?.copyWith(
+                                  '${Translations.get('change', lang)} :',
+                                  style: const TextStyle(
                                     color: AppTheme.neutral700,
                                     fontWeight: FontWeight.w600,
+                                    fontSize: 14,
                                   ),
                                 ),
                               ],
                             ),
+                            const SizedBox(width: 8),
                             Text(
-                              _canComplete
-                                  ? CurrencyFormatter.formatLAKWithSymbol(
-                                    _change,
-                                  )
-                                  : Translations.get(
-                                    'insufficient',
-                                    localization.languageCode,
-                                  ),
-                              style: Theme.of(
-                                context,
-                              ).textTheme.titleLarge?.copyWith(
+                              CurrencyFormatter.formatLAKWithSymbol(_change),
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 color:
                                     _canComplete
                                         ? AppTheme.success
                                         : AppTheme.error,
+                                fontSize: 16,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 20),
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
-                      // Error message
-                      if (_errorMessage != null) ...[
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppTheme.error.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: AppTheme.error.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.error_outline,
-                                color: AppTheme.error,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _errorMessage!,
-                                  style: const TextStyle(
-                                    color: AppTheme.error,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                            ],
+            // Error message
+            if (_errorMessage != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.error.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        color: AppTheme.error,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(
+                            color: AppTheme.error,
+                            fontSize: 13,
                           ),
                         ),
-                        const SizedBox(height: 16),
-                      ],
-
-                      // Quick amount buttons - Always visible above keyboard
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _QuickAmountButton(
-                              amount: total,
-                              label: Translations.get(
-                                'exact',
-                                localization.languageCode,
-                              ),
-                              icon: Icons.check_circle_outline,
-                              onTap: () => _setQuickAmount(total),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _QuickAmountButton(
-                              amount: 50000,
-                              label: '50K',
-                              icon: Icons.payments_outlined,
-                              onTap: () => _setQuickAmount(50000),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _QuickAmountButton(
-                              amount: 100000,
-                              label: '100K',
-                              icon: Icons.account_balance_wallet_outlined,
-                              onTap: () => _setQuickAmount(100000),
-                            ),
-                          ),
-                        ],
                       ),
                     ],
                   ),
                 ),
               ),
 
-              // Bottom action buttons - Fixed at bottom, above keyboard
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 20,
-                      offset: const Offset(0, -4),
-                    ),
-                  ],
-                ),
+            // Bottom Action Buttons
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, -5),
+                  ),
+                ],
+              ),
+              child: SafeArea(
                 child: Row(
                   children: [
+                    // Cancel
                     Expanded(
                       child: OutlinedButton(
                         onPressed:
-                            _isProcessing
-                                ? null // Disable during processing
-                                : () => Navigator.pop(context),
+                            _isProcessing ? null : () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          side: const BorderSide(
-                            color: AppTheme.neutral300,
-                            width: 2,
-                          ),
+                          side: BorderSide(color: Colors.grey.shade300),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                         child: Text(
-                          Translations.get('cancel', localization.languageCode),
+                          Translations.get('cancel', lang),
                           style: TextStyle(
                             fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade700,
                           ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 12),
+                    // Pay + Print
                     Expanded(
                       flex: 2,
                       child: ElevatedButton(
                         onPressed:
                             (_canComplete && !_isProcessing)
-                                ? () async {
-                                  print('✅ Complete Payment button clicked!');
-                                  print('   _tenderedAmount=$_tenderedAmount');
-                                  print(
-                                    '   _tenderedController.text=${_tenderedController.text}',
-                                  );
-
-                                  // Use fallback logic for tendered amount
-                                  double finalAmount = _tenderedAmount;
-                                  if (finalAmount == 0 &&
-                                      _tenderedController.text.isNotEmpty) {
-                                    finalAmount =
-                                        double.tryParse(
-                                          _tenderedController.text,
-                                        ) ??
-                                        0;
-                                    print(
-                                      '⚠️ Using controller text as fallback: $finalAmount',
-                                    );
-                                  }
-
-                                  // ✅ Capture notifier BEFORE async operation (keeps it alive!)
-                                  final paymentNotifier = ref.read(
-                                    paymentProvider.notifier,
-                                  );
-
-                                  // ✅ Start processing (show loading inside dialog)
-                                  setState(() {
-                                    _isProcessing = true;
-                                    _errorMessage = null;
-                                  });
-
-                                  try {
-                                    // 🖨️ Print receipt first (don't block payment if it fails)
-                                    print('🖨️ Printing receipt...');
-                                    try {
-                                      await _printReceipt();
-                                    } catch (printError) {
-                                      print(
-                                        '⚠️ Print failed but continuing with payment: $printError',
-                                      );
-                                      // Show warning but continue with payment
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              Translations.get(
-                                                'print_failed_but_payment_will_continue',
-                                                localization.languageCode,
-                                              ),
-                                            ),
-                                            backgroundColor: AppTheme.warning,
-                                            duration: const Duration(
-                                              seconds: 2,
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    }
-
-                                    // ✅ Process payment using captured notifier (stays alive!)
-                                    print(
-                                      '🔄 CashPaymentDialog: Processing payment: $finalAmount',
-                                    );
-                                    print('   Total: ${widget.totalAmount}');
-                                    print('   Tendered: $finalAmount');
-                                    print(
-                                      '   Cart items: ${widget.cart.items.length}',
-                                    );
-
-                                    final success = await paymentNotifier
-                                        .processCashPayment(
-                                          total: widget.totalAmount,
-                                          tendered: finalAmount,
-                                          cart: widget.cart,
-                                        );
-
-                                    print(
-                                      '📊 CashPaymentDialog: Payment result = $success',
-                                    );
-                                    print('   mounted = $mounted');
-
-                                    if (success && mounted) {
-                                      // ✅ Success! Close dialog and return to main screen
-                                      print(
-                                        '✅ CashPaymentDialog: Payment successful, closing dialog...',
-                                      );
-                                      Navigator.pop(context, {
-                                        'success': true,
-                                        'tendered': finalAmount,
-                                        'change':
-                                            finalAmount - widget.totalAmount,
-                                      });
-                                    } else if (mounted) {
-                                      // ❌ Failed, show error in dialog
-                                      print(
-                                        '❌ CashPaymentDialog: Payment failed (success=$success, mounted=$mounted)',
-                                      );
-                                      setState(() {
-                                        _isProcessing = false;
-                                        _errorMessage =
-                                            'Payment failed. Please try again.';
-                                      });
-                                    } else {
-                                      print(
-                                        '⚠️  CashPaymentDialog: Widget not mounted, cannot update UI',
-                                      );
-                                    }
-                                  } catch (e, stackTrace) {
-                                    // ❌ Exception, show error in dialog
-                                    print(
-                                      '❌ CashPaymentDialog: Payment exception: $e',
-                                    );
-                                    print('📍 Stack trace: $stackTrace');
-                                    if (mounted) {
-                                      setState(() {
-                                        _isProcessing = false;
-                                        _errorMessage = e.toString();
-                                      });
-                                    } else {
-                                      print(
-                                        '⚠️  CashPaymentDialog: Widget not mounted, cannot show error',
-                                      );
-                                    }
-                                  }
-                                }
+                                ? _processPayment
                                 : null,
                         style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: AppTheme.success,
+                          backgroundColor: const Color(0xFFFF6B00),
                           disabledBackgroundColor: AppTheme.neutral300,
-                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
+                          elevation: 0,
                         ),
                         child:
                             _isProcessing
-                                ? Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              Colors.white,
-                                            ),
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                    SizedBox(width: 12),
-                                    Text(
-                                      Translations.get(
-                                        'processing',
-                                        localization.languageCode,
-                                      ),
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
+                                ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
                                 )
-                                : Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.check_circle, size: 20),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      Translations.get(
-                                        'complete_payment',
-                                        localization.languageCode,
-                                      ),
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
+                                : Text(
+                                  Translations.get('pay', lang),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                    height: 1.3,
+                                  ),
                                 ),
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentOption({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color iconColor,
+  }) {
+    final isSelected = _selectedMethod == value;
+
+    return GestureDetector(
+      onTap:
+          _isProcessing ? null : () => setState(() => _selectedMethod = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFFFF3E0) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? const Color(0xFFFF6B00) : Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color:
+                    isSelected
+                        ? const Color(0xFFFF6B00).withValues(alpha: 0.1)
+                        : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                size: 24,
+                color: isSelected ? const Color(0xFFFF6B00) : iconColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: isSelected ? Colors.black87 : Colors.grey.shade700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _processPayment() async {
+    double finalAmount = _tenderedAmount;
+    if (_selectedMethod == 'cash') {
+      if (finalAmount == 0 && _tenderedController.text.isNotEmpty) {
+        finalAmount = double.tryParse(_tenderedController.text) ?? 0;
+      }
+    } else {
+      finalAmount = widget.totalAmount;
+    }
+
+    final paymentNotifier = ref.read(paymentProvider.notifier);
+    setState(() {
+      _isProcessing = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Run print and payment at the same time — don't wait for print to finish
+      final printFuture = _printReceipt().catchError((e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.toString().replaceAll('Exception: ', '')),
+              backgroundColor: AppTheme.warning,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      });
+
+      final paymentFuture = paymentNotifier.processCashPayment(
+        total: widget.totalAmount,
+        tendered: finalAmount,
+        cart: widget.cart,
+      );
+
+      // Wait for both — payment result matters, print doesn't block
+      final results = await Future.wait([printFuture, paymentFuture]);
+      final success = results[1] as bool;
+
+      if (success && mounted) {
+        Navigator.pop(context, {
+          'success': true,
+          'tendered': finalAmount,
+          'change': finalAmount - widget.totalAmount,
+          'method': _selectedMethod,
+        });
+      } else if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment failed. Please try again.'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  InputDecoration _amountInputDecoration(double total) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: AppTheme.primaryOrange),
+    );
+    return InputDecoration(
+      hintText: CurrencyFormatter.formatLAKWithSymbol(total),
+      hintStyle: TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.bold,
+        color: Colors.grey.shade400,
+      ),
+      prefixIcon: const Padding(
+        padding: EdgeInsets.only(left: 16, right: 8),
+        child: Text(
+          '₭',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.primaryOrange,
           ),
         ),
       ),
+      prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+      filled: true,
+      fillColor: Colors.white,
+      border: border,
+      enabledBorder: border,
+      focusedBorder: border,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
 
   Future<void> _printReceipt() async {
-    try {
-      // Get printer service and settings
-      final printerService = ref.read(settingsProvider.notifier).printerService;
-      final settings = ref.read(settingsProvider);
+    final printerService = ref.read(settingsProvider.notifier).printerService;
+    final settings = ref.read(settingsProvider);
 
-      // Auto-connect for Sunmi devices before printing
+    // Check if printing is enabled
+    if (!settings.enableReceiptPrinting) return;
+
+    // Check if printer is configured
+    if (settings.printerName.isEmpty) {
+      throw Exception('No printer configured');
+    }
+
+    // Try to connect if not connected
+    if (!printerService.isConnected) {
       final isSunmi = await printerService.isSunmiDevice();
       if (isSunmi) {
-        print('🌞 Sunmi device detected, ensuring printer connection...');
         final connected = await printerService.ensureSunmiConnected();
         if (!connected) {
-          // Try one more time with force=true if standard check fails
-          print('⚠️ Standard connection failed, forcing Sunmi connection...');
           await printerService.ensureSunmiConnected(force: true);
         }
       }
-
-      // Create receipt printer utility
-      final receiptPrinter = ReceiptPrinter(
-        printerService: printerService,
-        receiptHeader: settings.receiptHeader,
-        receiptFooter: settings.receiptFooter,
-      );
-
-      // Print the receipt (without table and server info)
-      final success = await receiptPrinter.printCartReceipt(
-        cart: widget.cart,
-        totalAmount: widget.totalAmount,
-      );
-
-      if (!success) {
-        throw Exception('Failed to print receipt');
+      // If still not connected after trying, fail
+      if (!printerService.isConnected) {
+        throw Exception('Printer not connected');
       }
-
-      print('✅ Receipt printed successfully');
-    } catch (e) {
-      print('❌ Print error: $e');
-      rethrow; // Re-throw to let caller handle it
     }
-  }
-}
 
-class _QuickAmountButton extends StatelessWidget {
-  final double amount;
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _QuickAmountButton({
-    required this.amount,
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      elevation: 0,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppTheme.primaryOrange.withValues(alpha: 0.3),
-              width: 2,
-            ),
-            gradient: LinearGradient(
-              colors: [
-                AppTheme.primaryOrange.withValues(alpha: 0.08),
-                AppTheme.primaryOrange.withValues(alpha: 0.03),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: AppTheme.primaryOrange, size: 24),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryOrange,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      ),
+    final receiptPrinter = ReceiptPrinter(
+      printerService: printerService,
+      receiptHeader: settings.receiptHeader,
+      receiptFooter: settings.receiptFooter,
     );
+
+    final success = await receiptPrinter.printCartReceipt(
+      cart: widget.cart,
+      totalAmount: widget.totalAmount,
+    );
+    if (!success) throw Exception('Failed to print receipt');
   }
 }

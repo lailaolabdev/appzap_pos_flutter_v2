@@ -148,16 +148,14 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
 
   /// Refresh inventory
   Future<void> refresh() async {
-    await loadInventory();
-    await loadAlerts();
+    await Future.wait([loadInventory(), loadAlerts()]);
   }
 
   /// Adjust stock
   Future<bool> adjustStock(StockAdjustment adjustment) async {
     try {
       await _inventoryService.adjustStock(adjustment);
-      await loadInventory();
-      await loadAlerts();
+      await Future.wait([loadInventory(), loadAlerts()]);
       return true;
     } catch (e) {
       // Add better error logging
@@ -508,10 +506,7 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
       );
 
       // Refresh inventory after stock deduction
-      await loadInventory();
-      await loadAlerts();
-
-      print('✅ Stock deduction completed for order: $orderId');
+      await Future.wait([loadInventory(), loadAlerts()]);
     } catch (e) {
       print('❌ Error processing stock deduction: $e');
       rethrow;

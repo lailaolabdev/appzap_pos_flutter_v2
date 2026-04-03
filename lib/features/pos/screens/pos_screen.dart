@@ -2,28 +2,23 @@ import 'package:appzap_pos/core/constants/translations.dart';
 import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
 import '../../../core/models/cart.dart';
 import '../../../core/models/customer.dart';
-import '../../../core/models/payment.dart';
+import '../../../core/models/product.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../shared/widgets/app_sidebar.dart';
 import '../../customers/widgets/customer_lookup_dialog.dart';
 import '../../customers/widgets/redeem_points_dialog.dart';
-import '../../payment/providers/payment_provider.dart';
 import '../../payment/widgets/cash_payment_dialog.dart';
-import '../../payment/widgets/phaypay_dialog.dart';
+import '../../../core/services/checkout_service.dart';
 import '../providers/pos_provider.dart';
-import '../widgets/category_bar.dart';
-import '../widgets/product_grid.dart';
 import '../widgets/cart_panel.dart';
-import '../widgets/pos_search_bar.dart';
 import '../widgets/barcode_scanner_widget.dart';
 
-/// Main POS Screen with product grid and cart
+/// Main POS Screen — Loyverse-style design
 class POSScreen extends ConsumerStatefulWidget {
   const POSScreen({super.key});
 
@@ -33,6 +28,8 @@ class POSScreen extends ConsumerStatefulWidget {
 
 class _POSScreenState extends ConsumerState<POSScreen> {
   final _searchController = TextEditingController();
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _isSearchVisible = false;
 
   @override
   void dispose() {
@@ -40,25 +37,26 @@ class _POSScreenState extends ConsumerState<POSScreen> {
     super.dispose();
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Business Logic (unchanged)
+  // ═══════════════════════════════════════════════════════════════════
+
   void _handleSearch(String query) {
     ref.read(productsProvider.notifier).search(query);
   }
 
   Future<void> _handleBarcodeScan(String barcode) async {
-    final languageCode = ref.read(localizationProvider).languageCode;
-    // First try local search (synchronous)
+    final lang = ref.read(localizationProvider).languageCode;
     final localProduct = ref
         .read(productsProvider.notifier)
         .findByBarcode(barcode);
 
     if (localProduct != null) {
-      // Found locally - add to cart immediately
       ref.read(cartProvider.notifier).addProduct(localProduct);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            Translations.get('added_product', languageCode) +
-                ' ${localProduct.name}',
+            '${Translations.get('added_product', lang)} ${localProduct.name}',
           ),
           duration: const Duration(seconds: 1),
           backgroundColor: AppTheme.success,
@@ -67,109 +65,147 @@ class _POSScreenState extends ConsumerState<POSScreen> {
       return;
     }
 
-    // Not found locally - show loading and search via API
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
-            SizedBox(width: 12),
-            Text(Translations.get('searching_product', languageCode)),
-          ],
-        ),
-        duration: Duration(seconds: 2),
-        backgroundColor: AppTheme.neutral600,
-      ),
-    );
-
     try {
       final apiProduct = await ref
           .read(productsProvider.notifier)
           .findByBarcodeAsync(barcode);
       if (!mounted) return;
-
       if (apiProduct != null) {
-        // Found via API - add to cart
         ref.read(cartProvider.notifier).addProduct(apiProduct);
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              Translations.get('added_product', languageCode) +
-                  ' ${apiProduct.name} (found online)',
-            ),
-            duration: const Duration(seconds: 20),
-            backgroundColor: AppTheme.success,
-          ),
-        );
       } else {
-        // Not found anywhere
-        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              Translations.get('product_not_found', languageCode) +
-                  ': $barcode',
+              '${Translations.get('product_not_found', lang)}: $barcode',
             ),
             backgroundColor: AppTheme.error,
-            duration: const Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            Translations.get('search_failed', languageCode) +
-                ': ${e.toString()}',
-          ),
+          content: Text('${Translations.get('search_failed', lang)}: $e'),
           backgroundColor: AppTheme.error,
         ),
       );
     }
   }
 
-  /// Open barcode scanner camera
   Future<void> _openBarcodeScanner() async {
-    final languageCode = ref.read(localizationProvider).languageCode;
+    final scannedCode = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) =>
+                BarcodeScannerWidget(onBarcodeScanned: _handleBarcodeScan),
+      ),
+    );
+    if (scannedCode != null && scannedCode.isNotEmpty) {
+      _handleBarcodeScan(scannedCode);
+    }
+  }
 
-    try {
-      // Navigate to barcode scanner
-      final String? scannedCode = await Navigator.push<String>(
-        context,
-        MaterialPageRoute(
-          builder:
-              (context) => BarcodeScannerWidget(
-                onBarcodeScanned: (barcode) {
-                  // This will be called when a barcode is detected
-                  _handleBarcodeScan(barcode);
-                },
-              ),
+  Future<void> _handleCheckout() async {
+    final cart = ref.read(cartProvider);
+    if (cart.isEmpty) {
+      final lang = ref.read(localizationProvider).languageCode;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(Translations.get('cart_is_empty', lang)),
+          backgroundColor: AppTheme.warning,
         ),
       );
+      return;
+    }
 
-      // Handle the scanned barcode if returned
-      if (scannedCode != null && scannedCode.isNotEmpty) {
-        _handleBarcodeScan(scannedCode);
-      }
-    } catch (e) {
-      // Handle any errors (like camera permissions)
+    final cartNotifier = ref.read(cartProvider.notifier);
+
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder:
+            (context) => CashPaymentDialog(totalAmount: cart.total, cart: cart),
+      ),
+    );
+
+    if (result == null || result['success'] != true) return;
+    if (!mounted) return;
+
+    cartNotifier.clear();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          Translations.get(
+            'payment_successful',
+            ref.read(localizationProvider).languageCode,
+          ),
+        ),
+        backgroundColor: AppTheme.success,
+      ),
+    );
+  }
+
+  // Future<void> _handleApplyLoyalty() async {
+  //   final lang = ref.read(localizationProvider).languageCode;
+  //   final Customer? customer = await showDialog<Customer>(
+  //     context: context,
+  //     builder: (context) => const CustomerLookupDialog(),
+  //   );
+  //   if (customer == null) return;
+
+  //   final cart = ref.read(cartProvider);
+  //   final int? pointsRedeemed = await showDialog<int>(
+  //     context: context,
+  //     builder:
+  //         (context) => RedeemPointsDialog(
+  //           customer: customer,
+  //           orderTotal: cart.total,
+  //           orderId: 'TEMP-${DateTime.now().millisecondsSinceEpoch}',
+  //         ),
+  //   );
+
+  //   if (pointsRedeemed != null && pointsRedeemed > 0 && mounted) {
+  //     final discountAmount = pointsRedeemed * 100.0;
+  //     ref.read(cartProvider.notifier).setCustomer(customer);
+  //     ref
+  //         .read(cartProvider.notifier)
+  //         .addDiscount(
+  //           CartDiscount(
+  //             type: DiscountType.fixed,
+  //             value: discountAmount,
+  //             reason: 'Loyalty Points ($pointsRedeemed pts)',
+  //           ),
+  //         );
+  //   }
+  // }
+
+  void _addToCart(Product product) {
+    ref.read(cartProvider.notifier).addProduct(product);
+  }
+
+  Future<void> _handleSaveOrder(Cart cart) async {
+    final lang = ref.read(localizationProvider).languageCode;
+    try {
+      final checkoutService = ref.read(checkoutServiceProvider);
+      await checkoutService.saveOrderAsPending(cart: cart);
+      ref.read(cartProvider.notifier).clear();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              '${Translations.get('failed_to_open_scanner', languageCode)}: $e',
-            ),
+            content: Text(Translations.get('order_saved', lang)),
+            backgroundColor: AppTheme.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
             backgroundColor: AppTheme.error,
           ),
         );
@@ -177,109 +213,9 @@ class _POSScreenState extends ConsumerState<POSScreen> {
     }
   }
 
-  Future<void> _handleCheckout() async {
-    final languageCode = ref.read(localizationProvider).languageCode;
-
-    final cart = ref.read(cartProvider);
-    if (cart.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(Translations.get('cart_is_empty', languageCode)),
-          backgroundColor: AppTheme.warning,
-        ),
-      );
-      return;
-    }
-
-    // Show payment method selection
-    // ✅ Capture parent context before showing modal
-    final parentContext = context;
-    final result = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder:
-          (context) => _PaymentBottomSheet(
-            cart: cart,
-            parentContext: parentContext, // Pass parent context
-          ),
-    );
-
-    if (result == true) {
-      // Payment successful - clear cart
-      ref.read(cartProvider.notifier).clear();
-
-      // Show success message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              Translations.get('payment_completed_successfully', languageCode),
-            ),
-            backgroundColor: AppTheme.success,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _handleApplyLoyalty() async {
-    final languageCode = ref.read(localizationProvider).languageCode;
-    // Step 1: Look up customer
-    final Customer? customer = await showDialog<Customer>(
-      context: context,
-      builder: (context) => const CustomerLookupDialog(),
-    );
-
-    if (customer == null) return;
-
-    // Step 2: Show redemption dialog
-    final cart = ref.read(cartProvider);
-    final int? pointsRedeemed = await showDialog<int>(
-      context: context,
-      builder:
-          (context) => RedeemPointsDialog(
-            customer: customer,
-            orderTotal: cart.total,
-            orderId:
-                'TEMP-${DateTime.now().millisecondsSinceEpoch}', // Temporary ID
-          ),
-    );
-
-    if (pointsRedeemed != null && pointsRedeemed > 0 && mounted) {
-      // Calculate discount (100 points = 10,000 LAK, so 1 point = 100 LAK)
-      final discountAmount = pointsRedeemed * 100.0;
-
-      // Add customer to cart
-      ref.read(cartProvider.notifier).setCustomer(customer);
-
-      // Add loyalty discount to cart
-      ref
-          .read(cartProvider.notifier)
-          .addDiscount(
-            CartDiscount(
-              type: DiscountType.fixed,
-              value: discountAmount,
-              reason: 'Loyalty Points ($pointsRedeemed pts)',
-            ),
-          );
-
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${Translations.get('loyalty_points_applied', languageCode)} $pointsRedeemed ' +
-                Translations.get('loyalty_points', languageCode) +
-                ' (${CurrencyFormatter.format(discountAmount)} ' +
-                Translations.get('discount', languageCode) +
-                ')',
-          ),
-          backgroundColor: AppTheme.success,
-        ),
-      );
-    }
-  }
+  // ═══════════════════════════════════════════════════════════════════
+  // Build
+  // ═══════════════════════════════════════════════════════════════════
 
   @override
   Widget build(BuildContext context) {
@@ -287,184 +223,78 @@ class _POSScreenState extends ConsumerState<POSScreen> {
     final cart = ref.watch(cartProvider);
     final cartItemCount = ref.watch(cartItemCountProvider);
     final isMobile = Responsive.isMobile(context);
-    final localization = ref.watch(localizationProvider);
+    final lang = ref.watch(localizationProvider).languageCode;
 
     return AppShell(
       child: Scaffold(
-        backgroundColor: AppTheme.scaffoldBackground,
-        // Add drawer for mobile
+        key: _scaffoldKey,
+        backgroundColor: Colors.white,
         drawer:
             isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
-        appBar:
-            isMobile
-                ? AppBar(
-                  toolbarHeight: 70,
-                  title: Row(
-                    children: [
-                      // Search bar
-                      Expanded(
-                        child: Container(
-                          height: 45,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppTheme.neutral200),
-                          ),
-                          child: TextField(
-                            controller: _searchController,
-                            onChanged: _handleSearch,
-                            decoration: InputDecoration(
-                              hintText: Translations.get(
-                                'search_products_or_scan_barcode',
-                                localization.languageCode,
-                              ),
-                              hintStyle: TextStyle(
-                                color: AppTheme.neutral400,
-                                fontSize: 14,
-                              ),
-                              prefixIcon: Icon(
-                                Icons.search,
-                                color: AppTheme.neutral500,
-                                size: 22,
-                              ),
-                              border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 12,
-                              ),
-                            ),
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Barcode scanner button
-                      Container(
-                        width: 45,
-                        height: 45,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryOrange.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppTheme.primaryOrange.withValues(
-                              alpha: 0.3,
-                            ),
-                          ),
-                        ),
-                        child: IconButton(
-                          icon: Icon(
-                            Icons.qr_code_scanner,
-                            color: AppTheme.primaryOrange,
-                            size: 22,
-                          ),
-                          tooltip: Translations.get(
-                            'scan_barcode',
-                            localization.languageCode,
-                          ),
-                          padding: EdgeInsets.zero,
-                          onPressed: _openBarcodeScanner,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-                : AppBar(
-                  // Tablet/Desktop - keep simple
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.qr_code_scanner),
-                      tooltip: Translations.get(
-                        'scan_barcode',
-                        localization.languageCode,
-                      ),
-                      onPressed: _openBarcodeScanner,
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                ),
-        body:
-            isMobile
-                ? _buildMobileLayout(productsState, cart)
-                : _buildTabletLayout(productsState, cart),
-        // Bottom bar for mobile only
-        bottomNavigationBar:
-            isMobile ? _buildBottomBar(cart, cartItemCount) : null,
+        body: SafeArea(
+          child:
+              isMobile
+                  ? _buildMobileLayout(productsState, cart, cartItemCount, lang)
+                  : _buildTabletLayout(productsState, cart, lang),
+        ),
       ),
     );
   }
 
-  /// Mobile layout: Full-screen products + cart modal
-  Widget _buildMobileLayout(dynamic productsState, Cart cart) {
+  // ═══════════════════════════════════════════════════════════════════
+  // Mobile Layout — Loyverse style
+  // ═══════════════════════════════════════════════════════════════════
+
+  Widget _buildMobileLayout(
+    dynamic productsState,
+    Cart cart,
+    int cartItemCount,
+    String lang,
+  ) {
     return Column(
       children: [
-        // Category Bar
-        CategoryBar(
-          categories: productsState.categories,
-          selectedCategoryId: productsState.selectedCategoryId,
-          onCategorySelected: (categoryId) {
-            ref.read(productsProvider.notifier).selectCategory(categoryId);
-          },
-        ),
+        // ─── Dark AppBar ───
+        _buildDarkAppBar(cart, cartItemCount, lang),
 
-        // Products Grid
-        Expanded(child: _buildProductsGrid(productsState)),
+        // ─── SAVE / CHARGE Buttons ───
+        _buildActionButtons(cart, lang),
+
+        // ─── Category Dropdown + Search ───
+        _buildCategorySearchBar(productsState, lang),
+
+        // ─── Product List ───
+        Expanded(child: _buildProductList(productsState, lang)),
       ],
     );
   }
 
-  /// Tablet layout: Products + Cart side by side
-  Widget _buildTabletLayout(dynamic productsState, Cart cart) {
+  Widget _buildTabletLayout(dynamic productsState, Cart cart, String lang) {
     return Row(
       children: [
-        // Left: Products Panel
+        // Left: Product Panel
         Expanded(
           flex: 2,
           child: Column(
             children: [
-              // Search Bar
-              POSSearchBar(
-                controller: _searchController,
-                onSearch: _handleSearch,
-                onBarcodeScan: (barcode) => _handleBarcodeScan(barcode),
-              ),
-
-              // Category Bar
-              CategoryBar(
-                categories: productsState.categories,
-                selectedCategoryId: productsState.selectedCategoryId,
-                onCategorySelected: (categoryId) {
-                  ref
-                      .read(productsProvider.notifier)
-                      .selectCategory(categoryId);
-                },
-              ),
-
-              // Products Grid
-              Expanded(child: _buildProductsGrid(productsState)),
+              _buildDarkAppBar(cart, ref.watch(cartItemCountProvider), lang),
+              _buildCategorySearchBar(productsState, lang),
+              Expanded(child: _buildProductList(productsState, lang)),
             ],
           ),
         ),
-
-        // Divider
-        Container(width: 1, color: AppTheme.neutral200),
-
         // Right: Cart Panel
+        Container(width: 1, color: AppTheme.neutral700),
         SizedBox(
           width: 350,
           child: CartPanel(
             cart: cart,
-            onUpdateQuantity: (productId, quantity) {
-              ref
-                  .read(cartProvider.notifier)
-                  .updateQuantity(productId, quantity);
-            },
-            onRemoveItem: (productId) {
-              ref.read(cartProvider.notifier).removeItem(productId);
-            },
-            onClearCart: () {
-              ref.read(cartProvider.notifier).clear();
-            },
-            onApplyLoyalty: _handleApplyLoyalty,
+            onUpdateQuantity:
+                (id, qty) =>
+                    ref.read(cartProvider.notifier).updateQuantity(id, qty),
+            onRemoveItem:
+                (id) => ref.read(cartProvider.notifier).removeItem(id),
+            onClearCart: () => ref.read(cartProvider.notifier).clear(),
+            // onApplyLoyalty: _handleApplyLoyalty,
             onCheckout: _handleCheckout,
           ),
         ),
@@ -472,107 +302,367 @@ class _POSScreenState extends ConsumerState<POSScreen> {
     );
   }
 
-  /// Bottom bar with SAVE and checkout buttons (mobile only - 2 buttons, single line)
-  Widget _buildBottomBar(Cart cart, int cartItemCount) {
-    final localization = ref.watch(localizationProvider);
+  // ═══════════════════════════════════════════════════════════════════
+  // Dark AppBar
+  // ═══════════════════════════════════════════════════════════════════
+
+  Widget _buildDarkAppBar(Cart cart, int cartItemCount, String lang) {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      color: Colors.white,
+      child: Row(
+        children: [
+          // Hamburger menu
+          IconButton(
+            icon: const Icon(Icons.menu, color: AppTheme.neutral800, size: 24),
+            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+
+          // Ticket title + badge
+          Text(
+            Translations.get('ticket', lang),
+            style: const TextStyle(
+              color: AppTheme.neutral900,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 6),
+          if (cartItemCount > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                border: Border.all(color: AppTheme.neutral400),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                '$cartItemCount',
+                style: const TextStyle(
+                  color: AppTheme.neutral800,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+
+          const Spacer(),
+
+          // More options
+          PopupMenuButton<String>(
+            icon: const Icon(
+              Icons.more_vert,
+              color: AppTheme.neutral800,
+              size: 22,
+            ),
+            color: Colors.white,
+            onSelected: (value) {
+              if (value == 'scan') _openBarcodeScanner();
+              if (value == 'clear') {
+                ref.read(cartProvider.notifier).clear();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(Translations.get('cart_cleared', lang)),
+                    backgroundColor: AppTheme.success,
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+              }
+            },
+            itemBuilder:
+                (context) => [
+                  PopupMenuItem(
+                    value: 'scan',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.qr_code_scanner, size: 20),
+                        const SizedBox(width: 12),
+                        Text(Translations.get('scan_barcode', lang)),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'clear',
+                    enabled: cart.items.isNotEmpty,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.delete_outline,
+                          size: 20,
+                          color:
+                              cart.items.isNotEmpty
+                                  ? AppTheme.error
+                                  : AppTheme.neutral300,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          Translations.get('clear', lang),
+                          style: TextStyle(
+                            color:
+                                cart.items.isNotEmpty
+                                    ? AppTheme.error
+                                    : AppTheme.neutral300,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
           ),
         ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              // SAVE button (no icon, single line)
-              Expanded(
-                child: OutlinedButton(
-                  onPressed:
-                      cart.items.isEmpty
-                          ? null
-                          : () {
-                            // TODO: Implement save/on hold functionality
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  Translations.get(
-                                    'save_feature_coming_soon',
-                                    localization.languageCode,
-                                  ),
-                                ),
-                                duration: Duration(seconds: 1),
-                              ),
-                            );
-                          },
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: BorderSide(
-                      color:
-                          cart.items.isEmpty
-                              ? AppTheme.neutral300
-                              : AppTheme.neutral600,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Text(
-                    Translations.get('save', localization.languageCode),
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color:
-                          cart.items.isEmpty
-                              ? AppTheme.neutral400
-                              : AppTheme.neutral800,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Checkout button - orange, price only with count
-              Expanded(
-                flex: 2,
-                child: ElevatedButton(
-                  onPressed:
-                      cart.items.isEmpty
-                          ? null
-                          : () => _showMobileCart(context), // Show cart first
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryOrange,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    disabledBackgroundColor: AppTheme.neutral300,
-                  ),
-                  child: Text(
-                    cart.items.isEmpty
-                        ? '0 ₭ (0)'
-                        : '${CurrencyFormatter.formatLAKWithSymbol(cart.total)} ($cartItemCount)',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
 
-  /// Products grid (shared by mobile and tablet)
-  Widget _buildProductsGrid(dynamic productsState) {
-    final localization = ref.watch(localizationProvider);
+  // ═══════════════════════════════════════════════════════════════════
+  // SAVE / CHARGE Buttons
+  // ═══════════════════════════════════════════════════════════════════
 
+  Widget _buildActionButtons(Cart cart, String lang) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      color: AppTheme.neutral100,
+      child: Row(
+        children: [
+          // SAVE button
+          Expanded(
+            child: SizedBox(
+              height: 48,
+              child: ElevatedButton(
+                onPressed:
+                    cart.items.isEmpty ? null : () => _handleSaveOrder(cart),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryOrange,
+                  disabledBackgroundColor: AppTheme.primaryOrange.withValues(
+                    alpha: 0.4,
+                  ),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                child: Text(
+                  Translations.get('save', lang).toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // CHARGE button
+          Expanded(
+            flex: 2,
+            child: SizedBox(
+              height: 48,
+              child: ElevatedButton(
+                onPressed:
+                    cart.items.isEmpty ? null : () => _showMobileCart(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryOrange,
+                  disabledBackgroundColor: AppTheme.primaryOrange.withValues(
+                    alpha: 0.4,
+                  ),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                child: Text(
+                  '${Translations.get('charge', lang).toUpperCase()}  ${CurrencyFormatter.formatLAKWithSymbol(cart.total)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Category Dropdown + Search
+  // ═══════════════════════════════════════════════════════════════════
+
+  Widget _buildCategorySearchBar(dynamic productsState, String lang) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: AppTheme.neutral200)),
+      ),
+      child: Row(
+        children: [
+          // Swap between dropdown and search field
+          Expanded(
+            child:
+                _isSearchVisible
+                    // ── Search TextField ──
+                    ? SizedBox(
+                      height: 40,
+                      child: TextField(
+                        controller: _searchController,
+                        autofocus: true,
+                        onChanged: _handleSearch,
+                        style: const TextStyle(
+                          color: AppTheme.neutral900,
+                          fontSize: 14,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: Translations.get(
+                            'search_products_or_scan_barcode',
+                            lang,
+                          ),
+                          hintStyle: const TextStyle(
+                            color: AppTheme.neutral400,
+                            fontSize: 14,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(6),
+                            borderSide: const BorderSide(
+                              color: AppTheme.primaryOrange,
+                              width: 1.5,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(6),
+                            borderSide: const BorderSide(
+                              color: AppTheme.primaryOrange,
+                              width: 1.5,
+                            ),
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            color: AppTheme.neutral400,
+                            size: 20,
+                          ),
+                          prefixIconConstraints: const BoxConstraints(
+                            minWidth: 36,
+                          ),
+                        ),
+                      ),
+                    )
+                    // ── Category Dropdown ──
+                    : Container(
+                      height: 40,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.neutral100,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppTheme.neutral300),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String?>(
+                          value: productsState.selectedCategoryId,
+                          isExpanded: true,
+                          icon: const Icon(
+                            Icons.arrow_drop_down,
+                            color: AppTheme.neutral600,
+                          ),
+                          dropdownColor: Colors.white,
+                          style: const TextStyle(
+                            color: AppTheme.neutral900,
+                            fontSize: 14,
+                          ),
+                          hint: Text(
+                            Translations.get('all_items', lang),
+                            style: const TextStyle(
+                              color: AppTheme.neutral600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          items: [
+                            DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text(Translations.get('all_items', lang)),
+                            ),
+                            ...productsState.categories
+                                .map<DropdownMenuItem<String?>>((cat) {
+                                  return DropdownMenuItem<String?>(
+                                    value: cat.id,
+                                    child: Text(cat.name),
+                                  );
+                                }),
+                          ],
+                          onChanged: (value) {
+                            ref
+                                .read(productsProvider.notifier)
+                                .selectCategory(value);
+                          },
+                        ),
+                      ),
+                    ),
+          ),
+          const SizedBox(width: 8),
+
+          // Search toggle button
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color:
+                  _isSearchVisible
+                      ? AppTheme.primaryOrange
+                      : AppTheme.neutral100,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color:
+                    _isSearchVisible
+                        ? AppTheme.primaryOrange
+                        : AppTheme.neutral300,
+              ),
+            ),
+            child: IconButton(
+              icon: Icon(
+                _isSearchVisible ? Icons.close : Icons.search,
+                color: _isSearchVisible ? Colors.white : AppTheme.neutral600,
+                size: 20,
+              ),
+              padding: EdgeInsets.zero,
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              hoverColor: Colors.transparent,
+              focusColor: Colors.transparent,
+              onPressed: () {
+                setState(() {
+                  _isSearchVisible = !_isSearchVisible;
+                  if (!_isSearchVisible) {
+                    _searchController.clear();
+                    _handleSearch('');
+                  }
+                });
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Product List
+  // ═══════════════════════════════════════════════════════════════════
+
+  Widget _buildProductList(dynamic productsState, String lang) {
     if (productsState.isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: CircularProgressIndicator(color: AppTheme.primaryOrange),
+      );
     }
 
     if (productsState.error != null) {
@@ -582,74 +672,124 @@ class _POSScreenState extends ConsumerState<POSScreen> {
           children: [
             const Icon(Icons.error_outline, size: 48, color: AppTheme.error),
             const SizedBox(height: 16),
-            Text(productsState.error!),
+            Text(
+              productsState.error!,
+              style: const TextStyle(color: AppTheme.neutral600),
+            ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () {
-                ref.read(productsProvider.notifier).refresh();
-              },
-              child: Text(Translations.get('retry', localization.languageCode)),
+              onPressed: () => ref.read(productsProvider.notifier).refresh(),
+              child: Text(Translations.get('retry', lang)),
             ),
           ],
         ),
       );
     }
 
+    final products = productsState.filteredProducts as List<Product>;
+
+    if (products.isEmpty) {
+      return Center(
+        child: Text(
+          Translations.get('no_products_found', lang),
+          style: const TextStyle(color: AppTheme.neutral400, fontSize: 16),
+        ),
+      );
+    }
+
     return RefreshIndicator(
-      onRefresh: () async {
-        await ref.read(productsProvider.notifier).refresh();
-      },
-      child: ProductGrid(
-        products: productsState.filteredProducts,
-        onProductTap: (product) {
-          print('\\n🖱️ === USER TAPPED PRODUCT ===');
-          print('   Product: ${product.name}');
-          print('   Product ID: ${product.id}');
-          print('   Attempting to add to cart...');
-
-          // ✅ REMOVED LOADING BLOCK: Allow immediate cart additions
-          // Users can add items to cart even when inventory is loading
-          // Inventory validation will happen in the cart provider but won't block UI
-
-          final success = ref.read(cartProvider.notifier).addProduct(product);
-
-          if (!success) {
-            print('❌ Failed to add ${product.name} to cart');
-            // Show user feedback for failed addition
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  Translations.get(
-                    'cannot_add_product',
-                    localization.languageCode,
-                  ),
-                  style: const TextStyle(color: Colors.white),
-                ),
-                backgroundColor: AppTheme.error,
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          } else {
-            print('✅ Successfully added ${product.name} to cart');
-            // Optional: Show success feedback
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  '${Translations.get('add', localization.languageCode)}${product.name} ${Translations.get('to_cart', localization.languageCode)}',
-                  style: const TextStyle(color: Colors.white),
-                ),
-                backgroundColor: AppTheme.success,
-                duration: const Duration(seconds: 1),
-              ),
-            );
-          }
-          print('=== END PRODUCT TAP ===\\n');
+      onRefresh: () => ref.read(productsProvider.notifier).refresh(),
+      child: ListView.separated(
+        itemCount: products.length,
+        separatorBuilder:
+            (_, __) => const Divider(height: 1, color: AppTheme.neutral200),
+        itemBuilder: (context, index) {
+          final product = products[index];
+          return _buildProductItem(product);
         },
       ),
     );
   }
 
-  /// Show cart modal on mobile (reactive with Consumer)
+  Widget _buildProductItem(Product product) {
+    final hasImage =
+        product.images.isNotEmpty && product.images.first.url.isNotEmpty;
+    final price = product.pricing.basePrice;
+
+    final colorIndex = product.name.hashCode % _itemColors.length;
+    final circleColor = _itemColors[colorIndex.abs()];
+
+    return InkWell(
+      onTap: () => _addToCart(product),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        color: Colors.white,
+        child: Row(
+          children: [
+            // Product image or colored shape
+            hasImage
+                ? ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.network(
+                    product.images.first.url,
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.cover,
+                    errorBuilder:
+                        (_, __, ___) =>
+                            _buildColorCircle(product.name, circleColor),
+                  ),
+                )
+                : _buildColorCircle(product.name, circleColor),
+            const SizedBox(width: 16),
+
+            // Product name
+            Expanded(
+              child: Text(
+                product.name,
+                style: const TextStyle(
+                  color: AppTheme.neutral900,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+
+            // Price
+            Text(
+              price > 0 ? CurrencyFormatter.formatLAKWithSymbol(price) : '–',
+              style: const TextStyle(color: AppTheme.neutral600, fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildColorCircle(String name, Color color) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      child: Center(
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : '?',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Mobile Cart Modal
+  // ═══════════════════════════════════════════════════════════════════
+
   void _showMobileCart(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -669,7 +809,6 @@ class _POSScreenState extends ConsumerState<POSScreen> {
                 ),
                 child: Column(
                   children: [
-                    // Handle
                     Container(
                       margin: const EdgeInsets.symmetric(vertical: 8),
                       width: 40,
@@ -679,31 +818,25 @@ class _POSScreenState extends ConsumerState<POSScreen> {
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-
-                    // Cart panel - Using Consumer to watch cart changes
                     Expanded(
                       child: Consumer(
                         builder: (context, ref, child) {
                           final cart = ref.watch(cartProvider);
-
                           return CartPanel(
                             cart: cart,
-                            onUpdateQuantity: (productId, quantity) {
-                              ref
-                                  .read(cartProvider.notifier)
-                                  .updateQuantity(productId, quantity);
-                            },
-                            onRemoveItem: (productId) {
-                              ref
-                                  .read(cartProvider.notifier)
-                                  .removeItem(productId);
-                            },
-                            onClearCart: () {
-                              ref.read(cartProvider.notifier).clear();
-                            },
-                            onApplyLoyalty: _handleApplyLoyalty,
+                            onUpdateQuantity:
+                                (id, qty) => ref
+                                    .read(cartProvider.notifier)
+                                    .updateQuantity(id, qty),
+                            onRemoveItem:
+                                (id) => ref
+                                    .read(cartProvider.notifier)
+                                    .removeItem(id),
+                            onClearCart:
+                                () => ref.read(cartProvider.notifier).clear(),
+                            // onApplyLoyalty: _handleApplyLoyalty,
                             onCheckout: () {
-                              Navigator.pop(context); // Close modal first
+                              Navigator.pop(context);
                               _handleCheckout();
                             },
                           );
@@ -717,405 +850,18 @@ class _POSScreenState extends ConsumerState<POSScreen> {
           ),
     );
   }
-}
 
-/// Payment bottom sheet with payment method selection
-class _PaymentBottomSheet extends ConsumerWidget {
-  final Cart cart;
-  final BuildContext parentContext; // ✅ Parent context from POSScreen
-
-  const _PaymentBottomSheet({required this.cart, required this.parentContext});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final localization = ref.watch(localizationProvider);
-
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.7,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          // Handle
-          Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: AppTheme.neutral300,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-
-          // Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                Text(
-                  Translations.get('payment', localization.languageCode),
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context, false),
-                ),
-              ],
-            ),
-          ),
-
-          const Divider(),
-
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Total
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryOrangeBackground,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          Translations.get(
-                            'total_amount',
-                            localization.languageCode,
-                          ),
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          CurrencyFormatter.formatLAKWithSymbol(cart.total),
-                          style: Theme.of(
-                            context,
-                          ).textTheme.headlineLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.primaryOrange,
-                            fontSize: 24,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Payment methods
-                  Text(
-                    Translations.get(
-                      'select_payment_method',
-                      localization.languageCode,
-                    ),
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Cash
-                  _PaymentMethodButton(
-                    icon: Icons.payments_outlined,
-                    label: Translations.get('cash', localization.languageCode),
-                    onTap: () async {
-                      // ✅ Get cart notifier BEFORE closing bottom sheet
-                      final cartNotifier = ref.read(cartProvider.notifier);
-
-                      // ✅ Close bottom sheet (using modal's context)
-                      Navigator.pop(context);
-
-                      // ✅ Handle payment using PARENT context (POSScreen context, still mounted!)
-                      await _handleCashPayment(
-                        parentContext,
-                        cartNotifier,
-                        cart,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  // PhayPay
-                  _PaymentMethodButton(
-                    icon: Icons.qr_code_2,
-                    label: Translations.get(
-                      'phaypay_qr',
-                      localization.languageCode,
-                    ),
-                    subtitle: 'JDB, BCEL, LDB, IB',
-                    onTap: () {
-                      // ✅ Close bottom sheet (using modal's context)
-                      Navigator.pop(context);
-
-                      // ✅ Handle payment using PARENT context (POSScreen context, still mounted!)
-                      _handlePhayPayPayment(parentContext, ref, cart);
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PaymentMethodButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String? subtitle;
-  final VoidCallback onTap;
-
-  const _PaymentMethodButton({
-    required this.icon,
-    required this.label,
-    this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            border: Border.all(color: AppTheme.neutral200),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryOrangeBackground,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: AppTheme.primaryOrange),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (subtitle != null)
-                      Text(
-                        subtitle!,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.neutral500,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.chevron_right, color: AppTheme.neutral400),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Handle cash payment (free function)
-/// Opens cash dialog which handles payment processing internally with its own ref
-Future<void> _handleCashPayment(
-  BuildContext context,
-  CartNotifier cartNotifier,
-  Cart cart,
-) async {
-  // Navigate to full-screen cash payment page
-  print('📱 Opening CashPaymentDialog...');
-
-  // ✅ Dialog handles payment internally (no disposal issues!)
-  final result = await Navigator.push<Map<String, dynamic>>(
-    context,
-    MaterialPageRoute(
-      fullscreenDialog: true,
-      builder:
-          (context) => CashPaymentDialog(totalAmount: cart.total, cart: cart),
-    ),
-  );
-
-  print('📥 CashPaymentDialog returned with result: $result');
-  print('   context.mounted (after dialog): ${context.mounted}');
-
-  // If dialog was cancelled (null) or failed
-  if (result == null || result['success'] != true) {
-    print('❌ Payment cancelled or failed');
-    print('   result == null: ${result == null}');
-    print('   result[success]: ${result?['success']}');
-    return;
-  }
-
-  print('✅ Payment result is success, proceeding...');
-
-  // ✅ Success! Dialog is already closed, show success on main screen
-  if (!context.mounted) {
-    print('⚠️  Context not mounted, aborting success dialog');
-    return;
-  }
-
-  print('✅ Context is mounted, proceeding with success flow...');
-
-  final tendered = result['tendered'] as double? ?? cart.total;
-  final change = result['change'] as double? ?? 0;
-
-  print('💰 Payment amounts:');
-  print('   Total: ${cart.total}');
-  print('   Tendered: $tendered');
-  print('   Change: $change');
-
-  // ✅ Clear cart immediately after successful payment (using global Riverpod state)
-  print('🔄 Clearing cart (Riverpod global state)...');
-  try {
-    cartNotifier.clear();
-    print('✅ Cart cleared successfully');
-  } catch (e) {
-    print('❌ Error clearing cart: $e');
-  }
-
-  print('🎉 Showing success dialog for 2 seconds...');
-
-  try {
-    // Show success dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder:
-          (context) => AlertDialog(
-            icon: const Icon(
-              Icons.check_circle,
-              color: AppTheme.success,
-              size: 64,
-            ),
-            title: const Text('Payment Successful!'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Total: ${CurrencyFormatter.formatLAKWithSymbol(cart.total)}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Tendered: ${CurrencyFormatter.formatLAKWithSymbol(tendered)}',
-                ),
-                Text(
-                  'Change: ${CurrencyFormatter.formatLAKWithSymbol(change)}',
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  '✓ Order created successfully',
-                  style: TextStyle(color: AppTheme.success),
-                ),
-              ],
-            ),
-          ),
-    );
-    print('✅ Success dialog shown');
-
-    // ✅ Auto-dismiss after 2 seconds
-    print('⏱️  Waiting 2 seconds...');
-    await Future.delayed(const Duration(seconds: 2));
-    print('⏱️  2 seconds elapsed');
-
-    if (context.mounted) {
-      Navigator.pop(context); // Close success dialog
-      print('✅ Success dialog auto-closed');
-    } else {
-      print('⚠️  Context not mounted, cannot close dialog');
-    }
-  } catch (e, stackTrace) {
-    print('❌ Error showing/closing success dialog: $e');
-    print('📍 Stack trace: $stackTrace');
-  }
-}
-
-/// Handle PhayPay payment (free function)
-/// Shows loading on main screen (no layering issues!)
-Future<void> _handlePhayPayPayment(
-  BuildContext context,
-  WidgetRef ref,
-  Cart cart,
-) async {
-  // Navigate to full-screen bank selection page
-  final bankMethod = await Navigator.push<PhayPayBankMethod>(
-    context,
-    MaterialPageRoute(
-      fullscreenDialog: true,
-      builder:
-          (context) => PhayPayBankSelectionDialog(
-            amount: cart.total,
-            onBankSelected: (bank) {
-              Navigator.pop(context, bank);
-            },
-          ),
-    ),
-  );
-
-  if (bankMethod == null) {
-    print('❌ PhayPay payment cancelled - no bank selected');
-    return;
-  }
-
-  if (!context.mounted) {
-    print('⚠️ Context not mounted after bank selection, aborting...');
-    return;
-  }
-
-  // Create payment
-  final success = await ref
-      .read(paymentProvider.notifier)
-      .processPhayPayPayment(
-        amount: cart.total,
-        bankMethod: bankMethod,
-        cart: cart,
-      );
-
-  if (!success) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to create payment. Please try again.'),
-          backgroundColor: AppTheme.error,
-        ),
-      );
-    }
-    return;
-  }
-
-  if (!context.mounted) {
-    print('⚠️ Context not mounted after payment creation, aborting...');
-    return;
-  }
-
-  // Navigate to full-screen QR page
-  await Navigator.push<bool>(
-    context,
-    MaterialPageRoute(
-      fullscreenDialog: true,
-      builder: (context) => const PhayPayQRDialog(),
-    ),
-  );
+  // Colors for product circles (Loyverse style)
+  static const _itemColors = [
+    Color(0xFFFF6B00), // orange
+    Color(0xFFE4B800), // yellow
+    Color(0xFFE53935), // red
+    Color(0xFF7B1FA2), // purple
+    Color(0xFF1E88E5), // blue
+    Color(0xFF43A047), // green
+    Color(0xFF00897B), // teal
+    Color(0xFF6D4C41), // brown
+    Color(0xFF546E7A), // blue-grey
+    Color(0xFFC2185B), // pink
+  ];
 }

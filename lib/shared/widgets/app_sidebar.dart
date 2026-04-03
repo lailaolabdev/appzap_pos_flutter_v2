@@ -84,47 +84,47 @@ class AppSidebar extends ConsumerWidget {
                           if (isInDrawer) Navigator.of(context).pop();
                         },
                       ),
-                    // Orders - accessible to everyone who can manage sales
-                    _SidebarItem(
-                      icon: Icons.receipt_long_outlined,
-                      label: Translations.get('orders', languageCode),
-                      route: AppRoutes.orders,
-                      isActive: currentRoute == AppRoutes.orders,
-                      isInDrawer: isInDrawer,
-                      onTap: () {
-                        context.go(AppRoutes.orders);
-                        if (isInDrawer) Navigator.of(context).pop();
-                      },
-                    ),
-                    // Show to admins OR users with permission
-                    if (user?.isAdmin == true ||
-                        user?.canManageInventory == true)
-                      _SidebarItem(
-                        icon: Icons.inventory_2_outlined,
-                        label: Translations.get('inventory', languageCode),
-                        route: AppRoutes.inventory,
-                        isActive: currentRoute == AppRoutes.inventory,
-                        isInDrawer: isInDrawer,
-                        onTap: () {
-                          context.go(AppRoutes.inventory);
-                          if (isInDrawer) Navigator.of(context).pop();
-                        },
-                      ),
-                    // Show to admins OR users with permission
-                    if (user?.isAdmin == true ||
-                        user?.canManageCustomers == true)
-                      _SidebarItem(
-                        icon: Icons.people_outline,
-                        label: Translations.get('customers', languageCode),
-                        route: AppRoutes.customers,
-                        isActive: currentRoute == AppRoutes.customers,
-                        isInDrawer: isInDrawer,
-                        onTap: () {
-                          context.go(AppRoutes.customers);
-                          if (isInDrawer) Navigator.of(context).pop();
-                        },
-                      ),
-                    // Transactions - Show to admins OR users who can manage sales/view reports
+                    // // Orders - hidden for now
+                    // _SidebarItem(
+                    //   icon: Icons.receipt_long_outlined,
+                    //   label: Translations.get('orders', languageCode),
+                    //   route: AppRoutes.orders,
+                    //   isActive: currentRoute == AppRoutes.orders,
+                    //   isInDrawer: isInDrawer,
+                    //   onTap: () {
+                    //     context.go(AppRoutes.orders);
+                    //     if (isInDrawer) Navigator.of(context).pop();
+                    //   },
+                    // ),
+                    // // Inventory - hidden for now
+                    // if (user?.isAdmin == true ||
+                    //     user?.canManageInventory == true)
+                    //   _SidebarItem(
+                    //     icon: Icons.inventory_2_outlined,
+                    //     label: Translations.get('inventory', languageCode),
+                    //     route: AppRoutes.inventory,
+                    //     isActive: currentRoute == AppRoutes.inventory,
+                    //     isInDrawer: isInDrawer,
+                    //     onTap: () {
+                    //       context.go(AppRoutes.inventory);
+                    //       if (isInDrawer) Navigator.of(context).pop();
+                    //     },
+                    //   ),
+                    // // Customers - hidden for now
+                    // if (user?.isAdmin == true ||
+                    //     user?.canManageCustomers == true)
+                    //   _SidebarItem(
+                    //     icon: Icons.people_outline,
+                    //     label: Translations.get('customers', languageCode),
+                    //     route: AppRoutes.customers,
+                    //     isActive: currentRoute == AppRoutes.customers,
+                    //     isInDrawer: isInDrawer,
+                    //     onTap: () {
+                    //       context.go(AppRoutes.customers);
+                    //       if (isInDrawer) Navigator.of(context).pop();
+                    //     },
+                    //   ),
+                    // Transactions
                     if (user?.isAdmin == true ||
                         user?.canManageSales == true ||
                         user?.canViewReports == true)
@@ -139,19 +139,19 @@ class AppSidebar extends ConsumerWidget {
                           if (isInDrawer) Navigator.of(context).pop();
                         },
                       ),
-                    // Show to admins OR users with permission
-                    if (user?.isAdmin == true || user?.canViewReports == true)
-                      _SidebarItem(
-                        icon: Icons.assessment_outlined,
-                        label: Translations.get('reports', languageCode),
-                        route: AppRoutes.reports,
-                        isActive: currentRoute == AppRoutes.reports,
-                        isInDrawer: isInDrawer,
-                        onTap: () {
-                          context.go(AppRoutes.reports);
-                          if (isInDrawer) Navigator.of(context).pop();
-                        },
-                      ),
+                    // // Reports - hidden for now
+                    // if (user?.isAdmin == true || user?.canViewReports == true)
+                    //   _SidebarItem(
+                    //     icon: Icons.assessment_outlined,
+                    //     label: Translations.get('reports', languageCode),
+                    //     route: AppRoutes.reports,
+                    //     isActive: currentRoute == AppRoutes.reports,
+                    //     isInDrawer: isInDrawer,
+                    //     onTap: () {
+                    //       context.go(AppRoutes.reports);
+                    //       if (isInDrawer) Navigator.of(context).pop();
+                    //     },
+                    //   ),
                     // Settings - Show to admins only
                     if (user?.isAdmin == true)
                       _SidebarItem(
@@ -308,12 +308,9 @@ class AppSidebar extends ConsumerWidget {
                     style: TextStyle(color: AppTheme.error),
                   ),
                   onTap: () async {
-                    Navigator.pop(modalContext); // Close bottom sheet
-                    if (isInDrawer)
-                      Navigator.pop(context); // Close drawer if in drawer mode
-
+                    // Show confirm dialog FIRST (before closing anything)
                     final confirmed = await showDialog<bool>(
-                      context: context,
+                      context: modalContext,
                       builder:
                           (dialogContext) => AlertDialog(
                             title: const Text('Logout'),
@@ -327,16 +324,27 @@ class AppSidebar extends ConsumerWidget {
                                 child: const Text('Cancel'),
                               ),
                               ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.error,
+                                ),
                                 onPressed:
                                     () => Navigator.pop(dialogContext, true),
-                                child: const Text('Logout'),
+                                child: const Text(
+                                  'Logout',
+                                  style: TextStyle(color: Colors.white),
+                                ),
                               ),
                             ],
                           ),
                     );
 
-                    if (confirmed == true) {
-                      await ref.read(authProvider.notifier).logout();
+                    if (confirmed != true) return;
+
+                    // Logout and clear language preference
+                    await ref.read(authProvider.notifier).logout();
+                    await ref.read(localizationProvider.notifier).clearLanguage();
+                    if (context.mounted) {
+                      context.go(AppRoutes.splash);
                     }
                   },
                 ),

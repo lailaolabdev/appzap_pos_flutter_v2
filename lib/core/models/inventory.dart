@@ -106,10 +106,6 @@ class InventoryItem extends Equatable {
     final lowStockFromJson = (json['lowStockThreshold'] as num?)?.toInt();
     final finalMinStock = minStockFromJson ?? lowStockFromJson ?? 10;
 
-    print('🔍 InventoryItem.fromJson for ${json['name']}:');
-    print('   - minStockLevel from JSON: $minStockFromJson');
-    print('   - lowStockThreshold from JSON: $lowStockFromJson');
-    print('   - Final minStockLevel: $finalMinStock');
 
     return InventoryItem(
       id: json['_id']?.toString() ?? json['id']?.toString() ?? '',

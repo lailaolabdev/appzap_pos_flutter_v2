@@ -25,10 +25,6 @@ class ProductService {
     int page = 1,
     int limit = 500,
   }) async {
-    print('\n📡 === PRODUCTS API REQUEST ===');
-    print('   Restaurant ID: $restaurantId');
-    print('   Branch ID: $branchId');
-    print('   Endpoint: ${ApiConstants.menuItems}');
     
     final queryParams = {
       'restaurantId': restaurantId,
@@ -41,40 +37,19 @@ class ProductService {
       if (search != null && search.isNotEmpty) 'search': search,
     };
     
-    print('   Query params: $queryParams');
     
     final response = await _apiClient.get(
       ApiConstants.menuItems,
       queryParameters: queryParams,
     );
     
-    print('📥 API Response received:');
-    print('   Response type: ${response.runtimeType}');
-    print('   Data type: ${response['data']?.runtimeType}');
     
     final data = response['data'] as List<dynamic>? ?? [];
-    print('   Items count: ${data.length}');
-    
-    if (data.isNotEmpty) {
-      print('   First item sample:');
-      final firstItem = data.first as Map<String, dynamic>;
-      print('      - name: ${firstItem['name']}');
-      print('      - has inventory: ${firstItem.containsKey('inventory')}');
-      print('      - has currentStock: ${firstItem.containsKey('currentStock')}');
-      if (firstItem.containsKey('inventory')) {
-        print('      - inventory: ${firstItem['inventory']}');
-      }
-      if (firstItem.containsKey('currentStock')) {
-        print('      - currentStock: ${firstItem['currentStock']}');
-      }
-    }
     
     final products = data
         .map((json) => Product.fromJson(json as Map<String, dynamic>))
         .toList();
         
-    print('✅ Parsed ${products.length} products with inventory data');
-    print('=== END PRODUCTS API REQUEST ===\n');
     
     return products;
   }

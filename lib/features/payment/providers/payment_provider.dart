@@ -124,13 +124,8 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     required double tendered,
     required dynamic cart,
   }) async {
-    print('💰 PaymentNotifier.processCashPayment called');
-    print('   Total: $total');
-    print('   Tendered: $tendered');
-    print('   BranchId: $_branchId');
 
     if (_branchId == null) {
-      print('❌ Payment failed: Branch not configured');
       state = state.copyWith(
         processState: PaymentProcessState.failed,
         error: 'Branch not configured',
@@ -139,34 +134,21 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     }
 
     try {
-      print('🔄 Setting state to processingPayment...');
       // Process payment using unified checkout endpoint
       state = state.copyWith(
         processState: PaymentProcessState.processingPayment,
       );
 
-      print('📞 Calling checkoutService.processCashPaymentFromCart...');
       final checkoutResponse = await _checkoutService
           .processCashPaymentFromCart(cart: cart, tenderedAmount: tendered);
 
-      print('✅ Checkout response received:');
-      print('   Order ID: ${checkoutResponse.order.orderId}');
-      print('   Transaction ID: ${checkoutResponse.transaction.transactionId}');
-      print(
-        '   Transaction Status: ${checkoutResponse.transaction.transactionStatus}',
-      );
-
-      print('🎉 Setting state to completed...');
       state = state.copyWith(
         processState: PaymentProcessState.completed,
         checkoutResponse: checkoutResponse,
       );
 
-      print('✅ Payment processing complete, returning true');
       return true;
     } catch (e, stackTrace) {
-      print('❌ Payment processing error: $e');
-      print('📍 Stack trace: $stackTrace');
       state = state.copyWith(
         processState: PaymentProcessState.failed,
         error: e.toString(),
