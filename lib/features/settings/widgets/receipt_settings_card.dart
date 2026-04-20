@@ -30,7 +30,6 @@ class _ReceiptSettingsCardState extends ConsumerState<ReceiptSettingsCard> {
   void _loadCurrentSettings() {
     final settings = ref.read(settingsProvider);
     _receiptHeaderController.text = settings.receiptHeader;
-    _receiptFooterController.text = settings.receiptFooter;
   }
 
   @override
@@ -55,7 +54,6 @@ class _ReceiptSettingsCardState extends ConsumerState<ReceiptSettingsCard> {
           enableReceiptPrinting: currentSettings.enableReceiptPrinting,
           enableBarcodePrinting: currentSettings.enableBarcodePrinting,
           receiptHeader: _receiptHeaderController.text,
-          receiptFooter: _receiptFooterController.text,
         );
 
     if (mounted) {

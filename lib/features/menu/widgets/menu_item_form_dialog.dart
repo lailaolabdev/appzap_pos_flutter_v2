@@ -7,7 +7,12 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/constants/translations.dart';
+import '../../../core/models/inventory.dart';
+import '../../../core/models/modifier.dart';
 import '../../../core/providers/localization_provider.dart';
+import '../../../core/services/modifier_service.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../inventory/providers/inventory_provider.dart';
 import '../providers/menu_provider.dart';
 
 class MenuItemFormDialog extends ConsumerStatefulWidget {
@@ -36,6 +41,10 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
   // Image picker
   XFile? _pickedImage;
 
+  // Modifiers / Customizations
+  List<Modifier> _availableModifiers = [];
+  Set<String> _selectedModifierIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -51,7 +60,7 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
       text: widget.item?.barcode ?? '',
     );
     _lowStockController = TextEditingController(
-      text: (widget.item?.inventory?.lowStockThreshold ?? 10).toString(),
+      text: (widget.item?.inventory?.lowStockThreshold ?? 0).toString(),
     );
     _initialStockController = TextEditingController(
       text:
@@ -63,6 +72,25 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
     _trackStock =
         widget.item?.inventory?.trackStock ??
         (widget.item == null ? true : false);
+
+    // Pre-select modifiers from existing item
+    if (widget.item != null && widget.item.customizations != null) {
+      _selectedModifierIds = (widget.item.customizations as List)
+          .map<String>((c) => c is Modifier ? c.id : (c is Map ? (c['_id'] ?? '').toString() : c.toString()))
+          .where((id) => id.isNotEmpty)
+          .toSet();
+    }
+
+    // Load available modifiers
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadModifiers());
+  }
+
+  Future<void> _loadModifiers() async {
+    try {
+      final service = ref.read(modifierServiceProvider);
+      final modifiers = await service.getModifiers();
+      if (mounted) setState(() => _availableModifiers = modifiers);
+    } catch (_) {}
   }
 
   @override
@@ -119,6 +147,9 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                 _trackStock ? int.parse(_initialStockController.text) : 0,
             isActive: true,
             imagePath: imageToSave,
+            customizationIds: _selectedModifierIds.isNotEmpty
+                ? _selectedModifierIds.toList()
+                : null,
           );
     } else {
       success = await ref
@@ -136,7 +167,35 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
             lowStockThreshold: int.parse(_lowStockController.text),
             isActive: true,
             imagePath: imageToSave,
+            customizationIds: _selectedModifierIds.toList(),
           );
+
+      // Update stock via stock adjustment API if the value changed
+      if (success && _trackStock) {
+        final newStock = int.tryParse(_initialStockController.text) ?? 0;
+        final oldStock = widget.item?.inventory?.currentStock ?? 0;
+        if (newStock != oldStock) {
+          try {
+            final user = ref.read(currentUserProvider);
+            final branchId = user?.branch?.id;
+            if (branchId != null) {
+              await ref
+                  .read(inventoryProvider.notifier)
+                  .adjustStock(
+                    StockAdjustment(
+                      inventoryItemId: widget.item.id,
+                      branchId: branchId,
+                      operation: StockOperation.set,
+                      quantity: newStock,
+                      reason: 'menu_item_edit',
+                    ),
+                  );
+            }
+          } catch (e) {
+            print('⚠️ Stock adjustment failed: $e');
+          }
+        }
+      }
     }
 
     setState(() => _isLoading = false);
@@ -344,6 +403,66 @@ class _MenuItemFormDialogState extends ConsumerState<MenuItemFormDialog> {
                 ),
                 _helperText(Translations.get('low_stock_hint', lang)),
               ],
+
+              // ─── Modifiers ───
+              _sectionDivider(),
+
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Text(
+                  Translations.get('modifiers', lang),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryOrange,
+                  ),
+                ),
+              ),
+
+              if (_availableModifiers.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    Translations.get('no_modifiers_yet', lang),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade400,
+                    ),
+                  ),
+                )
+              else
+                ..._availableModifiers.map((mod) {
+                  final isSelected = _selectedModifierIds.contains(mod.id);
+                  return CheckboxListTile(
+                    title: Text(
+                      mod.name,
+                      style: const TextStyle(fontSize: 15),
+                    ),
+                    subtitle: mod.optionsSummary.isNotEmpty
+                        ? Text(
+                            mod.optionsSummary,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          )
+                        : null,
+                    value: isSelected,
+                    activeColor: AppTheme.primaryOrange,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                    onChanged: (v) {
+                      setState(() {
+                        if (v == true) {
+                          _selectedModifierIds.add(mod.id);
+                        } else {
+                          _selectedModifierIds.remove(mod.id);
+                        }
+                      });
+                    },
+                  );
+                }),
 
               // ─── Image ───
               _sectionDivider(),

@@ -30,10 +30,11 @@ class _ModifierFormDialogState extends ConsumerState<ModifierFormDialog> {
     super.initState();
     _nameController = TextEditingController(text: widget.modifier?.name ?? '');
 
-    if (widget.modifier != null && widget.modifier!.options.isNotEmpty) {
+    if (widget.modifier != null) {
       for (final opt in widget.modifier!.options) {
         _options.add(
           _OptionRow(
+            existingId: opt.id,
             nameController: TextEditingController(text: opt.name),
             priceController: TextEditingController(
               text: opt.price > 0 ? opt.price.toStringAsFixed(0) : '0',
@@ -41,7 +42,9 @@ class _ModifierFormDialogState extends ConsumerState<ModifierFormDialog> {
           ),
         );
       }
-    } else {
+    }
+
+    if (_options.isEmpty) {
       _addOption();
     }
   }
@@ -91,6 +94,8 @@ class _ModifierFormDialogState extends ConsumerState<ModifierFormDialog> {
                 (o) => {
                   'name': o.nameController.text.trim(),
                   'price': double.tryParse(o.priceController.text.trim()) ?? 0,
+                  if (o.existingId != null && o.existingId!.isNotEmpty)
+                    'id': o.existingId,
                 },
               )
               .toList();
@@ -104,6 +109,7 @@ class _ModifierFormDialogState extends ConsumerState<ModifierFormDialog> {
         await service.updateModifier(
           id: widget.modifier!.id,
           name: _nameController.text.trim(),
+          options: optionData,
         );
       }
 
@@ -114,14 +120,14 @@ class _ModifierFormDialogState extends ConsumerState<ModifierFormDialog> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString()),
+            content: Text(e.toString().replaceAll('Exception: ', '')),
             backgroundColor: AppTheme.error,
           ),
         );
       }
     }
 
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
   }
 
   @override
@@ -198,9 +204,11 @@ class _ModifierFormDialogState extends ConsumerState<ModifierFormDialog> {
                               : null,
                   decoration: InputDecoration(
                     labelText: Translations.get('modifier_name', lang),
+                    hintText: 'e.g. Size, Toppings, Sugar Level',
                     isDense: true,
                     filled: false,
                     labelStyle: TextStyle(color: Colors.grey.shade500),
+                    hintStyle: TextStyle(color: Colors.grey.shade400),
                     contentPadding: const EdgeInsets.symmetric(vertical: 8),
                     enabledBorder: UnderlineInputBorder(
                       borderSide: BorderSide(color: Colors.grey.shade300),
@@ -212,9 +220,12 @@ class _ModifierFormDialogState extends ConsumerState<ModifierFormDialog> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
-              // ─── Option Rows ───
+              // ─── Options Section ───
+              _sectionHeader(Translations.get('options', lang)),
+              const SizedBox(height: 8),
+
               ...List.generate(
                 _options.length,
                 (i) => _buildOptionRow(i, lang),
@@ -230,7 +241,7 @@ class _ModifierFormDialogState extends ConsumerState<ModifierFormDialog> {
                   ),
                   child: Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.add_circle_outline,
                         color: AppTheme.primaryOrange,
                         size: 22,
@@ -238,7 +249,7 @@ class _ModifierFormDialogState extends ConsumerState<ModifierFormDialog> {
                       const SizedBox(width: 8),
                       Text(
                         Translations.get('add_option', lang),
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: AppTheme.primaryOrange,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -252,6 +263,23 @@ class _ModifierFormDialogState extends ConsumerState<ModifierFormDialog> {
               const SizedBox(height: 40),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String title) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      color: Colors.grey.shade50,
+      child: Text(
+        title.toUpperCase(),
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: Colors.grey.shade600,
+          letterSpacing: 0.5,
         ),
       ),
     );
@@ -341,8 +369,13 @@ class _ModifierFormDialogState extends ConsumerState<ModifierFormDialog> {
 }
 
 class _OptionRow {
+  final String? existingId;
   final TextEditingController nameController;
   final TextEditingController priceController;
 
-  _OptionRow({required this.nameController, required this.priceController});
+  _OptionRow({
+    this.existingId,
+    required this.nameController,
+    required this.priceController,
+  });
 }

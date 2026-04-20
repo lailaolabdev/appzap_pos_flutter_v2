@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../../core/services/printer_api_service.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/services/printer_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +14,7 @@ class SavedPrinter {
   final bool enableReceiptPrinting;
   final bool enableBarcodePrinting;
   final bool printOrders;
+  final bool autoPrintReceipt;
   final String paperWidth;
   final String model;
 
@@ -24,6 +26,7 @@ class SavedPrinter {
     this.enableReceiptPrinting = false,
     this.enableBarcodePrinting = false,
     this.printOrders = false,
+    this.autoPrintReceipt = false,
     this.paperWidth = '80 mm',
     this.model = 'Other model',
   });
@@ -36,6 +39,7 @@ class SavedPrinter {
     'enableReceiptPrinting': enableReceiptPrinting,
     'enableBarcodePrinting': enableBarcodePrinting,
     'printOrders': printOrders,
+    'autoPrintReceipt': autoPrintReceipt,
     'paperWidth': paperWidth,
     'model': model,
   };
@@ -51,6 +55,7 @@ class SavedPrinter {
     enableReceiptPrinting: json['enableReceiptPrinting'] as bool? ?? false,
     enableBarcodePrinting: json['enableBarcodePrinting'] as bool? ?? false,
     printOrders: json['printOrders'] as bool? ?? false,
+    autoPrintReceipt: json['autoPrintReceipt'] as bool? ?? false,
     paperWidth: json['paperWidth'] as String? ?? '80 mm',
     model: json['model'] as String? ?? 'Other model',
   );
@@ -62,6 +67,7 @@ class SavedPrinter {
     bool? enableReceiptPrinting,
     bool? enableBarcodePrinting,
     bool? printOrders,
+    bool? autoPrintReceipt,
     String? paperWidth,
     String? model,
   }) => SavedPrinter(
@@ -72,6 +78,7 @@ class SavedPrinter {
     enableReceiptPrinting: enableReceiptPrinting ?? this.enableReceiptPrinting,
     enableBarcodePrinting: enableBarcodePrinting ?? this.enableBarcodePrinting,
     printOrders: printOrders ?? this.printOrders,
+    autoPrintReceipt: autoPrintReceipt ?? this.autoPrintReceipt,
     paperWidth: paperWidth ?? this.paperWidth,
     model: model ?? this.model,
   );
@@ -87,7 +94,6 @@ class SettingsState {
   final bool enableReceiptPrinting;
   final bool enableBarcodePrinting;
   final String receiptHeader;
-  final String receiptFooter;
   final bool isLoading;
   final String? error;
 
@@ -103,7 +109,6 @@ class SettingsState {
     this.enableReceiptPrinting = true,
     this.enableBarcodePrinting = false,
     this.receiptHeader = '',
-    this.receiptFooter = 'Thank you for your business!',
     this.isLoading = false,
     this.error,
     this.printers = const [],
@@ -118,7 +123,6 @@ class SettingsState {
     bool? enableReceiptPrinting,
     bool? enableBarcodePrinting,
     String? receiptHeader,
-    String? receiptFooter,
     bool? isLoading,
     String? error,
     List<SavedPrinter>? printers,
@@ -135,7 +139,6 @@ class SettingsState {
       enableBarcodePrinting:
           enableBarcodePrinting ?? this.enableBarcodePrinting,
       receiptHeader: receiptHeader ?? this.receiptHeader,
-      receiptFooter: receiptFooter ?? this.receiptFooter,
       isLoading: isLoading ?? this.isLoading,
       error: error,
       printers: printers ?? this.printers,
@@ -148,11 +151,21 @@ class SettingsState {
 class SettingsNotifier extends StateNotifier<SettingsState> {
   final StorageService _storageService;
   final PrinterService _printerService;
+  final PrinterApiService _printerApiService;
+  String? _branchId;
 
-  SettingsNotifier(this._storageService, this._printerService)
-    : super(const SettingsState()) {
+  SettingsNotifier(
+    this._storageService,
+    this._printerService,
+    this._printerApiService,
+  ) : super(const SettingsState()) {
     _loadSettings();
     _listenToConnectionStatus();
+  }
+
+  /// Set the branch ID for API calls
+  void setBranchId(String? branchId) {
+    _branchId = branchId;
   }
 
   void _listenToConnectionStatus() {
@@ -182,7 +195,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       final enableReceiptPrinting = reads[3] == 'true';
       final enableBarcodePrinting = reads[4] == 'true';
       final receiptHeader = reads[5] ?? '';
-      final receiptFooter = reads[6] ?? 'Thank you for your business!';
       final savedPrintersJson = reads[7];
 
       // Load multi-printer list
@@ -192,9 +204,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           final list = jsonDecode(savedPrintersJson) as List;
           printers =
               list
-                  .map(
-                    (e) => SavedPrinter.fromJson(e as Map<String, dynamic>),
-                  )
+                  .map((e) => SavedPrinter.fromJson(e as Map<String, dynamic>))
                   .toList();
         } catch (_) {}
       }
@@ -243,7 +253,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
             enableReceiptPrinting: true,
             enableBarcodePrinting: false,
             receiptHeader: '',
-            receiptFooter: 'Thank you for your business!',
           );
         }
       } else if (printerTypeStr != null) {
@@ -260,7 +269,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         enableReceiptPrinting: enableReceiptPrinting,
         enableBarcodePrinting: enableBarcodePrinting,
         receiptHeader: receiptHeader,
-        receiptFooter: receiptFooter,
         printers: printers,
         isLoading: false,
       );
@@ -279,8 +287,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           if (parts.length == 2) {
             final ip = parts[0];
             final port = int.tryParse(parts[1]) ?? 9100;
-            final connected =
-                await _printerService.connectWiFi(ip, port: port);
+            final connected = await _printerService.connectWiFi(ip, port: port);
             if (connected) {
               state = state.copyWith(isPrinterConnected: true);
             }
@@ -326,7 +333,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       enableReceiptPrinting: printer.enableReceiptPrinting,
       enableBarcodePrinting: printer.enableBarcodePrinting,
       receiptHeader: state.receiptHeader,
-      receiptFooter: state.receiptFooter,
     );
 
     state = state.copyWith(printers: list);
@@ -347,7 +353,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         enableReceiptPrinting: false,
         enableBarcodePrinting: false,
         receiptHeader: state.receiptHeader,
-        receiptFooter: state.receiptFooter,
       );
     } else {
       // Set first remaining as active
@@ -359,7 +364,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         enableReceiptPrinting: first.enableReceiptPrinting,
         enableBarcodePrinting: first.enableBarcodePrinting,
         receiptHeader: state.receiptHeader,
-        receiptFooter: state.receiptFooter,
       );
     }
 
@@ -373,6 +377,194 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Backend API Sync
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// Fetch printers from backend and merge with local
+  Future<void> syncPrintersFromBackend() async {
+    if (_branchId == null || _branchId!.isEmpty) return;
+
+    try {
+      final remotePrinters = await _printerApiService.getPrinters(_branchId!);
+      final synced = <SavedPrinter>[];
+
+      for (final remote in remotePrinters) {
+        synced.add(_mapRemoteToLocal(remote));
+      }
+
+      if (synced.isNotEmpty) {
+        await _savePrintersList(synced);
+        state = state.copyWith(printers: synced);
+
+        // Set first printer as active
+        final first = synced.first;
+        await savePrinterSettings(
+          printerName: first.name,
+          printerAddress: first.address,
+          connectionType: first.connectionType,
+          enableReceiptPrinting: first.enableReceiptPrinting,
+          enableBarcodePrinting: first.enableBarcodePrinting,
+          receiptHeader: state.receiptHeader,
+        );
+      }
+    } catch (e) {
+      print('Sync printers from backend failed: $e');
+    }
+  }
+
+  /// Save a printer to backend and local
+  Future<void> savePrinterToBackend(SavedPrinter printer) async {
+    if (_branchId == null || _branchId!.isEmpty) {
+      // No branch — save locally only
+      await addOrUpdatePrinter(printer);
+      return;
+    }
+
+    try {
+      final data = _mapLocalToRemote(printer);
+
+      Map<String, dynamic> result;
+      if (printer.id.startsWith('printer_') || printer.id.startsWith('migrated_') || printer.id.startsWith('sunmi_')) {
+        // Local-only printer — create on backend
+        result = await _printerApiService.createPrinter(_branchId!, data);
+      } else {
+        // Existing backend printer — update
+        result = await _printerApiService.updatePrinter(_branchId!, printer.id, data);
+      }
+
+      // Get the backend ID
+      final backendId = result['_id']?.toString() ?? result['id']?.toString() ?? printer.id;
+      final updatedPrinter = SavedPrinter(
+        id: backendId,
+        name: printer.name,
+        address: printer.address,
+        connectionType: printer.connectionType,
+        enableReceiptPrinting: printer.enableReceiptPrinting,
+        enableBarcodePrinting: printer.enableBarcodePrinting,
+        printOrders: printer.printOrders,
+        autoPrintReceipt: printer.autoPrintReceipt,
+        paperWidth: printer.paperWidth,
+        model: printer.model,
+      );
+
+      await addOrUpdatePrinter(updatedPrinter);
+    } catch (e) {
+      // Fallback: save locally
+      print('Backend save failed, saving locally: $e');
+      await addOrUpdatePrinter(printer);
+    }
+  }
+
+  /// Delete a printer from backend and local
+  Future<void> deletePrinterFromBackend(String printerId) async {
+    if (_branchId != null &&
+        _branchId!.isNotEmpty &&
+        !printerId.startsWith('printer_') &&
+        !printerId.startsWith('migrated_') &&
+        !printerId.startsWith('sunmi_')) {
+      try {
+        await _printerApiService.deletePrinter(_branchId!, printerId);
+      } catch (e) {
+        print('Backend delete failed: $e');
+      }
+    }
+    await deletePrinter(printerId);
+  }
+
+  /// Map backend printer JSON to local SavedPrinter
+  SavedPrinter _mapRemoteToLocal(Map<String, dynamic> remote) {
+    final id = remote['_id']?.toString() ?? remote['id']?.toString() ?? '';
+    final name = remote['name']?.toString() ?? '';
+    final connType = remote['connectionType']?.toString() ?? 'network';
+    final paperSize = remote['paperSize'] as Map<String, dynamic>?;
+    final printSettings = remote['printSettings'] as Map<String, dynamic>?;
+    final networkSettings = remote['networkSettings'] as Map<String, dynamic>?;
+    final bluetoothSettings = remote['bluetoothSettings'] as Map<String, dynamic>?;
+
+    // Determine address
+    String address = '';
+    PrinterConnectionType connectionType;
+    switch (connType) {
+      case 'bluetooth':
+        connectionType = PrinterConnectionType.bluetooth;
+        address = bluetoothSettings?['macAddress']?.toString() ?? '';
+        break;
+      case 'usb':
+        connectionType = PrinterConnectionType.sunmi;
+        address = 'BUILT-IN';
+        break;
+      default:
+        connectionType = PrinterConnectionType.wifi;
+        final ip = networkSettings?['ipAddress']?.toString() ?? '';
+        final port = networkSettings?['port']?.toString() ?? '9100';
+        address = ip.isNotEmpty ? '$ip:$port' : '';
+    }
+
+    return SavedPrinter(
+      id: id,
+      name: name,
+      address: address,
+      connectionType: connectionType,
+      enableReceiptPrinting: remote['type'] == 'receipt' || remote['defaultPrinter'] == true,
+      printOrders: remote['type'] == 'kitchen',
+      autoPrintReceipt: printSettings?['copies'] != null && (printSettings?['copies'] as num? ?? 0) > 0,
+      paperWidth: paperSize?['preset']?.toString() == '58mm' ? '58 mm' : '80 mm',
+      model: remote['model']?.toString() ?? 'Other model',
+    );
+  }
+
+  /// Map local SavedPrinter to backend API format
+  Map<String, dynamic> _mapLocalToRemote(SavedPrinter printer) {
+    final data = <String, dynamic>{
+      'name': printer.name,
+      'type': printer.printOrders ? 'kitchen' : 'receipt',
+      'model': printer.model,
+      'enabled': true,
+      'defaultPrinter': printer.enableReceiptPrinting,
+      'paperSize': {
+        'preset': printer.paperWidth == '58 mm' ? '58mm' : '80mm',
+        'width': printer.paperWidth == '58 mm' ? 58 : 80,
+        'unit': 'mm',
+      },
+      'printSettings': {
+        'copies': printer.autoPrintReceipt ? 1 : 0,
+        'cutPaper': true,
+        'cutType': 'full',
+      },
+    };
+
+    switch (printer.connectionType) {
+      case PrinterConnectionType.wifi:
+        data['connectionType'] = 'network';
+        final parts = printer.address.split(':');
+        data['networkSettings'] = {
+          'ipAddress': parts.isNotEmpty ? parts[0] : '',
+          'port': parts.length > 1 ? int.tryParse(parts[1]) ?? 9100 : 9100,
+          'timeout': 5000,
+          'retryAttempts': 3,
+        };
+        break;
+      case PrinterConnectionType.bluetooth:
+        data['connectionType'] = 'bluetooth';
+        data['bluetoothSettings'] = {
+          'macAddress': printer.address,
+          'deviceName': printer.name,
+        };
+        break;
+      case PrinterConnectionType.sunmi:
+        data['connectionType'] = 'usb';
+        data['usbSettings'] = {
+          'portName': 'BUILT-IN',
+        };
+        break;
+      default:
+        data['connectionType'] = 'network';
+    }
+
+    return data;
+  }
+
   /// Save printer settings (legacy single-printer)
   Future<void> savePrinterSettings({
     required String printerName,
@@ -381,7 +573,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     required bool enableReceiptPrinting,
     required bool enableBarcodePrinting,
     required String receiptHeader,
-    required String receiptFooter,
   }) async {
     try {
       state = state.copyWith(isLoading: true, error: null);
@@ -399,7 +590,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           enableBarcodePrinting.toString(),
         ),
         _storageService.write('receipt_header', receiptHeader),
-        _storageService.write('receipt_footer', receiptFooter),
       ]);
 
       state = state.copyWith(
@@ -409,7 +599,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         enableReceiptPrinting: enableReceiptPrinting,
         enableBarcodePrinting: enableBarcodePrinting,
         receiptHeader: receiptHeader,
-        receiptFooter: receiptFooter,
         isLoading: false,
       );
     } catch (e) {
@@ -460,6 +649,7 @@ final settingsProvider = StateNotifierProvider<SettingsNotifier, SettingsState>(
   (ref) {
     final storageService = ref.watch(storageServiceProvider);
     final printerService = ref.watch(printerServiceProvider);
-    return SettingsNotifier(storageService, printerService);
+    final printerApiService = ref.watch(printerApiServiceProvider);
+    return SettingsNotifier(storageService, printerService, printerApiService);
   },
 );

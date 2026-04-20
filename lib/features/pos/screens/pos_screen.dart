@@ -14,9 +14,11 @@ import '../../customers/widgets/customer_lookup_dialog.dart';
 import '../../customers/widgets/redeem_points_dialog.dart';
 import '../../payment/widgets/cash_payment_dialog.dart';
 import '../../../core/services/checkout_service.dart';
+import '../../../core/services/storage_service.dart';
 import '../providers/pos_provider.dart';
 import '../widgets/cart_panel.dart';
 import '../widgets/barcode_scanner_widget.dart';
+import '../widgets/modifier_selection_dialog.dart';
 
 /// Main POS Screen — Loyverse-style design
 class POSScreen extends ConsumerStatefulWidget {
@@ -30,6 +32,26 @@ class _POSScreenState extends ConsumerState<POSScreen> {
   final _searchController = TextEditingController();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isSearchVisible = false;
+  bool _isGridView = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGridViewPref();
+  }
+
+  Future<void> _loadGridViewPref() async {
+    final storage = ref.read(storageServiceProvider);
+    final value = await storage.read('pos_grid_view');
+    if (value == 'true' && mounted) {
+      setState(() => _isGridView = true);
+    }
+  }
+
+  void _toggleGridView() {
+    setState(() => _isGridView = !_isGridView);
+    ref.read(storageServiceProvider).write('pos_grid_view', _isGridView.toString());
+  }
 
   @override
   void dispose() {
@@ -149,42 +171,38 @@ class _POSScreenState extends ConsumerState<POSScreen> {
     );
   }
 
-  // Future<void> _handleApplyLoyalty() async {
-  //   final lang = ref.read(localizationProvider).languageCode;
-  //   final Customer? customer = await showDialog<Customer>(
-  //     context: context,
-  //     builder: (context) => const CustomerLookupDialog(),
-  //   );
-  //   if (customer == null) return;
-
-  //   final cart = ref.read(cartProvider);
-  //   final int? pointsRedeemed = await showDialog<int>(
-  //     context: context,
-  //     builder:
-  //         (context) => RedeemPointsDialog(
-  //           customer: customer,
-  //           orderTotal: cart.total,
-  //           orderId: 'TEMP-${DateTime.now().millisecondsSinceEpoch}',
-  //         ),
-  //   );
-
-  //   if (pointsRedeemed != null && pointsRedeemed > 0 && mounted) {
-  //     final discountAmount = pointsRedeemed * 100.0;
-  //     ref.read(cartProvider.notifier).setCustomer(customer);
-  //     ref
-  //         .read(cartProvider.notifier)
-  //         .addDiscount(
-  //           CartDiscount(
-  //             type: DiscountType.fixed,
-  //             value: discountAmount,
-  //             reason: 'Loyalty Points ($pointsRedeemed pts)',
-  //           ),
-  //         );
-  //   }
-  // }
-
   void _addToCart(Product product) {
-    ref.read(cartProvider.notifier).addProduct(product);
+    if (product.hasCustomizations) {
+      _showModifierDialog(product);
+    } else {
+      ref.read(cartProvider.notifier).addProduct(product);
+    }
+  }
+
+  void _showModifierDialog(Product product) {
+    final lang = ref.read(localizationProvider).languageCode;
+    showModalBottomSheet<List<SelectedModifier>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.65,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => ModifierSelectionDialog(
+          product: product,
+          lang: lang,
+        ),
+      ),
+    ).then((selections) {
+      // Always add to cart — with modifiers if selected, without if dismissed
+      ref.read(cartProvider.notifier).addProduct(
+        product,
+        selectedModifiers: selections ?? [],
+      );
+    });
   }
 
   Future<void> _handleSaveOrder(Cart cart) async {
@@ -230,7 +248,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
         key: _scaffoldKey,
         backgroundColor: Colors.white,
         drawer:
-            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
+            const Drawer(child: AppSidebar(isInDrawer: true)),
         body: SafeArea(
           child:
               isMobile
@@ -285,7 +303,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
         // Right: Cart Panel
         Container(width: 1, color: AppTheme.neutral700),
         SizedBox(
-          width: 350,
+          width: Responsive.getCartPanelWidth(context),
           child: CartPanel(
             cart: cart,
             onUpdateQuantity:
@@ -347,6 +365,16 @@ class _POSScreenState extends ConsumerState<POSScreen> {
 
           const Spacer(),
 
+          // Grid/List toggle
+          IconButton(
+            icon: Icon(
+              _isGridView ? Icons.view_list : Icons.grid_view,
+              color: AppTheme.neutral800,
+              size: 22,
+            ),
+            onPressed: _toggleGridView,
+          ),
+
           // More options
           PopupMenuButton<String>(
             icon: const Icon(
@@ -356,7 +384,7 @@ class _POSScreenState extends ConsumerState<POSScreen> {
             ),
             color: Colors.white,
             onSelected: (value) {
-              if (value == 'scan') _openBarcodeScanner();
+              // if (value == 'scan') _openBarcodeScanner();
               if (value == 'clear') {
                 ref.read(cartProvider.notifier).clear();
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -370,16 +398,16 @@ class _POSScreenState extends ConsumerState<POSScreen> {
             },
             itemBuilder:
                 (context) => [
-                  PopupMenuItem(
-                    value: 'scan',
-                    child: Row(
-                      children: [
-                        const Icon(Icons.qr_code_scanner, size: 20),
-                        const SizedBox(width: 12),
-                        Text(Translations.get('scan_barcode', lang)),
-                      ],
-                    ),
-                  ),
+                  // PopupMenuItem(
+                  //   value: 'scan',
+                  //   child: Row(
+                  //     children: [
+                  //       const Icon(Icons.qr_code_scanner, size: 20),
+                  //       const SizedBox(width: 12),
+                  //       Text(Translations.get('scan_barcode', lang)),
+                  //     ],
+                  //   ),
+                  // ),
                   PopupMenuItem(
                     value: 'clear',
                     enabled: cart.items.isNotEmpty,
@@ -699,15 +727,32 @@ class _POSScreenState extends ConsumerState<POSScreen> {
 
     return RefreshIndicator(
       onRefresh: () => ref.read(productsProvider.notifier).refresh(),
-      child: ListView.separated(
-        itemCount: products.length,
-        separatorBuilder:
-            (_, __) => const Divider(height: 1, color: AppTheme.neutral200),
-        itemBuilder: (context, index) {
-          final product = products[index];
-          return _buildProductItem(product);
-        },
-      ),
+      child:
+          _isGridView
+              ? GridView.builder(
+                padding: const EdgeInsets.all(8),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount:
+                      MediaQuery.of(context).size.width > 600 ? 4 : 2,
+                  childAspectRatio: 0.85,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                ),
+                itemCount: products.length,
+                itemBuilder: (context, index) {
+                  return _buildProductGridItem(products[index]);
+                },
+              )
+              : ListView.separated(
+                itemCount: products.length,
+                separatorBuilder:
+                    (_, __) =>
+                        const Divider(height: 1, color: AppTheme.neutral200),
+                itemBuilder: (context, index) {
+                  final product = products[index];
+                  return _buildProductItem(product);
+                },
+              ),
     );
   }
 
@@ -761,6 +806,108 @@ class _POSScreenState extends ConsumerState<POSScreen> {
             Text(
               price > 0 ? CurrencyFormatter.formatLAKWithSymbol(price) : '–',
               style: const TextStyle(color: AppTheme.neutral600, fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductGridItem(Product product) {
+    final hasImage =
+        product.images.isNotEmpty && product.images.first.url.isNotEmpty;
+    final price = product.pricing.basePrice;
+
+    final colorIndex = product.name.hashCode % _itemColors.length;
+    final circleColor = _itemColors[colorIndex.abs()];
+
+    return InkWell(
+      onTap: () => _addToCart(product),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppTheme.neutral200),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Product image or colored shape
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color:
+                      hasImage
+                          ? Colors.white
+                          : circleColor.withValues(alpha: 0.15),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(8),
+                  ),
+                ),
+                child:
+                    hasImage
+                        ? ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(8),
+                          ),
+                          child: Image.network(
+                            product.images.first.url,
+                            fit: BoxFit.cover,
+                            errorBuilder:
+                                (_, __, ___) => Center(
+                                  child: _buildColorCircle(
+                                    product.name,
+                                    circleColor,
+                                  ),
+                                ),
+                          ),
+                        )
+                        : Center(
+                          child: Text(
+                            product.name.isNotEmpty
+                                ? product.name[0].toUpperCase()
+                                : '?',
+                            style: TextStyle(
+                              color: circleColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 28,
+                            ),
+                          ),
+                        ),
+              ),
+            ),
+
+            // Name + Price
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                children: [
+                  Text(
+                    product.name,
+                    style: const TextStyle(
+                      color: AppTheme.neutral900,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    price > 0
+                        ? CurrencyFormatter.formatLAKWithSymbol(price)
+                        : '–',
+                    style: const TextStyle(
+                      color: AppTheme.primaryOrange,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

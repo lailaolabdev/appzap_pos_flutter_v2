@@ -170,7 +170,7 @@ class _EnhancedMenuItemFormDialogState
 
       if (item.inventory != null) {
         _minStockController.text =
-            item.inventory.lowStockThreshold?.toString() ?? '10';
+            item.inventory.lowStockThreshold?.toString() ?? '0';
         _reorderPointController.text =
             item.inventory.reorderPoint?.toString() ?? '20';
       }
@@ -318,141 +318,140 @@ class _EnhancedMenuItemFormDialogState
   @override
   Widget build(BuildContext context) {
     final categories = ref.watch(menuProvider).categories;
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final lang = ref.read(localizationProvider).languageCode;
 
-    return Dialog(
-      child: Container(
-        width: 800,
-        height: 700,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Row(
           children: [
-            // Header
-            Row(
-              children: [
-                Icon(
-                  widget.item == null ? Icons.add : Icons.edit,
-                  color: AppTheme.primaryOrange,
-                  size: 28,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  widget.item == null
-                      ? Translations.get(
-                        'add_menu_item',
-                        ref.read(localizationProvider).languageCode,
-                      )
-                      : Translations.get(
-                        'edit_menu_item',
-                        ref.read(localizationProvider).languageCode,
-                      ),
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
+            Icon(
+              widget.item == null ? Icons.add : Icons.edit,
+              color: AppTheme.primaryOrange,
+              size: isMobile ? 24 : 28,
             ),
-
-            const SizedBox(height: 24),
-
-            // Tab bar
-            TabBar(
-              controller: _tabController,
-              tabs: [
-                Tab(
-                  icon: Icon(Icons.info),
-                  text: Translations.get(
-                    'basic_info',
-                    ref.read(localizationProvider).languageCode,
-                  ),
-                ),
-                Tab(
-                  icon: Icon(Icons.attach_money),
-                  text: Translations.get(
-                    'pricing_tax',
-                    ref.read(localizationProvider).languageCode,
-                  ),
-                ),
-                Tab(
-                  icon: Icon(Icons.inventory),
-                  text: Translations.get(
-                    'inventory',
-                    ref.read(localizationProvider).languageCode,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Tab views
+            const SizedBox(width: 12),
             Expanded(
-              child: Form(
-                key: _formKey,
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildBasicInfoTab(categories),
-                    _buildPricingTab(),
-                    _buildInventoryTab(),
-                  ],
+              child: Text(
+                widget.item == null
+                    ? Translations.get('add_menu_item', lang)
+                    : Translations.get('edit_menu_item', lang),
+                style: TextStyle(
+                  fontSize: isMobile ? 18 : 24,
+                  fontWeight: FontWeight.bold,
                 ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-
-            // Action buttons
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                OutlinedButton(
-                  onPressed: _isLoading ? null : () => Navigator.pop(context),
-                  child: Text(
-                    Translations.get(
-                      'cancel',
-                      ref.read(localizationProvider).languageCode,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: _isLoading || !_isFormValid ? null : _save,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryOrange,
-                    minimumSize: const Size(120, 48),
-                  ),
-                  child:
-                      _isLoading
-                          ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                          : Text(
-                            widget.item == null
-                                ? Translations.get(
-                                  'create_item',
-                                  ref.read(localizationProvider).languageCode,
-                                )
-                                : Translations.get(
-                                  'update_item',
-                                  ref.read(localizationProvider).languageCode,
-                                ),
-                          ),
-                ),
-              ],
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => Navigator.pop(context),
             ),
           ],
         ),
+
+        const SizedBox(height: 16),
+
+        // Tab bar
+        TabBar(
+          controller: _tabController,
+          isScrollable: isMobile,
+          tabAlignment: isMobile ? TabAlignment.start : TabAlignment.fill,
+          tabs: [
+            Tab(
+              icon: Icon(Icons.info, size: isMobile ? 18 : 24),
+              text: Translations.get('basic_info', lang),
+            ),
+            Tab(
+              icon: Icon(Icons.attach_money, size: isMobile ? 18 : 24),
+              text: Translations.get('pricing_tax', lang),
+            ),
+            Tab(
+              icon: Icon(Icons.inventory, size: isMobile ? 18 : 24),
+              text: Translations.get('inventory', lang),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        // Tab views
+        Expanded(
+          child: Form(
+            key: _formKey,
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildBasicInfoTab(categories),
+                _buildPricingTab(),
+                _buildInventoryTab(),
+              ],
+            ),
+          ),
+        ),
+
+        // Action buttons
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            OutlinedButton(
+              onPressed: _isLoading ? null : () => Navigator.pop(context),
+              child: Text(Translations.get('cancel', lang)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: isMobile ? 1 : 0,
+              child: ElevatedButton(
+                onPressed: _isLoading || !_isFormValid ? null : _save,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryOrange,
+                  minimumSize: const Size(120, 48),
+                ),
+                child:
+                    _isLoading
+                        ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                        : Text(
+                          widget.item == null
+                              ? Translations.get('create_item', lang)
+                              : Translations.get('update_item', lang),
+                        ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    // On mobile: fullscreen scaffold. On tablet/desktop: constrained dialog.
+    if (isMobile) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: content,
+          ),
+        ),
+      );
+    }
+
+    final screenSize = MediaQuery.of(context).size;
+    return Dialog(
+      child: Container(
+        width: (screenSize.width * 0.85).clamp(400, 800).toDouble(),
+        height: (screenSize.height * 0.85).clamp(400, 700).toDouble(),
+        padding: const EdgeInsets.all(24),
+        child: content,
       ),
     );
   }

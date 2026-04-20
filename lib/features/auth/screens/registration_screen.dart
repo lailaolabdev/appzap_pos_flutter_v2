@@ -273,10 +273,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          Translations.get(
-                            'optional_set_up_a_4_digit_pin_for_ultra_fast_daily_logins_2_seconds',
-                            languageCode,
-                          ),
+                          Translations.get('optional_set_up', languageCode),
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: AppTheme.neutral600),
                         ),

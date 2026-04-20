@@ -15,57 +15,72 @@ class ReportService {
 
   ReportService(this._apiClient);
 
-  /// Get daily sales summary
-  Future<DailySalesSummary> getDailySummary({
-    required String branchId,
-    required String startDate, // YYYY-MM-DD
-    required String endDate, // YYYY-MM-DD
-  }) async {
-    final response = await _apiClient.get(
-      ApiConstants.dailySummary,
-      queryParameters: {
-        'branchId': branchId,
-        'startDate': startDate,
-        'endDate': endDate,
-      },
-    );
-
-    return DailySalesSummary.fromJson(response['data'] as Map<String, dynamic>);
-  }
-
-  /// Get daily summary for specific date
-  Future<DailySalesSummary> getDailySummaryForDate({
-    required String branchId,
-    required DateTime date,
-  }) async {
-    final dateStr = date.toIso8601String().split('T')[0];
-    return await getDailySummary(
-      branchId: branchId,
-      startDate: dateStr,
-      endDate: dateStr,
-    );
-  }
-
-  /// Get daily summary for today
-  Future<DailySalesSummary> getTodaySummary({required String branchId}) async {
-    return await getDailySummaryForDate(
-      branchId: branchId,
-      date: DateTime.now(),
-    );
-  }
-
-  /// Get daily summary for date range
+  /// Get daily summary for date range using path-based endpoint
+  /// GET /daily-summary/:restaurantId/:branchId?startDate=X&endDate=Y
   Future<DailySalesSummary> getSummaryForDateRange({
     required String branchId,
     required DateTime startDate,
     required DateTime endDate,
+    String? restaurantId,
   }) async {
     final startStr = startDate.toIso8601String().split('T')[0];
     final endStr = endDate.toIso8601String().split('T')[0];
-    return await getDailySummary(
-      branchId: branchId,
-      startDate: startStr,
-      endDate: endStr,
+
+    // Use path-based endpoint if restaurantId available
+    if (restaurantId != null && restaurantId.isNotEmpty) {
+      try {
+        final response = await _apiClient.get(
+          '${ApiConstants.dailySummary}/$restaurantId/$branchId',
+          queryParameters: {
+            'startDate': startStr,
+            'endDate': endStr,
+          },
+        );
+
+        final data = response['data'] as Map<String, dynamic>? ?? {};
+        final totals = data['totals'] as Map<String, dynamic>? ?? {};
+
+        final totalSales = (totals['totalSales'] as num?)?.toDouble() ?? 0;
+        final totalOrders = totals['totalTransactions'] as int? ?? 0;
+        final totalTax = (totals['totalTax'] as num?)?.toDouble() ?? 0;
+
+        // Build payment breakdown from summaries
+        final payments = <String, double>{};
+        final summaries = data['summaries'] as List<dynamic>? ?? [];
+        for (final entry in summaries) {
+          if (entry is! Map<String, dynamic>) continue;
+          final summary = entry['summary'] as Map<String, dynamic>? ?? {};
+          final pm = summary['paymentMethods'] as Map<String, dynamic>? ?? {};
+          pm.forEach((key, value) {
+            payments[key] = (payments[key] ?? 0) + ((value as num?)?.toDouble() ?? 0);
+          });
+        }
+
+        return DailySalesSummary(
+          period: Period(startDate: startStr, endDate: endStr),
+          sales: SalesData(
+            totalSales: totalSales,
+            totalOrders: totalOrders,
+            averageOrderValue: totalOrders > 0 ? totalSales / totalOrders : 0,
+            totalTax: totalTax,
+          ),
+          payments: payments,
+        );
+      } catch (e) {
+        print('Daily summary API error: $e');
+      }
+    }
+
+    // Fallback: build from sales-items-report data
+    return DailySalesSummary(
+      period: Period(startDate: startStr, endDate: endStr),
+      sales: const SalesData(
+        totalSales: 0,
+        totalOrders: 0,
+        averageOrderValue: 0,
+        totalTax: 0,
+      ),
+      payments: {},
     );
   }
 
@@ -244,6 +259,116 @@ class ReportService {
       branchId: branchId,
       startDate: startStr,
       endDate: endStr,
+    );
+  }
+
+  /// Get daily breakdown (one entry per day in the range)
+  /// Backend response: { data: { summaries: [ { date, summary: { grossSales, ... } } ] } }
+  Future<List<DailyBreakdownItem>> getDailyBreakdown({
+    required String branchId,
+    required String restaurantId,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final startStr = startDate.toIso8601String().split('T')[0];
+    final endStr = endDate.toIso8601String().split('T')[0];
+
+    try {
+      final response = await _apiClient.get(
+        '${ApiConstants.dailySummary}/$restaurantId/$branchId',
+        queryParameters: {
+          'startDate': startStr,
+          'endDate': endStr,
+        },
+      );
+
+      final data = response['data'] as Map<String, dynamic>? ?? {};
+      final List<DailyBreakdownItem> items = [];
+
+      // Backend returns: data.summaries[]
+      final summaries = data['summaries'] as List<dynamic>? ?? [];
+
+      for (final entry in summaries) {
+        if (entry is! Map<String, dynamic>) continue;
+
+        // Parse date
+        final dateStr = entry['date'] as String? ?? '';
+        if (dateStr.isEmpty) continue;
+        DateTime? date;
+        try {
+          date = DateTime.parse(dateStr);
+        } catch (_) {
+          continue;
+        }
+
+        // Summary is nested: entry.summary.grossSales
+        final summary = entry['summary'] as Map<String, dynamic>? ?? {};
+        final grossSales = (summary['grossSales'] as num?)?.toDouble() ??
+            (summary['netSales'] as num?)?.toDouble() ??
+            (summary['totalAmount'] as num?)?.toDouble() ?? 0;
+        final orderCount = summary['salesCount'] as int? ??
+            summary['totalTransactions'] as int? ?? 0;
+
+        items.add(DailyBreakdownItem(
+          date: date,
+          grossSales: grossSales,
+          orderCount: orderCount,
+        ));
+      }
+
+      items.sort((a, b) => b.date.compareTo(a.date));
+      return items;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Get sales by payment type
+  Future<List<SalesByPaymentItem>> getSalesByPaymentType({
+    required String branchId,
+    required String startDate,
+    required String endDate,
+  }) async {
+    final response = await _apiClient.get(
+      ApiConstants.salesByPaymentType,
+      queryParameters: {
+        'branchId': branchId,
+        'startDate': startDate,
+        'endDate': endDate,
+      },
+    );
+
+    final data = response['data'];
+    if (data is List) {
+      return data
+          .map((e) => SalesByPaymentItem.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    if (data is Map<String, dynamic>) {
+      if (data.containsKey('paymentTypes') && data['paymentTypes'] is List) {
+        return (data['paymentTypes'] as List)
+            .map((e) => SalesByPaymentItem.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      if (data.containsKey('items') && data['items'] is List) {
+        return (data['items'] as List)
+            .map((e) => SalesByPaymentItem.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    }
+    return [];
+  }
+
+  /// Get sales by payment type for date range
+  Future<List<SalesByPaymentItem>> getSalesByPaymentTypeForDateRange({
+    required String branchId,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    return await getSalesByPaymentType(
+      branchId: branchId,
+      startDate: startDate.toIso8601String().split('T')[0],
+      endDate: endDate.toIso8601String().split('T')[0],
     );
   }
 

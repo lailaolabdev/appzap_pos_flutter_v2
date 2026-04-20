@@ -59,14 +59,34 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
 
   // ─── Dialogs ───
   void _showAddItemDialog() {
-    showDialog(context: context, builder: (_) => const MenuItemFormDialog());
+    if (Responsive.isMobile(context)) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => const MenuItemFormDialog(),
+        ),
+      );
+    } else {
+      showDialog(context: context, builder: (_) => const MenuItemFormDialog());
+    }
   }
 
   void _showEditItemDialog(dynamic item) {
-    showDialog(
-      context: context,
-      builder: (_) => MenuItemFormDialog(item: item),
-    );
+    if (Responsive.isMobile(context)) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => MenuItemFormDialog(item: item),
+        ),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (_) => MenuItemFormDialog(item: item),
+      );
+    }
   }
 
   void _showAddCategoryDialog() {
@@ -154,7 +174,7 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
         key: _scaffoldKey,
         backgroundColor: Colors.white,
         drawer:
-            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
+            const Drawer(child: AppSidebar(isInDrawer: true)),
         body: SafeArea(
           child:
               _currentPage == 0
@@ -969,18 +989,23 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.playlist_add_check,
-              size: 56,
-              color: Colors.grey.shade400,
-            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final size = constraints.maxWidth < 360 ? 90.0 : 120.0;
+              return Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.playlist_add_check,
+                  size: size * 0.47,
+                  color: Colors.grey.shade400,
+                ),
+              );
+            },
           ),
           const SizedBox(height: 24),
           Text(

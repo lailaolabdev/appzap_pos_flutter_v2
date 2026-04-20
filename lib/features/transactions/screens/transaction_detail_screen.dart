@@ -7,6 +7,8 @@ import '../../../core/constants/translations.dart';
 import '../../../core/models/transaction.dart';
 import '../../../core/providers/localization_provider.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../providers/transaction_provider.dart';
 
 class TransactionDetailScreen extends ConsumerStatefulWidget {
@@ -21,6 +23,8 @@ class TransactionDetailScreen extends ConsumerStatefulWidget {
 
 class _TransactionDetailScreenState
     extends ConsumerState<TransactionDetailScreen> {
+  bool _isPrinting = false;
+
   @override
   void initState() {
     super.initState();
@@ -55,6 +59,25 @@ class _TransactionDetailScreenState
             fontWeight: FontWeight.w600,
           ),
         ),
+        actions: [
+          IconButton(
+            icon:
+                _isPrinting
+                    ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppTheme.primaryOrange,
+                      ),
+                    )
+                    : const Icon(Icons.print, color: Colors.black),
+            onPressed:
+                (_isPrinting || txn == null)
+                    ? null
+                    : () => _printTransactionReceipt(txn),
+          ),
+        ],
       ),
       body:
           state.isLoading && txn == null
@@ -400,6 +423,17 @@ class _TransactionDetailScreenState
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+                if (item.options.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      item.optionsSummary,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.primaryOrange,
+                      ),
+                    ),
+                  ),
                 Text(
                   CurrencyFormatter.formatLAKWithSymbol(item.unitPrice),
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
@@ -474,5 +508,98 @@ class _TransactionDetailScreenState
       default:
         return method.replaceAll('_', ' ');
     }
+  }
+
+  Future<void> _printTransactionReceipt(Transaction txn) async {
+    setState(() => _isPrinting = true);
+    final lang = ref.read(localizationProvider).languageCode;
+
+    try {
+      final settings = ref.read(settingsProvider);
+      final printerService = ref.read(settingsProvider.notifier).printerService;
+
+      if (settings.printerName.isEmpty) {
+        throw Exception('No printer configured');
+      }
+
+      // Connect if needed
+      if (!printerService.isConnected) {
+        final isSunmi = await printerService.isSunmiDevice();
+        if (isSunmi) {
+          await printerService.ensureSunmiConnected(force: true);
+        }
+        if (!printerService.isConnected) {
+          throw Exception('Printer not connected');
+        }
+      }
+
+      // Get paper width
+      final activePrinter =
+          settings.printers.isNotEmpty
+              ? settings.printers.firstWhere(
+                (p) => p.name == settings.printerName,
+                orElse: () => settings.printers.first,
+              )
+              : null;
+
+      // Build items list from transaction line items
+      final items =
+          txn.lineItems
+              .map(
+                (item) => {
+                  'name': item.name,
+                  'quantity': item.quantity,
+                  'price': item.unitPrice,
+                },
+              )
+              .toList();
+
+      final total = txn.consolidatedTotals.grandTotal.amount;
+      final staffName = txn.staff?.processedBy?.name ?? 'Staff';
+
+      final restaurantName = ref.read(currentUserProvider)?.restaurant?.name;
+      final receiptHeader =
+          settings.receiptHeader.isNotEmpty
+              ? settings.receiptHeader
+              : (restaurantName?.isNotEmpty == true)
+              ? restaurantName!
+              : 'APPZAP POS';
+
+      final success = await printerService.printReceipt(
+        header: receiptHeader,
+        orderId: txn.shortId,
+        serverName: staffName,
+        items: items,
+        total: total,
+        orderType:
+            txn.transactionType == 'sale' ? 'Takeaway' : txn.transactionType,
+        paymentMethod: txn.payments.isNotEmpty ? txn.payments.first.method : '',
+        paperWidth: activePrinter?.paperWidth ?? '80 mm',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              success
+                  ? Translations.get('success', lang)
+                  : Translations.get('error', lang),
+            ),
+            backgroundColor: success ? AppTheme.success : AppTheme.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    }
+
+    if (mounted) setState(() => _isPrinting = false);
   }
 }

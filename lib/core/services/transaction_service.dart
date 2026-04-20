@@ -356,11 +356,32 @@ class TransactionService {
       transformed['paymentSummary'] = apiData['paymentSummary'];
 
       // Extract line items from orders
+      // API structure: orders[].orderId (populated order object) -> lineItems[]
+      // Each lineItem has: name, quantity, unitPrice{amount,currency}, lineTotal{amount,currency}
       final orders = apiData['orders'] as List<dynamic>? ?? [];
       final lineItems = <Map<String, dynamic>>[];
       for (final order in orders) {
         final orderMap = order as Map<String, dynamic>;
-        final items = orderMap['items'] as List<dynamic>? ?? [];
+
+        // Find the items list — could be in different places
+        List<dynamic> items = [];
+
+        // 1. orders[].orderId.lineItems (populated order reference)
+        if (orderMap['orderId'] is Map) {
+          final orderData = orderMap['orderId'] as Map<String, dynamic>;
+          items = orderData['lineItems'] as List<dynamic>? ?? [];
+        }
+
+        // 2. orders[].lineItems (direct)
+        if (items.isEmpty) {
+          items = orderMap['lineItems'] as List<dynamic>? ?? [];
+        }
+
+        // 3. orders[].items (fallback)
+        if (items.isEmpty) {
+          items = orderMap['items'] as List<dynamic>? ?? [];
+        }
+
         for (final item in items) {
           final itemMap = item as Map<String, dynamic>;
           lineItems.add({
@@ -368,10 +389,11 @@ class TransactionService {
             'menuItemId': itemMap['menuItemId'],
             'name': itemMap['name'] ?? '',
             'quantity': itemMap['quantity'] ?? 1,
-            'unitPrice': itemMap['unitPrice'] ?? itemMap['price'],
-            'subtotal': itemMap['subtotal'] ?? itemMap['lineTotal'],
+            'unitPrice': itemMap['unitPrice'],
+            'subtotal': itemMap['lineTotal'] ?? itemMap['subtotal'],
             'tax': itemMap['tax'] ?? 0,
             'total': itemMap['lineTotal'] ?? itemMap['subtotal'],
+            if (itemMap['options'] != null) 'options': itemMap['options'],
           });
         }
       }

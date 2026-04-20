@@ -10,6 +10,7 @@ import '../../../app/theme.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/constants/translations.dart';
 import '../../../core/providers/localization_provider.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/error_banner.dart';
 import '../providers/auth_provider.dart';
@@ -265,18 +266,23 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
               // Icon
               Center(
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryOrangeBackground,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Icon(
-                    Icons.sms_outlined,
-                    size: 40,
-                    color: AppTheme.primaryOrange,
-                  ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final iconSize = constraints.maxWidth < 360 ? 64.0 : 80.0;
+                    return Container(
+                      width: iconSize,
+                      height: iconSize,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryOrangeBackground,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Icon(
+                        Icons.sms_outlined,
+                        size: iconSize * 0.5,
+                        color: AppTheme.primaryOrange,
+                      ),
+                    );
+                  },
                 ),
               ),
               const SizedBox(height: 32),
@@ -318,8 +324,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 pinTheme: PinTheme(
                   shape: PinCodeFieldShape.box,
                   borderRadius: BorderRadius.circular(12),
-                  fieldHeight: 56,
-                  fieldWidth: 48,
+                  fieldHeight: Responsive.getPinFieldHeight(context),
+                  fieldWidth: Responsive.getPinFieldWidth(context, fieldCount: 6),
                   activeFillColor: Colors.white,
                   selectedFillColor: Colors.white,
                   inactiveFillColor: AppTheme.neutral50,

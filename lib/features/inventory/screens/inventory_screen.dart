@@ -55,12 +55,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
 
     if (result == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(Translations.get('stock_adjust_succ', languageCode)),
-          backgroundColor: AppTheme.success,
-        ),
-      );
+      // Reload inventory to show updated stock
+      await ref.read(inventoryProvider.notifier).loadInventory();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(Translations.get('stock_adjust_succ', languageCode)),
+            backgroundColor: AppTheme.success,
+          ),
+        );
+      }
     }
   }
 
@@ -76,7 +80,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
         drawer:
-            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
+            const Drawer(child: AppSidebar(isInDrawer: true)),
         appBar: AppBar(
           backgroundColor: AppTheme.scaffoldBackground,
           surfaceTintColor: AppTheme.scaffoldBackground,

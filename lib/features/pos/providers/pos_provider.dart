@@ -292,9 +292,17 @@ final productsProvider = StateNotifierProvider<ProductsNotifier, ProductsState>(
 class CartNotifier extends StateNotifier<Cart> {
   CartNotifier() : super(const Cart());
 
-  /// Add product to cart
-  void addProduct(Product product, {int quantity = 1}) {
-    state = state.addProduct(product, quantity: quantity);
+  /// Add product to cart with optional modifier selections
+  void addProduct(
+    Product product, {
+    int quantity = 1,
+    List<SelectedModifier> selectedModifiers = const [],
+  }) {
+    state = state.addProduct(
+      product,
+      quantity: quantity,
+      selectedModifiers: selectedModifiers,
+    );
   }
 
   /// Remove item from cart

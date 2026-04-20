@@ -139,12 +139,14 @@ class Restaurant extends Equatable {
   final String id;
   final String? name;
   final String? code; // 5-character code (e.g., "JC001", "MS123")
+  final String? logo;
   final RestaurantSettings? settings;
 
   const Restaurant({
     required this.id,
     this.name,
     this.code,
+    this.logo,
     this.settings,
   });
 
@@ -153,6 +155,7 @@ class Restaurant extends Equatable {
       id: json['_id']?.toString() ?? '',
       name: json['name']?.toString(),
       code: json['code']?.toString(),
+      logo: json['logo']?.toString(),
       settings: json['settings'] != null
           ? RestaurantSettings.fromJson(json['settings'] as Map<String, dynamic>)
           : null,
@@ -164,6 +167,7 @@ class Restaurant extends Equatable {
       '_id': id,
       'name': name,
       'code': code,
+      'logo': logo,
       'settings': settings?.toJson(),
     };
   }
@@ -172,7 +176,7 @@ class Restaurant extends Equatable {
   String get currency => settings?.currency.mainCurrency ?? 'LAK';
 
   @override
-  List<Object?> get props => [id, name, code, settings];
+  List<Object?> get props => [id, name, code, logo, settings];
 }
 
 /// Restaurant settings

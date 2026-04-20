@@ -112,18 +112,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                 // Logo
                 Center(
-                  child: Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryOrangeBackground,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: const Icon(
-                      Icons.point_of_sale_rounded,
-                      size: 50,
-                      color: AppTheme.primaryOrange,
-                    ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final logoSize = constraints.maxWidth < 360 ? 80.0 : 100.0;
+                      return Container(
+                        width: logoSize,
+                        height: logoSize,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryOrangeBackground,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Icon(
+                          Icons.point_of_sale_rounded,
+                          size: logoSize * 0.5,
+                          color: AppTheme.primaryOrange,
+                        ),
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(height: 32),

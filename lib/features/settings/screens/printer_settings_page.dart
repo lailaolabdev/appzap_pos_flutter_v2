@@ -5,6 +5,7 @@ import '../../../app/theme.dart';
 import '../../../core/constants/translations.dart';
 import '../../../core/providers/localization_provider.dart';
 import '../../../core/services/printer_service.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../providers/settings_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -23,6 +24,20 @@ class _PrinterSettingsPageState extends ConsumerState<PrinterSettingsPage> {
   final Set<String> _selectedIds = {};
 
   bool get _isSelectMode => _selectedIds.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    // Sync printers from backend on page load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = ref.read(currentUserProvider);
+      final branchId = user?.branch?.id;
+      if (branchId != null && branchId.isNotEmpty) {
+        ref.read(settingsProvider.notifier).setBranchId(branchId);
+        ref.read(settingsProvider.notifier).syncPrintersFromBackend();
+      }
+    });
+  }
 
   void _exitSelection() => setState(() => _selectedIds.clear());
 
@@ -64,7 +79,9 @@ class _PrinterSettingsPageState extends ConsumerState<PrinterSettingsPage> {
     );
 
     if (confirmed == true) {
-      await ref.read(settingsProvider.notifier).deletePrinters(_selectedIds);
+      for (final id in _selectedIds) {
+        await ref.read(settingsProvider.notifier).deletePrinterFromBackend(id);
+      }
       setState(() => _selectedIds.clear());
     }
   }
@@ -119,10 +136,18 @@ class _PrinterSettingsPageState extends ConsumerState<PrinterSettingsPage> {
                   ),
                 ),
               ),
-      body:
-          printers.isEmpty
-              ? _buildEmptyState(lang)
-              : _buildPrinterList(printers, lang),
+
+      body: Column(
+        children: [
+          const Divider(height: 1, color: Color(0xFFE0E0E0)),
+          Expanded(
+            child:
+                printers.isEmpty
+                    ? _buildEmptyState(lang)
+                    : _buildPrinterList(printers, lang),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openCreatePrinter(),
         backgroundColor: AppTheme.primaryOrange,
@@ -136,18 +161,23 @@ class _PrinterSettingsPageState extends ConsumerState<PrinterSettingsPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppTheme.primaryOrangeBackground,
-            ),
-            child: const Icon(
-              Icons.print,
-              size: 56,
-              color: AppTheme.primaryOrange,
-            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final size = constraints.maxWidth < 360 ? 90.0 : 120.0;
+              return Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.primaryOrangeBackground,
+                ),
+                child: Icon(
+                  Icons.print,
+                  size: size * 0.47,
+                  color: AppTheme.primaryOrange,
+                ),
+              );
+            },
           ),
           const SizedBox(height: 24),
           Text(
@@ -341,11 +371,33 @@ class _CreatePrinterPageState extends ConsumerState<CreatePrinterPage> {
 
   // Toggles
   bool _printReceipts = false;
+  bool _autoPrintReceipt = false;
   bool _printOrders = false;
 
   // State
   bool _isTesting = false;
   bool _isSaving = false;
+
+  // Track initial values for change detection
+  late String _initName;
+  late String _initAddress;
+  late String _initModel;
+  late String _initInterface;
+  late String _initPaperWidth;
+  late bool _initPrintReceipts;
+  late bool _initAutoPrint;
+  late bool _initPrintOrders;
+
+  bool get _hasChanges {
+    return _nameController.text != _initName ||
+        _ipController.text != _initAddress ||
+        _selectedModel != _initModel ||
+        _selectedInterface != _initInterface ||
+        _paperWidth != _initPaperWidth ||
+        _printReceipts != _initPrintReceipts ||
+        _autoPrintReceipt != _initAutoPrint ||
+        _printOrders != _initPrintOrders;
+  }
 
   @override
   void initState() {
@@ -354,6 +406,7 @@ class _CreatePrinterPageState extends ConsumerState<CreatePrinterPage> {
     _nameController = TextEditingController(text: s?.name ?? '');
     _ipController = TextEditingController(text: s?.address ?? '');
     _printReceipts = s?.enableReceiptPrinting ?? false;
+    _autoPrintReceipt = s?.autoPrintReceipt ?? false;
     _printOrders = s?.printOrders ?? false;
 
     if (s != null && s.name.isNotEmpty) {
@@ -373,6 +426,19 @@ class _CreatePrinterPageState extends ConsumerState<CreatePrinterPage> {
           _selectedInterface = 'Ethernet';
       }
     }
+
+    // Save initial values for change detection
+    _initName = _nameController.text;
+    _initAddress = _ipController.text;
+    _initModel = _selectedModel;
+    _initInterface = _selectedInterface;
+    _initPaperWidth = _paperWidth;
+    _initPrintReceipts = _printReceipts;
+    _initAutoPrint = _autoPrintReceipt;
+    _initPrintOrders = _printOrders;
+
+    _nameController.addListener(() => setState(() {}));
+    _ipController.addListener(() => setState(() {}));
   }
 
   @override
@@ -422,23 +488,15 @@ class _CreatePrinterPageState extends ConsumerState<CreatePrinterPage> {
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: TextButton(
-              onPressed: _isSaving ? null : _save,
+              onPressed: (_hasChanges && !_isSaving) ? _save : null,
               style: TextButton.styleFrom(
-                backgroundColor:
-                    _isSaving ? AppTheme.neutral200 : AppTheme.primaryOrange,
-                foregroundColor: _isSaving ? AppTheme.neutral400 : Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
+                foregroundColor:
+                    _hasChanges ? AppTheme.primaryOrange : Colors.blueGrey,
               ),
               child: Text(
                 Translations.get('save', lang),
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -456,7 +514,7 @@ class _CreatePrinterPageState extends ConsumerState<CreatePrinterPage> {
                   // ─── Basic Info Card ───
                   Container(
                     color: Colors.white,
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                    padding: const EdgeInsets.fromLTRB(20, 5, 20, 8),
                     child: Column(
                       children: [
                         // Name
@@ -480,33 +538,9 @@ class _CreatePrinterPageState extends ConsumerState<CreatePrinterPage> {
                         ),
                         const SizedBox(height: 20),
 
-                        // Printer Model
-                        _buildDropdown(
-                          label: Translations.get('printer_model', lang),
-                          value: _selectedModel,
-                          items: _printerModels,
-                          onChanged: (v) {
-                            setState(() {
-                              _selectedModel = v!;
-                              if (v == 'Sunmi') {
-                                _selectedInterface = 'Sunmi';
-                              } else if (v.contains('Bluetooth')) {
-                                _selectedInterface = 'Bluetooth';
-                              } else if (v.contains('Ethernet')) {
-                                _selectedInterface = 'Ethernet';
-                              }
-                              if (_nameController.text.isEmpty &&
-                                  v != 'Other model') {
-                                _nameController.text = v;
-                              }
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 20),
-
                         // Interface
                         _buildDropdown(
-                          label: 'Interface',
+                          label: Translations.get('interface', lang),
                           value: _selectedInterface,
                           items: _interfaces,
                           onChanged: (v) {
@@ -532,7 +566,7 @@ class _CreatePrinterPageState extends ConsumerState<CreatePrinterPage> {
 
                         // Paper Width
                         _buildDropdown(
-                          label: 'Paper width',
+                          label: Translations.get('paper_width', lang),
                           value: _paperWidth,
                           items: _paperWidths,
                           onChanged: (v) => setState(() => _paperWidth = v!),
@@ -553,7 +587,7 @@ class _CreatePrinterPageState extends ConsumerState<CreatePrinterPage> {
                         Padding(
                           padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                           child: Text(
-                            'Advanced settings',
+                            Translations.get('advanced_settings', lang),
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
@@ -565,59 +599,71 @@ class _CreatePrinterPageState extends ConsumerState<CreatePrinterPage> {
                         _toggle(
                           Translations.get('print_receipts_bills', lang),
                           _printReceipts,
-                          (v) => setState(() => _printReceipts = v),
+                          (v) => setState(() {
+                            _printReceipts = v;
+                            if (!v) _autoPrintReceipt = false;
+                          }),
                         ),
-                        Divider(height: 1, color: Colors.grey.shade200),
                         _toggle(
                           Translations.get('print_orders', lang),
                           _printOrders,
                           (v) => setState(() => _printOrders = v),
                         ),
+                        if (_printReceipts) ...[
+                          Divider(height: 1, color: Colors.grey.shade200),
+                          _toggle(
+                            Translations.get('auto_print_receipt', lang),
+                            _autoPrintReceipt,
+                            (v) => setState(() => _autoPrintReceipt = v),
+                          ),
+                        ],
+                        // ─── Print Test Button (bottom) ───
+                        Container(
+                          color: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: InkWell(
+                            onTap: _isTesting ? null : _testPrint,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  if (_isTesting)
+                                    const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppTheme.primaryOrange,
+                                      ),
+                                    )
+                                  else
+                                    const Icon(
+                                      Icons.print,
+                                      size: 20,
+                                      color: AppTheme.primaryOrange,
+                                    ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    Translations.get(
+                                      'print_test',
+                                      lang,
+                                    ).toUpperCase(),
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.primaryOrange,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ],
-              ),
-            ),
-          ),
-
-          // ─── Print Test Button (bottom) ───
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: InkWell(
-              onTap: _isTesting ? null : _testPrint,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (_isTesting)
-                      const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppTheme.primaryOrange,
-                        ),
-                      )
-                    else
-                      const Icon(
-                        Icons.print,
-                        size: 20,
-                        color: AppTheme.primaryOrange,
-                      ),
-                    const SizedBox(width: 12),
-                    Text(
-                      Translations.get('print_test', lang).toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.primaryOrange,
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ),
           ),
@@ -1034,23 +1080,34 @@ class _CreatePrinterPageState extends ConsumerState<CreatePrinterPage> {
     setState(() => _isSaving = true);
 
     try {
+      // Try to connect (best effort — printing will auto-connect later if needed)
       final printerService = ref.read(settingsProvider.notifier).printerService;
-      bool connected = false;
-
-      // Connect based on interface
-      if (_connectionType == PrinterConnectionType.sunmi) {
-        connected = await printerService.connectSunmi();
-      } else if (_connectionType == PrinterConnectionType.wifi &&
-          _ipController.text.isNotEmpty) {
-        final parts = _ipController.text.split(':');
-        final ip = parts[0];
-        final port = parts.length > 1 ? int.tryParse(parts[1]) ?? 9100 : 9100;
-        connected = await printerService.connectWiFi(ip, port: port);
-      } else if (_connectionType == PrinterConnectionType.bluetooth &&
-          _selectedBluetoothDevice != null) {
-        connected = await printerService.connectBluetooth(
-          _selectedBluetoothDevice!,
-        );
+      try {
+        if (_connectionType == PrinterConnectionType.sunmi) {
+          await printerService.connectSunmi();
+        } else if (_connectionType == PrinterConnectionType.wifi &&
+            _ipController.text.isNotEmpty) {
+          final parts = _ipController.text.split(':');
+          final ip = parts[0];
+          final port = parts.length > 1 ? int.tryParse(parts[1]) ?? 9100 : 9100;
+          await printerService.connectWiFi(ip, port: port);
+        } else if (_connectionType == PrinterConnectionType.bluetooth) {
+          final device =
+              _selectedBluetoothDevice ??
+              (_ipController.text.isNotEmpty
+                  ? PrinterDevice(
+                    id: _ipController.text,
+                    name: name,
+                    address: _ipController.text,
+                    type: PrinterConnectionType.bluetooth,
+                  )
+                  : null);
+          if (device != null) {
+            await printerService.connectBluetooth(device);
+          }
+        }
+      } catch (_) {
+        // Connection attempt is best-effort — don't block save
       }
 
       final printer = SavedPrinter(
@@ -1061,22 +1118,25 @@ class _CreatePrinterPageState extends ConsumerState<CreatePrinterPage> {
         address: _ipController.text,
         connectionType: _connectionType,
         enableReceiptPrinting: _printReceipts,
+        autoPrintReceipt: _autoPrintReceipt,
         printOrders: _printOrders,
         paperWidth: _paperWidth,
         model: _selectedModel,
       );
 
-      await ref.read(settingsProvider.notifier).addOrUpdatePrinter(printer);
+      // Set branchId and save to backend + local
+      final user = ref.read(currentUserProvider);
+      final branchId = user?.branch?.id;
+      if (branchId != null && branchId.isNotEmpty) {
+        ref.read(settingsProvider.notifier).setBranchId(branchId);
+      }
+      await ref.read(settingsProvider.notifier).savePrinterToBackend(printer);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              connected
-                  ? '${Translations.get('saved_successfully', lang)} - ${Translations.get('connected', lang)}'
-                  : '${Translations.get('saved_successfully', lang)} - ${Translations.get('not_connected', lang)}',
-            ),
-            backgroundColor: connected ? AppTheme.success : AppTheme.warning,
+            content: Text(Translations.get('saved_successfully', lang)),
+            backgroundColor: AppTheme.success,
           ),
         );
         Navigator.pop(context);

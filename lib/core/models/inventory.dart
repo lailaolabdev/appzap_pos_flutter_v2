@@ -74,7 +74,7 @@ class InventoryItem extends Equatable {
     this.reservedStock = 0,
     required this.costPerUnit,
     this.sellingPrice,
-    this.minStockLevel = 10,
+    this.minStockLevel = 0,
     this.maxStockLevel = 500,
     this.status = 'active',
     required this.restaurantId,
@@ -104,7 +104,7 @@ class InventoryItem extends Equatable {
     // Debug parsing for minStockLevel
     final minStockFromJson = (json['minStockLevel'] as num?)?.toInt();
     final lowStockFromJson = (json['lowStockThreshold'] as num?)?.toInt();
-    final finalMinStock = minStockFromJson ?? lowStockFromJson ?? 10;
+    final finalMinStock = minStockFromJson ?? lowStockFromJson ?? 0;
 
 
     return InventoryItem(
@@ -117,13 +117,13 @@ class InventoryItem extends Equatable {
       category: json['category']?.toString() ?? 'ingredient',
       unitOfMeasure: unitOfMeasure,
       currentStock:
+          (json['totalStock'] as num?)?.toInt() ??
           (json['currentStock'] as num?)?.toInt() ??
           (json['availableStock'] as num?)?.toInt() ??
-          (json['totalStock'] as num?)?.toInt() ??
           0,
       availableStock:
           (json['availableStock'] as num?)?.toInt() ??
-          (json['currentStock'] as num?)?.toInt() ??
+          (json['totalStock'] as num?)?.toInt() ??
           0,
       reservedStock: (json['reservedStock'] as num?)?.toInt() ?? 0,
       costPerUnit:
@@ -491,7 +491,7 @@ class CreateInventoryItemRequest {
     required this.unitOfMeasure,
     required this.costPerUnit,
     this.sellingPrice,
-    this.minStockLevel = 10,
+    this.minStockLevel = 0,
     this.maxStockLevel = 500,
     this.status = 'active',
   });

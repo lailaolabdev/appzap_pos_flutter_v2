@@ -7,6 +7,7 @@ import 'package:pin_code_fields/pin_code_fields.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/api/api_exception.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/error_banner.dart';
 import '../providers/auth_provider.dart';
@@ -130,6 +131,27 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
+  Widget _buildStepIcon(IconData icon) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final iconSize = constraints.maxWidth < 360 ? 64.0 : 80.0;
+        return Container(
+          width: iconSize,
+          height: iconSize,
+          decoration: BoxDecoration(
+            color: AppTheme.primaryOrangeBackground,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Icon(
+            icon,
+            size: iconSize * 0.5,
+            color: AppTheme.primaryOrange,
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Use local loading state to avoid disposed widget issues
@@ -197,19 +219,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
         // Icon
         Center(
-          child: Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: AppTheme.primaryOrangeBackground,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Icon(
-              Icons.person_outline_rounded,
-              size: 40,
-              color: AppTheme.primaryOrange,
-            ),
-          ),
+          child: _buildStepIcon(Icons.person_outline_rounded),
         ),
         const SizedBox(height: 32),
 
@@ -262,19 +272,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
         // Icon
         Center(
-          child: Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: AppTheme.primaryOrangeBackground,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Icon(
-              Icons.store_outlined,
-              size: 40,
-              color: AppTheme.primaryOrange,
-            ),
-          ),
+          child: _buildStepIcon(Icons.store_outlined),
         ),
         const SizedBox(height: 32),
 
@@ -325,19 +323,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
         // Icon
         Center(
-          child: Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: AppTheme.primaryOrangeBackground,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Icon(
-              Icons.lock_outline_rounded,
-              size: 40,
-              color: AppTheme.primaryOrange,
-            ),
-          ),
+          child: _buildStepIcon(Icons.lock_outline_rounded),
         ),
         const SizedBox(height: 32),
 
@@ -381,8 +367,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           pinTheme: PinTheme(
             shape: PinCodeFieldShape.box,
             borderRadius: BorderRadius.circular(12),
-            fieldHeight: 56,
-            fieldWidth: 56,
+            fieldHeight: Responsive.getPinFieldHeight(context),
+            fieldWidth: Responsive.getPinFieldWidth(context, fieldCount: 4),
             activeFillColor: Colors.white,
             selectedFillColor: Colors.white,
             inactiveFillColor: AppTheme.neutral50,
@@ -419,8 +405,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           pinTheme: PinTheme(
             shape: PinCodeFieldShape.box,
             borderRadius: BorderRadius.circular(12),
-            fieldHeight: 56,
-            fieldWidth: 56,
+            fieldHeight: Responsive.getPinFieldHeight(context),
+            fieldWidth: Responsive.getPinFieldWidth(context, fieldCount: 4),
             activeFillColor: Colors.white,
             selectedFillColor: Colors.white,
             inactiveFillColor: AppTheme.neutral50,

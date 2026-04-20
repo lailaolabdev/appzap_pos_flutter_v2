@@ -283,6 +283,7 @@ class TransactionLineItem extends Equatable {
   final double subtotal;
   final double tax;
   final double total;
+  final List<LineItemOption> options;
 
   const TransactionLineItem({
     required this.itemType,
@@ -293,6 +294,7 @@ class TransactionLineItem extends Equatable {
     required this.subtotal,
     required this.tax,
     required this.total,
+    this.options = const [],
   });
 
   factory TransactionLineItem.fromJson(Map<String, dynamic> json) {
@@ -305,11 +307,57 @@ class TransactionLineItem extends Equatable {
       subtotal: MoneyAmount._extractAmountValue(json['subtotal']),
       tax: MoneyAmount._extractAmountValue(json['tax']),
       total: MoneyAmount._extractAmountValue(json['total']),
+      options: (json['options'] as List<dynamic>?)
+              ?.map((e) => LineItemOption.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
+
+  /// Summary of selected options for display
+  String get optionsSummary {
+    if (options.isEmpty) return '';
+    return options.map((o) => o.name).join(', ');
+  }
+
+  @override
+  List<Object?> get props => [menuItemId, name, quantity, total, options];
+}
+
+/// Option selected on a line item
+class LineItemOption extends Equatable {
+  final String? customizationId;
+  final String? customizationName;
+  final String? optionId;
+  final String name;
+  final int quantity;
+  final double unitPrice;
+  final double totalPrice;
+
+  const LineItemOption({
+    this.customizationId,
+    this.customizationName,
+    this.optionId,
+    required this.name,
+    this.quantity = 1,
+    this.unitPrice = 0,
+    this.totalPrice = 0,
+  });
+
+  factory LineItemOption.fromJson(Map<String, dynamic> json) {
+    return LineItemOption(
+      customizationId: json['customizationId']?.toString(),
+      customizationName: json['customizationName'] as String?,
+      optionId: json['optionId']?.toString(),
+      name: json['name'] as String? ?? '',
+      quantity: json['quantity'] as int? ?? 1,
+      unitPrice: MoneyAmount._extractAmountValue(json['unitPrice']),
+      totalPrice: MoneyAmount._extractAmountValue(json['totalPrice']),
     );
   }
 
   @override
-  List<Object?> get props => [menuItemId, name, quantity, total];
+  List<Object?> get props => [optionId, name, unitPrice];
 }
 
 /// Payment Summary

@@ -314,12 +314,15 @@ class PhayPayQRDialog extends ConsumerWidget {
     PhayPayPayment payment,
     PaymentState state,
   ) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final qrSize = (screenWidth * 0.6).clamp(180.0, 250.0);
+
     return Column(
       children: [
         // QR Code
         Container(
-          width: 250,
-          height: 250,
+          width: qrSize,
+          height: qrSize,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -334,7 +337,7 @@ class PhayPayQRDialog extends ConsumerWidget {
                   : Center(
                     child: Icon(
                       Icons.qr_code_2,
-                      size: 180,
+                      size: qrSize * 0.72,
                       color: AppTheme.neutral300,
                     ),
                   ),
@@ -382,18 +385,19 @@ class PhayPayQRDialog extends ConsumerWidget {
   }
 
   Widget _buildSuccessState(BuildContext context) {
+    final size = MediaQuery.of(context).size.width < 360 ? 90.0 : 120.0;
     return Column(
       children: [
         Container(
-          width: 120,
-          height: 120,
+          width: size,
+          height: size,
           decoration: const BoxDecoration(
             color: AppTheme.successLight,
             shape: BoxShape.circle,
           ),
-          child: const Icon(
+          child: Icon(
             Icons.check_circle,
-            size: 80,
+            size: size * 0.67,
             color: AppTheme.success,
           ),
         ),
@@ -410,18 +414,19 @@ class PhayPayQRDialog extends ConsumerWidget {
   }
 
   Widget _buildFailedState(BuildContext context, String error) {
+    final size = MediaQuery.of(context).size.width < 360 ? 90.0 : 120.0;
     return Column(
       children: [
         Container(
-          width: 120,
-          height: 120,
+          width: size,
+          height: size,
           decoration: const BoxDecoration(
             color: AppTheme.errorLight,
             shape: BoxShape.circle,
           ),
-          child: const Icon(
+          child: Icon(
             Icons.error_outline,
-            size: 80,
+            size: size * 0.67,
             color: AppTheme.error,
           ),
         ),

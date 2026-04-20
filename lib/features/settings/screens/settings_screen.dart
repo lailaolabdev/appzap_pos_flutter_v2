@@ -28,8 +28,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       child: Scaffold(
         key: _scaffoldKey,
         backgroundColor: Colors.white,
-        drawer:
-            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
+        drawer: const Drawer(child: AppSidebar(isInDrawer: true)),
         body: SafeArea(
           child: Column(
             children: [

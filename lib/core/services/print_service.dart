@@ -212,7 +212,10 @@ class PrintService {
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
-                    pw.Text('Discount:', style: const pw.TextStyle(fontSize: 10)),
+                    pw.Text(
+                      'Discount:',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
                     pw.Text(
                       '-${CurrencyFormatter.format(cart.discountAmount)}',
                       style: const pw.TextStyle(fontSize: 10),
@@ -282,7 +285,10 @@ class PrintService {
                     pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
-                        pw.Text('Tendered:', style: const pw.TextStyle(fontSize: 10)),
+                        pw.Text(
+                          'Tendered:',
+                          style: const pw.TextStyle(fontSize: 10),
+                        ),
                         pw.Text(
                           CurrencyFormatter.format(tenderedAmount),
                           style: const pw.TextStyle(fontSize: 10),
@@ -292,7 +298,10 @@ class PrintService {
                     pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
-                        pw.Text('Change:', style: const pw.TextStyle(fontSize: 10)),
+                        pw.Text(
+                          'Change:',
+                          style: const pw.TextStyle(fontSize: 10),
+                        ),
                         pw.Text(
                           CurrencyFormatter.format(changeAmount),
                           style: const pw.TextStyle(fontSize: 10),
@@ -310,13 +319,6 @@ class PrintService {
               pw.Center(
                 child: pw.Column(
                   children: [
-                    pw.Text(
-                      'Thank you for your business!',
-                      style: pw.TextStyle(
-                        fontSize: 12,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                    ),
                     pw.SizedBox(height: 4),
                     pw.Text(
                       'Please come again',

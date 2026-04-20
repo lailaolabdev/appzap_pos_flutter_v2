@@ -80,7 +80,7 @@ class _LanguageSettingsPageState extends ConsumerState<LanguageSettingsPage> {
               child: Text(
                 Translations.get('save', lang),
                 style: const TextStyle(
-                  fontSize: 18,
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
               ),

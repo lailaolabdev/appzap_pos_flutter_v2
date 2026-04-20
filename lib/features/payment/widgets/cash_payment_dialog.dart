@@ -8,6 +8,7 @@ import '../../../app/theme.dart';
 import '../../../core/models/cart.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/receipt_printer.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../providers/payment_provider.dart';
 
@@ -29,6 +30,7 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
   final _tenderedController = TextEditingController();
   double _tenderedAmount = 0;
   bool _isProcessing = false;
+  bool _isPrinting = false;
   String? _errorMessage;
   String _selectedMethod = 'cash';
 
@@ -207,6 +209,9 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
                         ),
                       ),
                     ),
+
+                    // Print Receipt button (shown when manual print mode)
+                    _buildPrintReceiptButton(lang),
                   ],
                 ),
               ),
@@ -404,28 +409,38 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
     });
 
     try {
-      // Run print and payment at the same time — don't wait for print to finish
-      final printFuture = _printReceipt().catchError((e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(e.toString().replaceAll('Exception: ', '')),
-              backgroundColor: AppTheme.warning,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-      });
+      // Check printer settings
+      final settings = ref.read(settingsProvider);
+      final activePrinter =
+          settings.printers.isNotEmpty
+              ? settings.printers.firstWhere(
+                (p) => p.name == settings.printerName,
+                orElse: () => settings.printers.first,
+              )
+              : null;
+      final receiptEnabled = activePrinter?.enableReceiptPrinting ?? false;
+      final autoprint = activePrinter?.autoPrintReceipt ?? false;
 
-      final paymentFuture = paymentNotifier.processCashPayment(
+      // Auto-print runs in parallel with payment
+      if (receiptEnabled && autoprint) {
+        _printReceipt().catchError((e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(e.toString().replaceAll('Exception: ', '')),
+                backgroundColor: AppTheme.warning,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        });
+      }
+
+      final success = await paymentNotifier.processCashPayment(
         total: widget.totalAmount,
         tendered: finalAmount,
         cart: widget.cart,
       );
-
-      // Wait for both — payment result matters, print doesn't block
-      final results = await Future.wait([printFuture, paymentFuture]);
-      final success = results[1] as bool;
 
       if (success && mounted) {
         Navigator.pop(context, {
@@ -454,6 +469,86 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
         );
       }
     }
+  }
+
+  /// Print Receipt button — visible only when receipt ON + auto-print OFF
+  Widget _buildPrintReceiptButton(String lang) {
+    final settings = ref.watch(settingsProvider);
+    final activePrinter =
+        settings.printers.isNotEmpty
+            ? settings.printers.firstWhere(
+              (p) => p.name == settings.printerName,
+              orElse: () => settings.printers.first,
+            )
+            : null;
+
+    final receiptEnabled = activePrinter?.enableReceiptPrinting ?? false;
+    final autoprint = activePrinter?.autoPrintReceipt ?? false;
+
+    // Only show button when: receipt ON + auto-print OFF
+    if (!receiptEnabled || autoprint) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed:
+              _isPrinting
+                  ? null
+                  : () async {
+                    setState(() => _isPrinting = true);
+                    try {
+                      await _printReceipt();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(Translations.get('success', lang)),
+                            backgroundColor: AppTheme.success,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              e.toString().replaceAll('Exception: ', ''),
+                            ),
+                            backgroundColor: AppTheme.error,
+                          ),
+                        );
+                      }
+                    }
+                    if (mounted) setState(() => _isPrinting = false);
+                  },
+          icon:
+              _isPrinting
+                  ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppTheme.primaryOrange,
+                    ),
+                  )
+                  : const Icon(Icons.print, size: 20),
+          label: Text(
+            Translations.get('print_receipt', lang),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppTheme.primaryOrange,
+            side: const BorderSide(color: AppTheme.primaryOrange),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            alignment: Alignment.center,
+          ),
+        ),
+      ),
+    );
   }
 
   InputDecoration _amountInputDecoration(double total) {
@@ -493,9 +588,6 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
     final printerService = ref.read(settingsProvider.notifier).printerService;
     final settings = ref.read(settingsProvider);
 
-    // Check if printing is enabled
-    if (!settings.enableReceiptPrinting) return;
-
     // Check if printer is configured
     if (settings.printerName.isEmpty) {
       throw Exception('No printer configured');
@@ -516,10 +608,23 @@ class _CashPaymentDialogState extends ConsumerState<CashPaymentDialog> {
       }
     }
 
+    // Get paper width from active printer
+    final activePrinter =
+        settings.printers.isNotEmpty
+            ? settings.printers.firstWhere(
+              (p) => p.name == settings.printerName,
+              orElse: () => settings.printers.first,
+            )
+            : null;
+
+    final user = ref.read(currentUserProvider);
+
     final receiptPrinter = ReceiptPrinter(
       printerService: printerService,
       receiptHeader: settings.receiptHeader,
-      receiptFooter: settings.receiptFooter,
+      shopName: user?.restaurant?.name,
+      logoUrl: user?.restaurant?.logo,
+      paperWidth: activePrinter?.paperWidth ?? '80 mm',
     );
 
     final success = await receiptPrinter.printCartReceipt(

@@ -339,11 +339,8 @@ class CheckoutService {
     required double tenderedAmount,
     String? notes,
   }) async {
-    // NOTE: Backend handles all validation (inventory tracking, stock availability,
-    // order creation, payment processing, stock deduction) in one transaction.
-    // No need for redundant client-side checks — just send the request.
-
     // Transform cart items to LineItems
+    // Use effectiveUnitPrice which includes modifier price extras
     final lineItems =
         cart.items
             .map(
@@ -351,11 +348,12 @@ class CheckoutService {
                 menuItemId: item.productId,
                 name: item.productName,
                 quantity: item.quantity,
-                unitPrice: item.unitPrice,
+                unitPrice: item.effectiveUnitPrice,
                 subtotal: item.subtotal,
                 notes: item.notes,
-                options: [],
-                // ✅ No costBreakdown - let backend generate it with correct enum values
+                options: item.selectedModifiers.isNotEmpty
+                    ? item.selectedModifiers.map((m) => m.toJson()).toList()
+                    : [],
               ),
             )
             .toList();
@@ -399,7 +397,6 @@ class CheckoutService {
     Map<String, dynamic>? paymentDetails,
     String? notes,
   }) async {
-    // Transform cart items to LineItems - let backend generate costBreakdown
     final lineItems =
         cart.items
             .map(
@@ -407,11 +404,12 @@ class CheckoutService {
                 menuItemId: item.productId,
                 name: item.productName,
                 quantity: item.quantity,
-                unitPrice: item.unitPrice,
+                unitPrice: item.effectiveUnitPrice,
                 subtotal: item.subtotal,
                 notes: item.notes,
-                options: [],
-                // ✅ No costBreakdown - let backend generate it with correct enum values
+                options: item.selectedModifiers.isNotEmpty
+                    ? item.selectedModifiers.map((m) => m.toJson()).toList()
+                    : [],
               ),
             )
             .toList();
@@ -451,8 +449,6 @@ class CheckoutService {
     required Cart cart,
     String? notes,
   }) async {
-
-    // Transform cart items to LineItems - let backend generate costBreakdown
     final lineItems =
         cart.items
             .map(
@@ -460,11 +456,12 @@ class CheckoutService {
                 menuItemId: item.productId,
                 name: item.productName,
                 quantity: item.quantity,
-                unitPrice: item.unitPrice,
+                unitPrice: item.effectiveUnitPrice,
                 subtotal: item.subtotal,
                 notes: item.notes,
-                options: [],
-                // ✅ No costBreakdown - let backend generate it with correct enum values
+                options: item.selectedModifiers.isNotEmpty
+                    ? item.selectedModifiers.map((m) => m.toJson()).toList()
+                    : [],
               ),
             )
             .toList();

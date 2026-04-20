@@ -12,7 +12,7 @@ class ApiConstants {
   // Base URLs by environment
   static const Map<Environment, String> _baseUrls = {
     // Environment.development: 'http://10.237.190.208/api/v1',
-    Environment.development: 'http://192.168.1.25/api/v1',
+    Environment.development: 'http://192.168.1.253:80/api/v1',
     Environment.staging: 'https://api-v2.appzap.la:9090/api/v1',
     Environment.production: 'https://api-v2.appzap.la/api/v1',
   };
@@ -104,6 +104,15 @@ class ApiConstants {
   static const String refundsVoidsReport =
       '/transactions/reports/refunds-voids';
 
+  // ============ PRINTER ENDPOINTS ============
+  static const String printerPresets = '/printers/presets';
+  static String branchPrinters(String branchId) =>
+      '/branches/$branchId/printers';
+  static String branchPrinter(String branchId, String printerId) =>
+      '/branches/$branchId/printers/$printerId';
+  static String testPrinter(String branchId, String printerId) =>
+      '/branches/$branchId/printers/$printerId/test';
+
   // ============ REPORT ENDPOINTS ============
   static const String dailySummary =
       '/daily-summary'; // Fixed: removed /reports prefix
@@ -111,4 +120,5 @@ class ApiConstants {
       '/end-of-day'; // Fixed: removed /reports prefix
   static const String salesItemsReport = '/reports/sales-items-report';
   static const String salesByEmployee = '/reports/sales-by-employee';
+  static const String salesByPaymentType = '/reports/sales-by-payment-type';
 }

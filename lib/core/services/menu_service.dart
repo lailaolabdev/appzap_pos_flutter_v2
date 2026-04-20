@@ -40,6 +40,7 @@ class MenuService {
     String unit = 'unit',
     bool isActive = true,
     int displayOrder = 0,
+    List<String>? customizationIds,
   }) async {
     final response = await _apiClient.post(
       ApiConstants.menuItems,
@@ -66,6 +67,8 @@ class MenuService {
           'currentStock': initialStock,
           'stockUnit': unit,
         },
+        if (customizationIds != null && customizationIds.isNotEmpty)
+          'customizations': customizationIds,
         'isActive': isActive,
         'displayOrder': displayOrder,
       },
@@ -117,12 +120,14 @@ class MenuService {
     int? displayOrder,
     String? restaurantId,
     String? branchId,
+    List<String>? customizationIds,
   }) async {
     final Map<String, dynamic> data = {};
 
     if (name != null) data['name'] = name;
     if (description != null) data['description'] = description;
     if (categoryId != null) data['categoryId'] = categoryId;
+    if (customizationIds != null) data['customizations'] = customizationIds;
 
     if (basePrice != null ||
         costPrice != null ||

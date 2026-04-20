@@ -305,19 +305,31 @@ class _CartItemTile extends StatelessWidget {
                           ref.watch(localizationProvider).languageCode;
                       final each = Translations.get('each', languageCode);
                       return Text(
-                        '${CurrencyFormatter.formatLAK(item.unitPrice)} $each',
+                        '${CurrencyFormatter.formatLAK(item.effectiveUnitPrice)} $each',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppTheme.neutral500,
                         ),
                       );
                     },
                   ),
+                  if (item.selectedModifiers.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      item.modifiersSummary,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.primaryOrange,
+                        fontSize: 11,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                   if (item.notes != null && item.notes!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       item.notes!,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.primaryOrange,
+                        color: AppTheme.neutral500,
                         fontStyle: FontStyle.italic,
                       ),
                     ),

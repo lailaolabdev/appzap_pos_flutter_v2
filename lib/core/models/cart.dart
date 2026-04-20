@@ -3,6 +3,32 @@ import 'package:equatable/equatable.dart';
 import 'product.dart';
 import 'customer.dart';
 
+/// A single selected modifier option within a cart item
+class SelectedModifier extends Equatable {
+  final String customizationId;
+  final String customizationName;
+  final String optionId;
+  final String optionName;
+  final double price;
+
+  const SelectedModifier({
+    required this.customizationId,
+    required this.customizationName,
+    required this.optionId,
+    required this.optionName,
+    this.price = 0,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'customizationId': customizationId,
+    'optionId': optionId,
+    'price': price,
+  };
+
+  @override
+  List<Object?> get props => [customizationId, optionId, price];
+}
+
 /// Cart item model
 class CartItem extends Equatable {
   final String productId;
@@ -13,6 +39,7 @@ class CartItem extends Equatable {
   final double taxRate;
   final bool taxIncluded;
   final String? imageUrl;
+  final List<SelectedModifier> selectedModifiers;
 
   const CartItem({
     required this.productId,
@@ -23,10 +50,15 @@ class CartItem extends Equatable {
     this.taxRate = 0,
     this.taxIncluded = false,
     this.imageUrl,
+    this.selectedModifiers = const [],
   });
 
-  /// Create from Product
-  factory CartItem.fromProduct(Product product, {int quantity = 1}) {
+  /// Create from Product with optional modifier selections
+  factory CartItem.fromProduct(
+    Product product, {
+    int quantity = 1,
+    List<SelectedModifier> selectedModifiers = const [],
+  }) {
     return CartItem(
       productId: product.id,
       productName: product.name,
@@ -35,11 +67,19 @@ class CartItem extends Equatable {
       taxRate: product.pricing.taxRate,
       taxIncluded: product.pricing.taxIncluded,
       imageUrl: product.primaryImageUrl,
+      selectedModifiers: selectedModifiers,
     );
   }
 
-  /// Calculate subtotal (price * quantity)
-  double get subtotal => unitPrice * quantity;
+  /// Total price of selected modifiers
+  double get modifiersTotal =>
+      selectedModifiers.fold(0, (sum, m) => sum + m.price);
+
+  /// Unit price including modifier extras
+  double get effectiveUnitPrice => unitPrice + modifiersTotal;
+
+  /// Calculate subtotal (effective price * quantity)
+  double get subtotal => effectiveUnitPrice * quantity;
 
   /// Calculate tax amount
   double get taxAmount {
@@ -50,6 +90,19 @@ class CartItem extends Equatable {
   /// Calculate total (subtotal + tax)
   double get total => subtotal + taxAmount;
 
+  /// Summary text of selected modifiers for display
+  String get modifiersSummary {
+    if (selectedModifiers.isEmpty) return '';
+    return selectedModifiers.map((m) => m.optionName).join(', ');
+  }
+
+  /// Unique key combining productId + modifier selections for cart dedup
+  String get cartKey {
+    if (selectedModifiers.isEmpty) return productId;
+    final modKey = selectedModifiers.map((m) => m.optionId).toList()..sort();
+    return '$productId|${modKey.join(",")}';
+  }
+
   CartItem copyWith({
     String? productId,
     String? productName,
@@ -59,6 +112,7 @@ class CartItem extends Equatable {
     double? taxRate,
     bool? taxIncluded,
     String? imageUrl,
+    List<SelectedModifier>? selectedModifiers,
   }) {
     return CartItem(
       productId: productId ?? this.productId,
@@ -69,6 +123,7 @@ class CartItem extends Equatable {
       taxRate: taxRate ?? this.taxRate,
       taxIncluded: taxIncluded ?? this.taxIncluded,
       imageUrl: imageUrl ?? this.imageUrl,
+      selectedModifiers: selectedModifiers ?? this.selectedModifiers,
     );
   }
 
@@ -76,8 +131,10 @@ class CartItem extends Equatable {
     return {
       'menuItemId': productId,
       'quantity': quantity,
-      'unitPrice': unitPrice,
+      'unitPrice': effectiveUnitPrice,
       if (notes != null && notes!.isNotEmpty) 'notes': notes,
+      if (selectedModifiers.isNotEmpty)
+        'customizations': selectedModifiers.map((m) => m.toJson()).toList(),
     };
   }
 
@@ -91,6 +148,7 @@ class CartItem extends Equatable {
     taxRate,
     taxIncluded,
     imageUrl,
+    selectedModifiers,
   ];
 }
 
@@ -181,10 +239,10 @@ class Cart extends Equatable {
   /// Get customer phone if available
   String? get customerPhone => customer?.phone;
 
-  /// Add item to cart
+  /// Add item to cart (merges if same product + same modifiers)
   Cart addItem(CartItem item) {
     final existingIndex = items.indexWhere(
-      (i) => i.productId == item.productId && i.notes == item.notes,
+      (i) => i.cartKey == item.cartKey && i.notes == item.notes,
     );
 
     if (existingIndex >= 0) {
@@ -199,27 +257,35 @@ class Cart extends Equatable {
     return copyWith(items: [...items, item]);
   }
 
-  /// Add product to cart
-  Cart addProduct(Product product, {int quantity = 1}) {
-    return addItem(CartItem.fromProduct(product, quantity: quantity));
+  /// Add product to cart with optional modifier selections
+  Cart addProduct(
+    Product product, {
+    int quantity = 1,
+    List<SelectedModifier> selectedModifiers = const [],
+  }) {
+    return addItem(CartItem.fromProduct(
+      product,
+      quantity: quantity,
+      selectedModifiers: selectedModifiers,
+    ));
   }
 
-  /// Remove item from cart
-  Cart removeItem(String productId) {
+  /// Remove item from cart by cartKey or productId
+  Cart removeItem(String id) {
     return copyWith(
-      items: items.where((item) => item.productId != productId).toList(),
+      items: items.where((item) => item.cartKey != id && item.productId != id).toList(),
     );
   }
 
-  /// Update item quantity
-  Cart updateQuantity(String productId, int quantity) {
+  /// Update item quantity by cartKey or productId
+  Cart updateQuantity(String id, int quantity) {
     if (quantity <= 0) {
-      return removeItem(productId);
+      return removeItem(id);
     }
 
     final updatedItems =
         items.map((item) {
-          if (item.productId == productId) {
+          if (item.cartKey == id || item.productId == id) {
             return item.copyWith(quantity: quantity);
           }
           return item;

@@ -41,7 +41,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
         drawer:
-            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
+            const Drawer(child: AppSidebar(isInDrawer: true)),
         appBar: AppBar(
           backgroundColor: AppTheme.scaffoldBackground,
           surfaceTintColor: AppTheme.scaffoldBackground,

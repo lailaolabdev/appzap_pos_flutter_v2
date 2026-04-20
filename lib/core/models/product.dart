@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import 'modifier.dart';
+
 /// Product/Menu Item model
 class Product extends Equatable {
   final String id;
@@ -13,6 +15,7 @@ class Product extends Equatable {
   final ProductPricing pricing;
   final List<ProductImage> images;
   final ProductInventory? inventory;
+  final List<Modifier> customizations;
   final bool isActive;
   final int displayOrder;
 
@@ -28,6 +31,7 @@ class Product extends Equatable {
     required this.pricing,
     this.images = const [],
     this.inventory,
+    this.customizations = const [],
     this.isActive = true,
     this.displayOrder = 0,
   });
@@ -69,9 +73,23 @@ class Product extends Equatable {
               .toList() ??
           [],
       inventory: _parseInventoryData(json),
+      customizations: _parseCustomizations(json['customizations']),
       isActive: json['isActive'] as bool? ?? true,
       displayOrder: json['displayOrder'] as int? ?? 0,
     );
+  }
+
+  /// Parse customizations array — each entry can be a populated Modifier object or just an ID string
+  static List<Modifier> _parseCustomizations(dynamic raw) {
+    if (raw == null || raw is! List) return [];
+    final results = <Modifier>[];
+    for (final entry in raw) {
+      if (entry is Map<String, dynamic>) {
+        results.add(Modifier.fromJson(entry));
+      }
+      // Skip string-only IDs — we need populated data
+    }
+    return results;
   }
 
   /// Parse inventory data from backend format to ProductInventory
@@ -89,13 +107,16 @@ class Product extends Equatable {
           (json['currentStock'] as num?)?.toInt();
       final lowStockThreshold =
           (json['lowStockThreshold'] as num?)?.toInt() ??
-          (json['minStockLevel'] as num?)?.toInt();
+          (json['minStockLevel'] as num?)?.toInt() ??
+          0;
       final unit =
           json['primaryUnit'] is Map<String, dynamic>
-              ? (json['primaryUnit'] as Map<String, dynamic>)['name'] as String?
-              : json['unit'] as String?;
+              ? (json['primaryUnit'] as Map<String, dynamic>)['name']
+                    as String? ??
+                  'unit'
+              : json['unit'] as String? ?? 'unit';
 
-      if (currentStock == null || lowStockThreshold == null || unit == null) {
+      if (currentStock == null) {
         return null;
       }
 
@@ -138,18 +159,18 @@ class Product extends Equatable {
     }
     if (currentStock == null) return null;
 
-    // Parse threshold
+    // Parse threshold — default to 0 if not set
     final lowStockThreshold =
         (inventoryData['lowStockThreshold'] as num?)?.toInt() ??
         (inventoryData['minStockLevel'] as num?)?.toInt() ??
         (json['lowStockThreshold'] as num?)?.toInt() ??
-        (json['minStockLevel'] as num?)?.toInt();
-    if (lowStockThreshold == null) return null;
+        (json['minStockLevel'] as num?)?.toInt() ??
+        0;
 
     final unit =
         inventoryData['unit'] as String? ??
-        inventoryData['unitOfMeasure'] as String?;
-    if (unit == null) return null;
+        inventoryData['unitOfMeasure'] as String? ??
+        'unit';
 
     if (!isLowStock) isLowStock = currentStock <= lowStockThreshold;
 
@@ -175,6 +196,8 @@ class Product extends Equatable {
       'pricing': pricing.toJson(),
       'images': images.map((e) => e.toJson()).toList(),
       'inventory': inventory?.toJson(),
+      if (customizations.isNotEmpty)
+        'customizations': customizations.map((c) => c.id).toList(),
       'isActive': isActive,
       'displayOrder': displayOrder,
     };
@@ -205,6 +228,9 @@ class Product extends Equatable {
     return pricing.basePrice * (1 + pricing.taxRate / 100);
   }
 
+  /// Whether this product has any modifier groups assigned
+  bool get hasCustomizations => customizations.isNotEmpty;
+
   Product copyWith({
     String? id,
     String? name,
@@ -217,6 +243,7 @@ class Product extends Equatable {
     ProductPricing? pricing,
     List<ProductImage>? images,
     ProductInventory? inventory,
+    List<Modifier>? customizations,
     bool? isActive,
     int? displayOrder,
   }) {
@@ -232,6 +259,7 @@ class Product extends Equatable {
       pricing: pricing ?? this.pricing,
       images: images ?? this.images,
       inventory: inventory ?? this.inventory,
+      customizations: customizations ?? this.customizations,
       isActive: isActive ?? this.isActive,
       displayOrder: displayOrder ?? this.displayOrder,
     );
@@ -250,6 +278,7 @@ class Product extends Equatable {
     pricing,
     images,
     inventory,
+    customizations,
     isActive,
     displayOrder,
   ];
@@ -366,7 +395,7 @@ class ProductInventory extends Equatable {
   const ProductInventory({
     this.trackStock = true,
     required this.currentStock,
-    this.lowStockThreshold = 10,
+    this.lowStockThreshold = 0,
     this.isLowStock = false,
     this.unit = 'unit',
   });
@@ -375,7 +404,7 @@ class ProductInventory extends Equatable {
     return ProductInventory(
       trackStock: json['trackStock'] as bool? ?? true,
       currentStock: json['currentStock'] as int? ?? 0,
-      lowStockThreshold: json['lowStockThreshold'] as int? ?? 10,
+      lowStockThreshold: json['lowStockThreshold'] as int? ?? 0,
       isLowStock: json['isLowStock'] as bool? ?? false,
       unit: json['unit'] as String? ?? 'unit',
     );

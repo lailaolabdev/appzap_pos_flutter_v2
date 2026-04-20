@@ -135,7 +135,6 @@ class _PrinterConnectionScreenState
               enableBarcodePrinting:
                   ref.read(settingsProvider).enableBarcodePrinting,
               receiptHeader: ref.read(settingsProvider).receiptHeader,
-              receiptFooter: ref.read(settingsProvider).receiptFooter,
             );
 
         if (mounted) {
@@ -201,7 +200,6 @@ class _PrinterConnectionScreenState
               enableBarcodePrinting:
                   ref.read(settingsProvider).enableBarcodePrinting,
               receiptHeader: ref.read(settingsProvider).receiptHeader,
-              receiptFooter: ref.read(settingsProvider).receiptFooter,
             );
 
         if (mounted) {
@@ -290,7 +288,6 @@ class _PrinterConnectionScreenState
               enableBarcodePrinting:
                   ref.read(settingsProvider).enableBarcodePrinting,
               receiptHeader: ref.read(settingsProvider).receiptHeader,
-              receiptFooter: ref.read(settingsProvider).receiptFooter,
             );
 
         final ready = await printerService.ensureSunmiConnected();

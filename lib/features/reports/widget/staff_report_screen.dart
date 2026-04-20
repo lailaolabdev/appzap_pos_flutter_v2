@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
-import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
 import '../../../core/constants/translations.dart';
-import '../../../core/models/report.dart';
 import '../../../core/providers/localization_provider.dart';
-import '../../../core/utils/responsive.dart';
+import '../../../core/utils/currency_formatter.dart';
 import '../providers/reports_provider.dart';
+import 'report_date_filter.dart';
 
-/// Staff Performance Report Screen
+/// Sales by Employee Report — Loyverse style
 class StaffReportScreen extends ConsumerStatefulWidget {
   const StaffReportScreen({super.key});
 
@@ -19,512 +17,138 @@ class StaffReportScreen extends ConsumerStatefulWidget {
 }
 
 class _StaffReportScreenState extends ConsumerState<StaffReportScreen> {
-  DateTime startDate = DateTime.now().subtract(const Duration(days: 7));
-  DateTime endDate = DateTime.now();
-  String sortBy = 'revenue';
-  final DateFormat dateFormat = DateFormat('yyyy-MM-dd');
-  final DateFormat displayFormat = DateFormat('MMM dd, yyyy');
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(reportsProvider.notifier).setDateRange(startDate, endDate);
+      ref.read(reportsProvider.notifier).loadToday();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = Responsive.isMobile(context);
-    final reportsState = ref.watch(reportsProvider);
-    final languageCode = ref.watch(localizationProvider).languageCode;
+    final state = ref.watch(reportsProvider);
+    final lang = ref.watch(localizationProvider).languageCode;
+    final staff = state.employeePerformance;
 
-    return AppShell(
-      child: Scaffold(
-        backgroundColor: AppTheme.scaffoldBackground,
-        appBar: AppBar(
-          title: Text(
-            Translations.get('staff_performance_report', languageCode),
-          ),
-          backgroundColor: Colors.green,
-          foregroundColor: Colors.white,
-          elevation: 2,
-          actions: [
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.sort),
-              tooltip: Translations.get('sort_by', languageCode),
-              onSelected: (value) {
-                setState(() {
-                  sortBy = value;
-                });
-              },
-              itemBuilder:
-                  (context) => [
-                    PopupMenuItem(
-                      value: 'revenue',
-                      child: Text(Translations.get('revenue', languageCode)),
-                    ),
-                    PopupMenuItem(
-                      value: 'transactions',
-                      child: Text(
-                        Translations.get('transactions', languageCode),
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'name',
-                      child: Text(Translations.get('name', languageCode)),
-                    ),
-                  ],
-            ),
-            IconButton(
-              icon: const Icon(Icons.date_range),
-              tooltip: Translations.get('date_range', languageCode),
-              onPressed: () => _selectDateRange(context),
-            ),
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: Translations.get('refresh', languageCode),
-              onPressed: () => ref.read(reportsProvider.notifier).refresh(),
-            ),
-            const SizedBox(width: 8),
-          ],
+    final totalSales = staff.fold<double>(0, (s, e) => s + e.totalSales);
+    final totalOrders = staff.fold<int>(0, (s, e) => s + e.totalOrders);
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
         ),
-        body: RefreshIndicator(
-          onRefresh: () => ref.read(reportsProvider.notifier).refresh(),
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                _buildHeader(languageCode),
-                const SizedBox(height: 20),
-
-                // Loading state
-                if (reportsState.isLoading)
-                  const Center(child: CircularProgressIndicator()),
-
-                // Error state
-                if (reportsState.error != null)
-                  _buildErrorCard(reportsState.error!, languageCode),
-
-                // Success state
-                if (!reportsState.isLoading && reportsState.error == null)
-                  _buildStaffList(
-                    reportsState.employeePerformance,
-                    isMobile,
-                    languageCode,
-                  ),
-              ],
-            ),
+        title: Text(
+          Translations.get('sales_by_employee', lang),
+          style: const TextStyle(
+            color: Colors.black, fontSize: 20, fontWeight: FontWeight.w600,
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildHeader(String languageCode) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            colors: [Colors.green.withOpacity(0.1), Colors.white],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+      body: Column(
+        children: [
+          const Divider(height: 1),
+          ReportDateFilter(
+            startDate: state.startDate,
+            endDate: state.endDate,
+            lang: lang,
+            onChanged: (range) {
+              ref.read(reportsProvider.notifier).setDateRange(range.start, range.end);
+            },
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.people,
-                    size: 28,
-                    color: Colors.green,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        Translations.get(
-                          'staff_performance_report',
-                          languageCode,
-                        ),
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${displayFormat.format(startDate)} - ${displayFormat.format(endDate)}',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppTheme.neutral600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStaffList(
-    List<SalesByStaffItem> staff,
-    bool isMobile,
-    String languageCode,
-  ) {
-    if (staff.isEmpty) {
-      return _buildNoDataCard(languageCode);
-    }
-
-    // Sort staff based on sortBy
-    final sortedStaff = List<SalesByStaffItem>.from(staff);
-    switch (sortBy) {
-      case 'revenue':
-        sortedStaff.sort((a, b) => b.totalSales.compareTo(a.totalSales));
-        break;
-      case 'transactions':
-        sortedStaff.sort((a, b) => b.totalOrders.compareTo(a.totalOrders));
-        break;
-      case 'name':
-        sortedStaff.sort((a, b) => a.staffName.compareTo(b.staffName));
-        break;
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Summary header
-        Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
+          const Divider(height: 1),
+          // Summary bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            color: Colors.grey.shade50,
             child: Row(
               children: [
                 Expanded(
-                  child: _buildSummaryItem(
-                    Translations.get('active_staff', languageCode),
-                    '${staff.length}',
-                    Icons.people,
-                    Colors.green,
+                  child: Text(
+                    '${staff.length} ${Translations.get('staff', lang)}',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.grey.shade600),
                   ),
+                ),
+                Text(
+                  '$totalOrders ${Translations.get('orders_count', lang)}',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
                 ),
                 const SizedBox(width: 16),
-                Expanded(
-                  child: _buildSummaryItem(
-                    Translations.get('total_revenue', languageCode),
-                    'LAK ${NumberFormat('#,##0').format(staff.fold<double>(0, (sum, item) => sum + item.totalSales))}',
-                    Icons.monetization_on,
-                    Colors.blue,
-                  ),
-                ),
-                if (!isMobile) ...[
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildSummaryItem(
-                      Translations.get('total_orders', languageCode),
-                      '${staff.fold<int>(0, (sum, item) => sum + item.totalOrders)}',
-                      Icons.receipt,
-                      Colors.orange,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-
-        // Staff performance leaderboard header
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              Translations.get('performance_leaderboard', languageCode),
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        // Staff performance cards
-        ...sortedStaff.asMap().entries.map((entry) {
-          final index = entry.key;
-          final staffMember = entry.value;
-          return _buildStaffCard(staffMember, index + 1, isMobile);
-        }).toList(),
-      ],
-    );
-  }
-
-  Widget _buildSummaryItem(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, size: 24, color: color),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          title,
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: AppTheme.neutral600),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStaffCard(
-    SalesByStaffItem staffMember,
-    int rank,
-    bool isMobile,
-  ) {
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header row with rank and staff info
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: _getRankColor(rank).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Stack(
-                    children: [
-                      Center(
-                        child: Text(
-                          '$rank',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: _getRankColor(rank),
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                      if (rank <= 3)
-                        Positioned(
-                          top: 2,
-                          right: 2,
-                          child: Icon(
-                            rank == 1 ? Icons.emoji_events : Icons.star,
-                            size: 12,
-                            color: _getRankColor(rank),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        staffMember.staffName,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      // Role information not available in current model
-                    ],
-                  ),
-                ),
-                // Performance indicator
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _getPerformanceColor(rank).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    _getPerformanceIcon(rank),
-                    size: 20,
-                    color: _getPerformanceColor(rank),
-                  ),
+                Text(
+                  CurrencyFormatter.formatLAKWithSymbol(totalSales),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.primaryOrange),
                 ),
               ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Color _getRankColor(int rank) {
-    switch (rank) {
-      case 1:
-        return Colors.amber; // Gold
-      case 2:
-        return Colors.grey.shade600; // Silver
-      case 3:
-        return Colors.brown; // Bronze
-      default:
-        return Colors.green;
-    }
-  }
-
-  Color _getPerformanceColor(int rank) {
-    if (rank <= 3) return Colors.green;
-    if (rank <= 5) return Colors.orange;
-    return Colors.grey;
-  }
-
-  IconData _getPerformanceIcon(int rank) {
-    if (rank <= 3) return Icons.trending_up;
-    if (rank <= 5) return Icons.trending_flat;
-    return Icons.trending_down;
-  }
-
-  Widget _buildErrorCard(String error, String languageCode) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            Text(
-              Translations.get('error_loading_staff_performance', languageCode),
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => ref.read(reportsProvider.notifier).refresh(),
-              child: Text(Translations.get('retry', languageCode)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNoDataCard(String languageCode) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            const Icon(
-              Icons.people_outline,
-              size: 48,
-              color: AppTheme.neutral400,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              Translations.get('performance_leaderboard', languageCode),
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              Translations.get(
-                'no_staff_data_for_selected_period',
-                languageCode,
-              ),
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _selectDateRange(BuildContext context) async {
-    final DateTimeRange? picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      initialDateRange: DateTimeRange(start: startDate, end: endDate),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(
-              context,
-            ).colorScheme.copyWith(primary: Colors.green),
           ),
-          child: child!,
-        );
-      },
+          Expanded(
+            child: state.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : staff.isEmpty
+                    ? Center(child: Text(Translations.get('no_data', lang), style: TextStyle(color: Colors.grey.shade400)))
+                    : RefreshIndicator(
+                        onRefresh: () => ref.read(reportsProvider.notifier).refresh(),
+                        child: ListView.separated(
+                          itemCount: staff.length,
+                          separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade100),
+                          itemBuilder: (_, i) {
+                            final e = staff[i];
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              child: Row(
+                                children: [
+                                  // Avatar
+                                  CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: AppTheme.primaryOrange.withValues(alpha: 0.1),
+                                    child: Text(
+                                      e.staffName.isNotEmpty ? e.staffName[0].toUpperCase() : '?',
+                                      style: const TextStyle(
+                                        color: AppTheme.primaryOrange,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  // Name + orders
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          e.staffName,
+                                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        Text(
+                                          '${e.totalOrders} ${Translations.get('orders_count', lang)}  |  ${e.itemsSold} ${Translations.get('items', lang)}',
+                                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  // Sales amount
+                                  Text(
+                                    CurrencyFormatter.formatLAKWithSymbol(e.totalSales),
+                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+          ),
+        ],
+      ),
     );
-
-    if (picked != null) {
-      setState(() {
-        startDate = picked.start;
-        endDate = picked.end;
-      });
-      ref.read(reportsProvider.notifier).setDateRange(startDate, endDate);
-    }
   }
 }

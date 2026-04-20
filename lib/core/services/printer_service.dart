@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -507,8 +506,6 @@ class PrinterService {
         throw Exception('Printer not connected');
       }
 
-      final isWiFi = _connectedDevice?.type == PrinterConnectionType.wifi;
-
       final bytes = await _renderReceiptImage(
         header: 'TEST PRINT',
         orderId: 'AppZap POS',
@@ -518,7 +515,6 @@ class PrinterService {
         items: [],
         total: 0,
         footer: '',
-        isWiFi: isWiFi,
       );
 
       return await _sendToPrinter(bytes);
@@ -563,8 +559,11 @@ class PrinterService {
     String? tableNumber,
     String? serverName,
     String? footer,
+    String? orderType,
+    String? paymentMethod,
+    String? logoUrl,
+    String paperWidth = '80 mm',
   }) async {
-    print('🖨️ PrinterService.printReceipt called'); // Debug log
     try {
       // Prefer Sunmi SDK on Sunmi devices regardless of other connections
       final onSunmiDevice = await isSunmiDevice();
@@ -579,12 +578,14 @@ class PrinterService {
             tableNumber: tableNumber ?? '',
             serverName: serverName ?? 'Staff',
             footer: footer ?? '',
+            orderType: orderType ?? '',
+            paymentMethod: paymentMethod ?? '',
+            logoUrl: logoUrl,
           );
         }
       }
 
       if (!isConnected) {
-        // Attempt to auto-connect to Sunmi as a fallback
         print(
           'Printer not connected. Attempting to auto-connect Sunmi/InnerPrinter...',
         );
@@ -603,10 +604,12 @@ class PrinterService {
           tableNumber: tableNumber ?? '',
           serverName: serverName ?? 'Staff',
           footer: footer ?? '',
+          orderType: orderType ?? '',
+          paymentMethod: paymentMethod ?? '',
+          logoUrl: logoUrl,
         );
       }
 
-      final isWiFi = _connectedDevice?.type == PrinterConnectionType.wifi;
       final now = DateTime.now();
       final dateStr =
           'Jan ${now.day}, ${now.year}, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} ${now.hour >= 12 ? "PM" : "AM"}';
@@ -620,7 +623,9 @@ class PrinterService {
         items: items,
         total: total,
         footer: footer ?? '',
-        isWiFi: isWiFi,
+        orderType: orderType ?? '',
+        paymentMethod: paymentMethod ?? '',
+        paperWidth: paperWidth,
       );
 
       return await _sendToPrinter(bytes);
@@ -638,8 +643,13 @@ class PrinterService {
     required String tableNumber,
     required String serverName,
     required String footer,
+    String orderType = '',
+    String paymentMethod = '',
+    String? logoUrl,
   }) async {
     try {
+      // TODO: Print logo image here when logoUrl is available
+
       // Header
       await SunmiPrinter.printText(
         header,
@@ -662,14 +672,38 @@ class PrinterService {
 
       // Details
       if (tableNumber.isNotEmpty) {
-        await SunmiPrinter.printText('ຕະຕ: $tableNumber');
+        await SunmiPrinter.printText('ໂຕະ: $tableNumber');
       }
 
       final now = DateTime.now();
       final dateStr =
           '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-      await SunmiPrinter.printText('ວັນທີ: $dateStr');
-      await SunmiPrinter.printText('ເຊີບເວີ: $serverName');
+      await SunmiPrinter.printText(
+        'ວັນທີ: $dateStr',
+        style: SunmiTextStyle(
+          fontSize: 28,
+          align: SunmiPrintAlign.LEFT,
+          bold: true,
+        ),
+      );
+      await SunmiPrinter.printText(
+        'ພະນັກງານ: $serverName',
+        style: SunmiTextStyle(
+          fontSize: 28,
+          align: SunmiPrintAlign.LEFT,
+          bold: true,
+        ),
+      );
+      if (orderType.isNotEmpty) {
+        await SunmiPrinter.printText(
+          'ປະເພດ: $orderType',
+          style: SunmiTextStyle(
+            fontSize: 28,
+            align: SunmiPrintAlign.LEFT,
+            bold: true,
+          ),
+        );
+      }
 
       await SunmiPrinter.lineWrap(1);
 
@@ -683,17 +717,29 @@ class PrinterService {
             SunmiColumn(
               text: 'ລາຍການ',
               width: 2,
-              style: SunmiTextStyle(bold: true, align: SunmiPrintAlign.LEFT),
+              style: SunmiTextStyle(
+                bold: true,
+                align: SunmiPrintAlign.LEFT,
+                fontSize: 28,
+              ),
             ),
             SunmiColumn(
               text: 'ຈຳນວນ',
               width: 1,
-              style: SunmiTextStyle(bold: true, align: SunmiPrintAlign.CENTER),
+              style: SunmiTextStyle(
+                bold: true,
+                align: SunmiPrintAlign.CENTER,
+                fontSize: 28,
+              ),
             ),
             SunmiColumn(
               text: 'ລາຄາ',
               width: 1,
-              style: SunmiTextStyle(bold: true, align: SunmiPrintAlign.RIGHT),
+              style: SunmiTextStyle(
+                bold: true,
+                align: SunmiPrintAlign.RIGHT,
+                fontSize: 28,
+              ),
             ),
           ],
         );
@@ -734,27 +780,28 @@ class PrinterService {
 
       // Totals
       await SunmiPrinter.printText(
-        'ຮວມ: ${_formatPrice(total)} LAK',
+        'ລວມຍອດ: ${_formatPrice(total)} LAK',
         style: SunmiTextStyle(
-          fontSize: 24,
-          align: SunmiPrintAlign.CENTER,
+          fontSize: 28,
+          align: SunmiPrintAlign.RIGHT,
           bold: true,
         ),
       );
 
-      final usd = total / 23000;
-      await SunmiPrinter.printText(
-        'ຮວມ: \$${usd.toStringAsFixed(2)}',
-        style: SunmiTextStyle(align: SunmiPrintAlign.CENTER),
-      );
+      // Payment method
+      if (paymentMethod.isNotEmpty) {
+        await SunmiPrinter.lineWrap(1);
+        await SunmiPrinter.printText(
+          '$paymentMethod: ${_formatPrice(total)} LAK',
+          style: SunmiTextStyle(
+            align: SunmiPrintAlign.RIGHT,
+            bold: true,
+            fontSize: 28,
+          ),
+        );
+      }
 
       await SunmiPrinter.lineWrap(1);
-
-      // Exchange rate
-      await SunmiPrinter.printText(
-        'ອັດຕາແລກປ່ຽນ = USD 1 = 23,000',
-        style: SunmiTextStyle(align: SunmiPrintAlign.CENTER),
-      );
 
       // Footer
       if (footer.isNotEmpty) {
@@ -763,11 +810,6 @@ class PrinterService {
       }
 
       await SunmiPrinter.lineWrap(1);
-      await SunmiPrinter.printText(
-        'ຂອບໃຈທີ່ມາກິນອາຫານ',
-        style: SunmiTextStyle(align: SunmiPrintAlign.CENTER, bold: true),
-      );
-
       await SunmiPrinter.lineWrap(2);
       await SunmiPrinter.cutPaper();
 
@@ -787,610 +829,293 @@ class PrinterService {
     required List<Map<String, dynamic>> items,
     required double total,
     required String footer,
-    required bool isWiFi,
+    String orderType = '',
+    String paymentMethod = '',
+    String paperWidth = '80 mm',
   }) async {
     try {
-      final width = isWiFi ? 576 : 512;
-      final renderWidth = width * 3;
+      // 1:1 pixel rendering — no scaling for maximum sharpness
+      final w = paperWidth == '58 mm' ? 384 : 576;
+      final pad = 24.0; // bigger padding so nothing gets cut off
+      final cw = w - pad * 2;
 
-      final baseHeight = 500;
-      final itemHeight = items.isEmpty ? 100 : items.length * 90;
-      final renderHeight = (baseHeight + itemHeight) * 3;
+      // Sizes — tall rows for readable text
+      final rowH = 44.0;
+      final hdrRowH = 46.0;
+      final gap = 12.0;
 
+      // Estimate height
+      var estH = 30.0;
+      estH += 50; // header
+      if (orderId.isNotEmpty) estH += 36;
+      estH += gap;
+      if (tableNumber.isNotEmpty) estH += 32;
+      estH += 32 * 2; // date + server
+      if (orderType.isNotEmpty) estH += 32; // type
+      estH += gap * 2;
+      if (items.isNotEmpty) estH += hdrRowH + items.length * rowH + gap;
+      estH += 40 * 2 + gap; // totals
+      estH += 32 + gap; // exchange rate
+      estH += 30; // bottom
+
+      // Use generous height for white background — will crop to actual content later
+      final maxH = estH * 3;
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
-
-      final bgPaint = Paint()..color = Colors.white;
       canvas.drawRect(
-        Rect.fromLTWH(0, 0, renderWidth.toDouble(), renderHeight.toDouble()),
-        bgPaint,
+        Rect.fromLTWH(0, 0, w.toDouble(), maxH),
+        Paint()..color = Colors.white,
       );
 
-      double currentY = 60.0;
-      final padding = 30.0;
-      final contentWidth = renderWidth - (padding * 2);
+      var y = 16.0;
 
-      void drawText(
+      // ── Helpers ──
+      ui.Paragraph mkP(
         String text,
-        double y, {
-        double fontSize = 48.0,
-        FontWeight fontWeight = FontWeight.w600,
+        double fs, {
+        FontWeight fw = FontWeight.w700,
         TextAlign align = TextAlign.left,
+        double? maxW,
       }) {
-        final paragraphBuilder =
+        final b =
             ui.ParagraphBuilder(
                 ui.ParagraphStyle(
                   textAlign: align,
-                  fontSize: fontSize,
-                  fontWeight: fontWeight,
-                  height: 1.15,
+                  fontSize: fs,
+                  fontWeight: fw,
+                  height: 1.25,
                 ),
               )
               ..pushStyle(
-                ui.TextStyle(
-                  color: Colors.black,
-                  fontSize: fontSize,
-                  fontWeight: fontWeight,
-                  letterSpacing: 1.5,
-                ),
+                ui.TextStyle(color: Colors.black, fontSize: fs, fontWeight: fw),
               )
               ..addText(text);
-
-        final paragraph =
-            paragraphBuilder.build()
-              ..layout(ui.ParagraphConstraints(width: contentWidth));
-
-        final xPos =
-            align == TextAlign.center
-                ? padding + (contentWidth - paragraph.width) / 2
-                : padding;
-        canvas.drawParagraph(paragraph, Offset(xPos, y));
+        return b.build()..layout(ui.ParagraphConstraints(width: maxW ?? cw));
       }
 
-      // Header
+      void centered(String text, double fs, {FontWeight fw = FontWeight.w800}) {
+        final p = mkP(text, fs, fw: fw, align: TextAlign.center);
+        canvas.drawParagraph(p, Offset(pad, y));
+        y += p.height + 4;
+      }
+
+      void leftRight(
+        String l,
+        String r,
+        double fs, {
+        FontWeight fw = FontWeight.w700,
+      }) {
+        final lp = mkP(l, fs, fw: fw);
+        final rp = mkP(r, fs, fw: fw, align: TextAlign.right);
+        canvas.drawParagraph(lp, Offset(pad, y));
+        canvas.drawParagraph(rp, Offset(pad, y));
+        y += lp.height + 4;
+      }
+
+      void dottedLine() {
+        final dp =
+            Paint()
+              ..color = Colors.black
+              ..strokeWidth = 2
+              ..strokeCap = StrokeCap.round;
+        for (double x = pad; x < w - pad; x += 6) {
+          canvas.drawCircle(Offset(x, y), 1, dp);
+        }
+        y += 8;
+      }
+
+      // ─── Header ───
       if (header.isNotEmpty) {
-        drawText(
-          header,
-          currentY,
-          fontSize: 60,
-          fontWeight: FontWeight.w800,
-          align: TextAlign.center,
-        );
-        currentY += 90;
+        centered(header, 28, fw: FontWeight.w900);
       }
-
       if (orderId.isNotEmpty) {
-        drawText(
-          orderId,
-          currentY,
-          fontSize: 48,
-          fontWeight: FontWeight.w600,
-          align: TextAlign.center,
-        );
-        currentY += 70;
+        centered(orderId, 20, fw: FontWeight.w700);
       }
+      y += gap;
 
-      currentY += 10;
-
+      // ─── Details ───
       if (tableNumber.isNotEmpty) {
-        drawText(
-          'Table: $tableNumber',
-          currentY,
-          fontSize: 42,
-          fontWeight: FontWeight.w500,
-        );
-        currentY += 55;
+        final p = mkP('Table: $tableNumber', 20, fw: FontWeight.w600);
+        canvas.drawParagraph(p, Offset(pad, y));
+        y += p.height + 3;
       }
-
-      drawText(
-        'Date: $dateStr',
-        currentY,
-        fontSize: 42,
-        fontWeight: FontWeight.w500,
-      );
-      currentY += 55;
-
-      drawText(
-        'Server: $serverName',
-        currentY,
-        fontSize: 42,
-        fontWeight: FontWeight.w500,
-      );
-      currentY += 65;
-
-      // Dotted separator
-      final dotPaint =
-          Paint()
-            ..color = Colors.grey.shade700
-            ..strokeWidth = 4
-            ..strokeCap = StrokeCap.round;
-
-      for (double x = padding; x < renderWidth - padding; x += 24) {
-        canvas.drawCircle(Offset(x, currentY), 2, dotPaint);
+      var p = mkP('Date: $dateStr', 20, fw: FontWeight.w600);
+      canvas.drawParagraph(p, Offset(pad, y));
+      y += p.height + 3;
+      p = mkP('Employee: $serverName', 20, fw: FontWeight.w600);
+      canvas.drawParagraph(p, Offset(pad, y));
+      y += p.height + 3;
+      if (orderType.isNotEmpty) {
+        p = mkP('Type: $orderType', 20, fw: FontWeight.w600);
+        canvas.drawParagraph(p, Offset(pad, y));
+        y += p.height + 3;
       }
-      currentY += 50;
+      y += gap;
 
-      // Items table - FIXED WITH 4 COLUMNS
+      dottedLine();
+      y += 4;
+
+      // ─── Items Table ───
       if (items.isNotEmpty) {
-        final tableTop = currentY;
-        final tableWidth = contentWidth;
-        final rowHeight = 90.0;
-        final headerHeight = 80.0;
-        final tableHeight = headerHeight + (items.length * rowHeight);
-
-        final borderPaint =
+        final c1 = cw * 0.08;
+        final c2 = cw * 0.47;
+        final c3 = cw * 0.13;
+        final c4 = cw * 0.32;
+        final fs = 20.0;
+        final borderP =
             Paint()
               ..color = Colors.black
-              ..strokeWidth = 5
+              ..strokeWidth = 2
               ..style = PaintingStyle.stroke;
-
-        final tableRect = RRect.fromRectAndRadius(
-          Rect.fromLTWH(padding, tableTop, tableWidth, tableHeight),
-          const Radius.circular(20),
-        );
-        canvas.drawRRect(tableRect, borderPaint);
-
-        final headerBgPaint = Paint()..color = Colors.grey.shade200;
-
-        final headerPath =
-            Path()..addRRect(
-              RRect.fromRectAndCorners(
-                Rect.fromLTWH(
-                  padding + 5,
-                  tableTop + 5,
-                  tableWidth - 10,
-                  headerHeight - 5,
-                ),
-                topLeft: const Radius.circular(15),
-                topRight: const Radius.circular(15),
-              ),
-            );
-        canvas.drawPath(headerPath, headerBgPaint);
-
-        // Column widths for 4 columns - ADJUSTED
-        final col1Width = tableWidth * 0.08; // ລ/ດ (No)
-        final col2Width = tableWidth * 0.30; // ລາຍການ (Product)
-        final col3Width = tableWidth * 0.10; // ຈຳນວນ (Qty)
-        final col4Width = tableWidth * 0.15; // ລາຄາ (Price) - INCREASED
-
-        // Vertical lines
-        final colLinePaint =
-            Paint()
-              ..color = Colors.grey.shade600
-              ..strokeWidth = 3;
-
-        canvas.drawLine(
-          Offset(padding + col1Width, tableTop + 5),
-          Offset(padding + col1Width, tableTop + tableHeight - 5),
-          colLinePaint,
-        );
-
-        canvas.drawLine(
-          Offset(padding + col1Width + col2Width, tableTop + 5),
-          Offset(padding + col1Width + col2Width, tableTop + tableHeight - 5),
-          colLinePaint,
-        );
-
-        canvas.drawLine(
-          Offset(padding + col1Width + col2Width + col3Width, tableTop + 5),
-          Offset(
-            padding + col1Width + col2Width + col3Width,
-            tableTop + tableHeight - 5,
-          ),
-          colLinePaint,
-        );
-
-        // Header text
-        final headerY = tableTop + 24;
-
-        // ລ/ດ header
-        final noHeader =
-            ui.ParagraphBuilder(
-                ui.ParagraphStyle(
-                  textAlign: TextAlign.center,
-                  fontSize: 42,
-                  fontWeight: FontWeight.w700,
-                ),
-              )
-              ..pushStyle(
-                ui.TextStyle(
-                  color: Colors.black,
-                  fontSize: 42,
-                  fontWeight: FontWeight.w700,
-                ),
-              )
-              ..addText('ລ/ດ');
-        final noPara =
-            noHeader.build()..layout(ui.ParagraphConstraints(width: col1Width));
-        canvas.drawParagraph(noPara, Offset(padding, headerY));
-
-        // ລາຍການ header
-        final productHeader =
-            ui.ParagraphBuilder(
-                ui.ParagraphStyle(
-                  textAlign: TextAlign.center,
-                  fontSize: 42,
-                  fontWeight: FontWeight.w700,
-                ),
-              )
-              ..pushStyle(
-                ui.TextStyle(
-                  color: Colors.black,
-                  fontSize: 42,
-                  fontWeight: FontWeight.w700,
-                ),
-              )
-              ..addText('ລາຍການ');
-        final productPara =
-            productHeader.build()
-              ..layout(ui.ParagraphConstraints(width: col2Width));
-        canvas.drawParagraph(productPara, Offset(padding + col1Width, headerY));
-
-        // ຈຳນວນ header
-        final qtyHeader =
-            ui.ParagraphBuilder(
-                ui.ParagraphStyle(
-                  textAlign: TextAlign.center,
-                  fontSize: 42,
-                  fontWeight: FontWeight.w700,
-                ),
-              )
-              ..pushStyle(
-                ui.TextStyle(
-                  color: Colors.black,
-                  fontSize: 42,
-                  fontWeight: FontWeight.w700,
-                ),
-              )
-              ..addText('ຈຳນວນ');
-        final qtyPara =
-            qtyHeader.build()
-              ..layout(ui.ParagraphConstraints(width: col3Width));
-        canvas.drawParagraph(
-          qtyPara,
-          Offset(padding + col1Width + col2Width, headerY),
-        );
-
-        // ລາຄາ header
-        final priceHeader =
-            ui.ParagraphBuilder(
-                ui.ParagraphStyle(
-                  textAlign: TextAlign.center,
-                  fontSize: 42,
-                  fontWeight: FontWeight.w700,
-                ),
-              )
-              ..pushStyle(
-                ui.TextStyle(
-                  color: Colors.black,
-                  fontSize: 42,
-                  fontWeight: FontWeight.w700,
-                ),
-              )
-              ..addText('ລາຄາ');
-        final pricePara =
-            priceHeader.build()
-              ..layout(ui.ParagraphConstraints(width: col4Width));
-        canvas.drawParagraph(
-          pricePara,
-          Offset(padding + col1Width + col2Width + col3Width, headerY),
-        );
-
-        // Horizontal line after header
-        final headerLinePaint =
+        final thinP =
             Paint()
               ..color = Colors.black
-              ..strokeWidth = 4;
-        canvas.drawLine(
-          Offset(padding + 5, tableTop + headerHeight),
-          Offset(padding + tableWidth - 5, tableTop + headerHeight),
-          headerLinePaint,
+              ..strokeWidth = 1;
+
+        final tableTop = y;
+
+        // Header bg
+        canvas.drawRect(
+          Rect.fromLTWH(pad, y, cw, hdrRowH),
+          Paint()..color = Colors.grey.shade300,
         );
 
-        // Draw items
+        void cell(
+          String text,
+          double x,
+          double colW,
+          double cy, {
+          TextAlign align = TextAlign.center,
+          FontWeight fw = FontWeight.w900,
+        }) {
+          final cp = mkP(text, fs, fw: fw, align: align, maxW: colW - 6);
+          canvas.drawParagraph(
+            cp,
+            Offset(x + 3, cy + (hdrRowH - cp.height) / 2),
+          );
+        }
+
+        cell('ລ/ດ', pad, c1, y);
+        cell('ລາຍການ', pad + c1, c2, y);
+        cell('ຈຳນວນ', pad + c1 + c2, c3, y);
+        cell('ລາຄາ', pad + c1 + c2 + c3, c4, y, align: TextAlign.right);
+        y += hdrRowH;
+
+        canvas.drawLine(Offset(pad, y), Offset(pad + cw, y), borderP);
+
+        // Data rows
         for (int i = 0; i < items.length; i++) {
           final item = items[i];
           final name = (item['name'] ?? '').toString();
           final qty = item['quantity'] ?? 1;
-          final price = item['price'] ?? 0.0;
-          final subtotal = qty * price;
+          final price = (item['price'] ?? 0.0) as num;
+          final subtotal = qty * price.toDouble();
 
-          final rowY = tableTop + headerHeight + (i * rowHeight) + 28;
+          void dataCell(
+            String text,
+            double x,
+            double colW, {
+            TextAlign align = TextAlign.center,
+            FontWeight fw = FontWeight.w600,
+          }) {
+            final cp = mkP(text, fs, fw: fw, align: align, maxW: colW - 6);
+            canvas.drawParagraph(cp, Offset(x + 3, y + (rowH - cp.height) / 2));
+          }
 
-          // Row number
-          final noBuilder =
-              ui.ParagraphBuilder(
-                  ui.ParagraphStyle(
-                    textAlign: TextAlign.center,
-                    fontSize: 40,
-                    fontWeight: FontWeight.w600,
-                  ),
-                )
-                ..pushStyle(
-                  ui.TextStyle(
-                    color: Colors.black,
-                    fontSize: 40,
-                    fontWeight: FontWeight.w600,
-                  ),
-                )
-                ..addText('${i + 1}');
-          final noItemPara =
-              noBuilder.build()
-                ..layout(ui.ParagraphConstraints(width: col1Width));
-          canvas.drawParagraph(noItemPara, Offset(padding, rowY));
-
-          // Product name
-          final productBuilder =
-              ui.ParagraphBuilder(
-                  ui.ParagraphStyle(
-                    textAlign: TextAlign.left,
-                    fontSize: 40,
-                    fontWeight: FontWeight.w500,
-                  ),
-                )
-                ..pushStyle(
-                  ui.TextStyle(
-                    color: Colors.black,
-                    fontSize: 40,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.8,
-                  ),
-                )
-                ..addText(name);
-          final productItemPara =
-              productBuilder.build()
-                ..layout(ui.ParagraphConstraints(width: col2Width - 20));
-          canvas.drawParagraph(
-            productItemPara,
-            Offset(padding + col1Width + 10, rowY),
+          dataCell('${i + 1}', pad, c1);
+          dataCell(name, pad + c1, c2, align: TextAlign.left);
+          dataCell('$qty', pad + c1 + c2, c3);
+          dataCell(
+            _formatPrice(subtotal),
+            pad + c1 + c2 + c3,
+            c4,
+            align: TextAlign.right,
+            fw: FontWeight.w700,
           );
+          y += rowH;
 
-          // Quantity
-          final qtyBuilder =
-              ui.ParagraphBuilder(
-                  ui.ParagraphStyle(
-                    textAlign: TextAlign.center,
-                    fontSize: 40,
-                    fontWeight: FontWeight.w600,
-                  ),
-                )
-                ..pushStyle(
-                  ui.TextStyle(
-                    color: Colors.black,
-                    fontSize: 40,
-                    fontWeight: FontWeight.w600,
-                  ),
-                )
-                ..addText('$qty');
-          final qtyItemPara =
-              qtyBuilder.build()
-                ..layout(ui.ParagraphConstraints(width: col3Width));
-          canvas.drawParagraph(
-            qtyItemPara,
-            Offset(padding + col1Width + col2Width, rowY),
-          );
-
-          // Price - Right aligned in column
-          final priceBuilder =
-              ui.ParagraphBuilder(
-                  ui.ParagraphStyle(
-                    textAlign: TextAlign.right,
-                    fontSize: 40,
-                    fontWeight: FontWeight.w600,
-                  ),
-                )
-                ..pushStyle(
-                  ui.TextStyle(
-                    color: Colors.black,
-                    fontSize: 40,
-                    fontWeight: FontWeight.w600,
-                  ),
-                )
-                ..addText(_formatPrice(subtotal));
-          final priceItemPara =
-              priceBuilder.build()
-                ..layout(ui.ParagraphConstraints(width: col4Width - 30));
-          canvas.drawParagraph(
-            priceItemPara,
-            Offset(padding + col1Width + col2Width + col3Width + 15, rowY),
-          );
-
-          // Row separator
           if (i < items.length - 1) {
-            final rowLinePaint =
-                Paint()
-                  ..color = Colors.grey.shade400
-                  ..strokeWidth = 2;
-            canvas.drawLine(
-              Offset(
-                padding + 5,
-                tableTop + headerHeight + ((i + 1) * rowHeight),
-              ),
-              Offset(
-                padding + tableWidth - 5,
-                tableTop + headerHeight + ((i + 1) * rowHeight),
-              ),
-              rowLinePaint,
-            );
+            canvas.drawLine(Offset(pad, y), Offset(pad + cw, y), thinP);
           }
         }
 
-        currentY = tableTop + tableHeight + 60;
-      }
-
-      // Totals section
-      drawText('ຮວມ:', currentY, fontSize: 46, fontWeight: FontWeight.w700);
-
-      final totalBuilder =
-          ui.ParagraphBuilder(
-              ui.ParagraphStyle(
-                textAlign: TextAlign.right,
-                fontSize: 46,
-                fontWeight: FontWeight.w700,
-              ),
-            )
-            ..pushStyle(
-              ui.TextStyle(
-                color: Colors.black,
-                fontSize: 46,
-                fontWeight: FontWeight.w700,
-              ),
-            )
-            ..addText(_formatPrice(total));
-      final totalPara =
-          totalBuilder.build()
-            ..layout(ui.ParagraphConstraints(width: contentWidth));
-      canvas.drawParagraph(totalPara, Offset(padding, currentY));
-      currentY += 65;
-
-      currentY += 10;
-
-      drawText(
-        'ຍອດລວມ (LAK):',
-        currentY,
-        fontSize: 44,
-        fontWeight: FontWeight.w600,
-      );
-      final lakBuilder =
-          ui.ParagraphBuilder(
-              ui.ParagraphStyle(
-                textAlign: TextAlign.right,
-                fontSize: 44,
-                fontWeight: FontWeight.w600,
-              ),
-            )
-            ..pushStyle(
-              ui.TextStyle(
-                color: Colors.black,
-                fontSize: 44,
-                fontWeight: FontWeight.w600,
-              ),
-            )
-            ..addText(_formatPrice(total));
-      final lakPara =
-          lakBuilder.build()
-            ..layout(ui.ParagraphConstraints(width: contentWidth));
-      canvas.drawParagraph(lakPara, Offset(padding, currentY));
-      currentY += 60;
-
-      final usd = total / 23000;
-      drawText(
-        'ຍອດລວມ (USD):',
-        currentY,
-        fontSize: 44,
-        fontWeight: FontWeight.w600,
-      );
-      final usdBuilder =
-          ui.ParagraphBuilder(
-              ui.ParagraphStyle(
-                textAlign: TextAlign.right,
-                fontSize: 44,
-                fontWeight: FontWeight.w600,
-              ),
-            )
-            ..pushStyle(
-              ui.TextStyle(
-                color: Colors.black,
-                fontSize: 44,
-                fontWeight: FontWeight.w600,
-              ),
-            )
-            ..addText(usd.toStringAsFixed(2));
-      final usdPara =
-          usdBuilder.build()
-            ..layout(ui.ParagraphConstraints(width: contentWidth));
-      canvas.drawParagraph(usdPara, Offset(padding, currentY));
-      currentY += 75;
-
-      // Dotted separator
-      for (double x = padding; x < renderWidth - padding; x += 24) {
-        canvas.drawCircle(Offset(x, currentY), 2, dotPaint);
-      }
-      currentY += 50;
-
-      // Exchange rate box
-      final boxWidth = contentWidth * 0.85;
-      final boxHeight = 90.0;
-      final boxX = padding + (contentWidth - boxWidth) / 2;
-
-      final exchangeBoxPaint =
-          Paint()
-            ..color = Colors.black
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 4;
-
-      final exchangeRRect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(boxX, currentY, boxWidth, boxHeight),
-        const Radius.circular(16),
-      );
-      canvas.drawRRect(exchangeRRect, exchangeBoxPaint);
-
-      final exchangeText =
-          ui.ParagraphBuilder(
-              ui.ParagraphStyle(
-                textAlign: TextAlign.center,
-                fontSize: 38,
-                fontWeight: FontWeight.w600,
-              ),
-            )
-            ..pushStyle(
-              ui.TextStyle(
-                color: Colors.black,
-                fontSize: 38,
-                fontWeight: FontWeight.w600,
-              ),
-            )
-            ..addText('ອັດຕາແລກປ່ຽນ = USD 1 = 23,000');
-      final exchangePara =
-          exchangeText.build()
-            ..layout(ui.ParagraphConstraints(width: boxWidth - 30));
-      canvas.drawParagraph(exchangePara, Offset(boxX + 15, currentY + 26));
-      currentY += boxHeight + 50;
-
-      if (footer.isNotEmpty) {
-        drawText(
-          footer,
-          currentY,
-          fontSize: 42,
-          fontWeight: FontWeight.w500,
-          align: TextAlign.center,
+        // Table border + vertical lines
+        final tableBottom = y;
+        canvas.drawRect(
+          Rect.fromLTWH(pad, tableTop, cw, tableBottom - tableTop),
+          borderP,
         );
-        currentY += 65;
+        canvas.drawLine(
+          Offset(pad + c1, tableTop),
+          Offset(pad + c1, tableBottom),
+          thinP,
+        );
+        canvas.drawLine(
+          Offset(pad + c1 + c2, tableTop),
+          Offset(pad + c1 + c2, tableBottom),
+          thinP,
+        );
+        canvas.drawLine(
+          Offset(pad + c1 + c2 + c3, tableTop),
+          Offset(pad + c1 + c2 + c3, tableBottom),
+          thinP,
+        );
+
+        y += gap;
       }
 
-      drawText(
-        'Thank you for your visit!',
-        currentY,
-        fontSize: 44,
-        fontWeight: FontWeight.w700,
-        align: TextAlign.center,
+      // ─── Totals ───
+      dottedLine();
+      y += 2;
+      leftRight(
+        'ຍອດລວມ (LAK):',
+        '${_formatPrice(total)} ₭',
+        28,
+        fw: FontWeight.w900,
       );
-
-      // Convert to image
+      if (paymentMethod.isNotEmpty) {
+        leftRight(
+          '$paymentMethod:',
+          '${_formatPrice(total)} ₭',
+          18,
+          fw: FontWeight.w700,
+        );
+      }
+      y += gap;
+      // ─── Convert to ESC/POS ───
+      final contentH = y.ceil();
       final picture = recorder.endRecording();
-      final uiImage = await picture.toImage(renderWidth, renderHeight);
+      // Render full canvas (white bg covers everything)
+      final uiImage = await picture.toImage(w, (maxH).ceil());
       final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.png);
       final pngBytes = byteData!.buffer.asUint8List();
 
       var decodedImage = img.decodeImage(pngBytes);
       if (decodedImage == null) return [];
 
-      decodedImage = img.copyResize(
+      // Crop to actual content height — removes any excess white/black area
+      decodedImage = img.copyCrop(
         decodedImage,
-        width: width,
-        interpolation: img.Interpolation.cubic,
+        x: 0,
+        y: 0,
+        width: w,
+        height: contentH,
       );
 
-      final grayscaleImage = img.grayscale(decodedImage);
-      final finalImage = _applySharpContrast(grayscaleImage);
-
-      final escPosBytes = _imageToEscPosBitmap(finalImage);
+      final bwImage = _applySharpContrast(img.grayscale(decodedImage));
+      final escPosBytes = _imageToEscPosBitmap(bwImage);
 
       List<int> bytes = [];
-      bytes.addAll([0x1B, 0x40]);
+      bytes.addAll([0x1B, 0x40]); // init printer
+      bytes.addAll([
+        0x1B,
+        0x33,
+        24,
+      ]); // set line spacing to 24 dots (match band height)
       bytes.addAll(escPosBytes);
-      bytes.addAll([0x0A, 0x0A, 0x0A]);
-      bytes.addAll([0x1D, 0x56, 0x00]);
+      bytes.addAll([0x1B, 0x32]); // restore default line spacing
+      bytes.addAll([0x0A, 0x0A, 0x0A]); // feed
+      bytes.addAll([0x1D, 0x56, 0x00]); // cut
 
       return bytes;
     } catch (e) {
@@ -1404,7 +1129,7 @@ class PrinterService {
       for (int x = 0; x < image.width; x++) {
         final pixel = image.getPixel(x, y);
         final gray = pixel.r.toInt();
-        final newGray = gray < 220 ? 0 : 255;
+        final newGray = gray < 128 ? 0 : 255;
         image.setPixelRgb(x, y, newGray, newGray, newGray);
       }
     }

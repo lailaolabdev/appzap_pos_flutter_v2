@@ -69,9 +69,7 @@ class _AdjustStockDialogState extends ConsumerState<AdjustStockDialog> {
       final adjustment = StockAdjustment(
         inventoryItemId:
             widget.item.itemId ??
-            widget
-                .item
-                .id, // ✅ Use itemId (menu item ID) if available, fallback to inventory ID
+            widget.item.id, // Backend queries by itemId (menu item reference)
         branchId: widget.item.branchId, // Use the item's branch ID
         operation: _selectedOperation,
         quantity: int.parse(_quantityController.text),

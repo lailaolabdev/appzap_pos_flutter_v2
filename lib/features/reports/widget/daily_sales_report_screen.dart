@@ -2,15 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../../app/app_shell.dart';
 import '../../../app/theme.dart';
 import '../../../core/constants/translations.dart';
-import '../../../core/models/report.dart';
 import '../../../core/providers/localization_provider.dart';
-import '../../../core/utils/responsive.dart';
+import '../../../core/utils/currency_formatter.dart';
 import '../providers/reports_provider.dart';
 
-/// Daily Sales Report Screen
+/// Sales Summary Report — Loyverse-style UI
 class DailySalesReportScreen extends ConsumerStatefulWidget {
   const DailySalesReportScreen({super.key});
 
@@ -21,540 +19,317 @@ class DailySalesReportScreen extends ConsumerStatefulWidget {
 
 class _DailySalesReportScreenState
     extends ConsumerState<DailySalesReportScreen> {
-  DateTime selectedDate = DateTime.now();
-  final DateFormat dateFormat = DateFormat('yyyy-MM-dd');
-  final DateFormat displayFormat = DateFormat('MMM dd, yyyy');
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(reportsProvider.notifier).loadToday();
+      // Default: last 30 days
+      final now = DateTime.now();
+      ref
+          .read(reportsProvider.notifier)
+          .setDateRange(now.subtract(const Duration(days: 30)), now);
     });
+  }
+
+  void _shiftDateRange(int days) {
+    final state = ref.read(reportsProvider);
+    final duration = state.endDate.difference(state.startDate);
+    final newStart = state.startDate.add(Duration(days: days));
+    final newEnd = newStart.add(duration);
+    // Don't go past today
+    final now = DateTime.now();
+    if (newEnd.isAfter(now)) return;
+    ref.read(reportsProvider.notifier).setDateRange(newStart, newEnd);
+  }
+
+  Future<void> _pickDateRange() async {
+    final state = ref.read(reportsProvider);
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      initialDateRange: DateTimeRange(
+        start: state.startDate,
+        end: state.endDate,
+      ),
+    );
+    if (picked != null) {
+      ref.read(reportsProvider.notifier).setDateRange(picked.start, picked.end);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = Responsive.isMobile(context);
-    final reportsState = ref.watch(reportsProvider);
-    final languageCode = ref.watch(localizationProvider).languageCode;
+    final state = ref.watch(reportsProvider);
+    final lang = ref.watch(localizationProvider).languageCode;
+    final summary = state.summary;
+    final dateFormat = DateFormat('d MMM yyyy');
 
-    return AppShell(
-      child: Scaffold(
-        backgroundColor: AppTheme.scaffoldBackground,
-        appBar: AppBar(
-          title: Text(Translations.get('daily_sales_report', languageCode)),
-          backgroundColor: AppTheme.primaryOrange,
-          foregroundColor: Colors.white,
-          elevation: 2,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.calendar_today),
-              tooltip: Translations.get('select_date', languageCode),
-              onPressed: () => _selectDate(context),
-            ),
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: Translations.get('refresh', languageCode),
-              onPressed: () => ref.read(reportsProvider.notifier).refresh(),
-            ),
-            const SizedBox(width: 8),
-          ],
+    return Scaffold(
+      backgroundColor: Colors.white,
+      // AppBar — Loyverse green header style but using our orange
+      appBar: AppBar(
+        backgroundColor: AppTheme.primaryOrange,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
         ),
-        body: RefreshIndicator(
-          onRefresh: () => ref.read(reportsProvider.notifier).refresh(),
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header with date
-                _buildHeader(languageCode),
-                const SizedBox(height: 20),
-
-                // Loading state
-                if (reportsState.isLoading)
-                  const Center(child: CircularProgressIndicator()),
-
-                // Error state
-                if (reportsState.error != null)
-                  _buildErrorCard(reportsState.error!, languageCode),
-
-                // Success state
-                if (!reportsState.isLoading &&
-                    reportsState.error == null &&
-                    reportsState.summary != null)
-                  _buildReportContent(
-                    reportsState.summary!,
-                    isMobile,
-                    languageCode,
-                  ),
-
-                // No data state
-                if (!reportsState.isLoading &&
-                    reportsState.error == null &&
-                    reportsState.summary == null)
-                  _buildNoDataCard(languageCode),
-              ],
-            ),
+        title: Text(
+          Translations.get('sales_summary', lang),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildHeader(String languageCode) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            colors: [AppTheme.primaryOrange.withOpacity(0.1), Colors.white],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      body: Column(
+        children: [
+          // ─── Date Range Bar (< 9 Mar 2026 - 7 Apr 2026 >) ───
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryOrange.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.assessment,
-                    size: 28,
-                    color: AppTheme.primaryOrange,
+                IconButton(
+                  icon: Icon(Icons.chevron_left, color: Colors.grey.shade600),
+                  onPressed: () => _shiftDateRange(-7),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: _pickDateRange,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: 16,
+                          color: Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${dateFormat.format(state.startDate)} - ${dateFormat.format(state.endDate)}',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        Translations.get('daily_sales_report', languageCode),
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                IconButton(
+                  icon: Icon(Icons.chevron_right, color: Colors.grey.shade600),
+                  onPressed: () => _shiftDateRange(7),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: Colors.grey.shade200),
+
+          // ─── Content ───
+          Expanded(
+            child:
+                state.isLoading
+                    ? const Center(
+                      child: CircularProgressIndicator(
+                        color: AppTheme.primaryOrange,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        displayFormat.format(selectedDate),
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppTheme.neutral600,
+                    )
+                    : summary == null
+                    ? Center(
+                      child: Text(
+                        Translations.get('no_data', lang),
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey.shade400,
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+                    )
+                    : RefreshIndicator(
+                      onRefresh:
+                          () => ref.read(reportsProvider.notifier).refresh(),
+                      child: ListView(
+                        children: [
+                          // ─── Summary Cards Row ───
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Gross Sales
+                                Expanded(
+                                  child: _buildSummaryCard(
+                                    title: Translations.get(
+                                      'gross_sales',
+                                      lang,
+                                    ),
+                                    amount: summary.sales.totalSales,
+                                    isLarge: true,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                // Refunds
+                                Expanded(
+                                  child: _buildSummaryCard(
+                                    title: Translations.get('refunds', lang),
+                                    amount: 0,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                // Discounts
+                                Expanded(
+                                  child: _buildSummaryCard(
+                                    title: Translations.get('discount', lang),
+                                    amount: 0,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
 
-  Widget _buildReportContent(
-    DailySalesSummary summary,
-    bool isMobile,
-    String languageCode,
-  ) {
-    return Column(
-      children: [
-        // Summary Cards
-        isMobile
-            ? _buildMobileSummaryCards(summary, languageCode)
-            : _buildDesktopSummaryCards(summary, languageCode),
-        const SizedBox(height: 20),
+                          // Progress bar
+                          Container(
+                            height: 4,
+                            margin: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                            child: FractionallySizedBox(
+                              alignment: Alignment.centerLeft,
+                              widthFactor:
+                                  summary.sales.totalSales > 0 ? 1.0 : 0.0,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primaryOrange,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            ),
+                          ),
 
-        // Additional Details
-        _buildTransactionBreakdown(summary, languageCode),
-        const SizedBox(height: 20),
+                          const SizedBox(height: 24),
 
-        // Payment Methods (if available)
-        if (summary.payments.isNotEmpty)
-          _buildPaymentMethodsCard(summary.payments, languageCode),
-      ],
-    );
-  }
+                          // ─── Detail Rows ───
+                          _buildDetailRow(
+                            Translations.get('gross_sales', lang),
+                            CurrencyFormatter.formatLAKWithSymbol(
+                              summary.sales.totalSales,
+                            ),
+                          ),
+                          _buildDetailRow(
+                            Translations.get('orders_count', lang),
+                            '${summary.sales.totalOrders}',
+                          ),
+                          _buildDetailRow(
+                            Translations.get('avg_sale', lang),
+                            CurrencyFormatter.formatLAKWithSymbol(
+                              summary.sales.averageOrderValue,
+                            ),
+                          ),
+                          if (summary.sales.totalTax > 0)
+                            _buildDetailRow(
+                              Translations.get('tax', lang),
+                              CurrencyFormatter.formatLAKWithSymbol(
+                                summary.sales.totalTax,
+                              ),
+                            ),
 
-  Widget _buildMobileSummaryCards(
-    DailySalesSummary summary,
-    String languageCode,
-  ) {
-    return Column(
-      children: [
-        _SummaryCard(
-          title: Translations.get('total_revenue', languageCode),
-          value:
-              'LAK ${NumberFormat('#,##0').format(summary.sales.totalSales)}',
-          icon: Icons.monetization_on,
-          color: Colors.green,
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _SummaryCard(
-                title: Translations.get('orders', languageCode),
-                value: '${summary.sales.totalOrders}',
-                icon: Icons.receipt,
-                color: Colors.blue,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _SummaryCard(
-                title: Translations.get('avg_order', languageCode),
-                value:
-                    'LAK ${NumberFormat('#,##0').format(summary.sales.averageOrderValue)}',
-                icon: Icons.trending_up,
-                color: Colors.orange,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+                          // ─── Payment Breakdown ───
+                          if (summary.payments.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Container(height: 8, color: Colors.grey.shade100),
+                            const SizedBox(height: 8),
+                            ...summary.payments.entries.map(
+                              (e) => _buildDetailRow(
+                                e.key.replaceAll('_', ' '),
+                                CurrencyFormatter.formatLAKWithSymbol(e.value),
+                              ),
+                            ),
+                          ],
 
-  Widget _buildDesktopSummaryCards(
-    DailySalesSummary summary,
-    String languageCode,
-  ) {
-    return Row(
-      children: [
-        Expanded(
-          child: _SummaryCard(
-            title: Translations.get('total_revenue', languageCode),
-            value:
-                'LAK ${NumberFormat('#,##0').format(summary.sales.totalSales)}',
-            icon: Icons.monetization_on,
-            color: Colors.green,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _SummaryCard(
-            title: Translations.get('total_orders', languageCode),
-            value: '${summary.sales.totalOrders}',
-            icon: Icons.receipt,
-            color: Colors.blue,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _SummaryCard(
-            title: Translations.get('average_order', languageCode),
-            value:
-                'LAK ${NumberFormat('#,##0').format(summary.sales.averageOrderValue)}',
-            icon: Icons.trending_up,
-            color: Colors.orange,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTransactionBreakdown(
-    DailySalesSummary summary,
-    String languageCode,
-  ) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              Translations.get('transaction_breakdown', languageCode),
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            _buildBreakdownRow(
-              Translations.get('total_orders', languageCode),
-              '${summary.sales.totalOrders}',
-              Colors.blue,
-            ),
-            _buildBreakdownRow(
-              Translations.get('total_sales', languageCode),
-              'LAK ${NumberFormat('#,##0').format(summary.sales.totalSales)}',
-              Colors.green,
-            ),
-            const Divider(height: 24),
-            _buildBreakdownRow(
-              Translations.get('tax_amount', languageCode),
-              'LAK ${NumberFormat('#,##0').format(summary.sales.totalTax)}',
-              Colors.orange,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBreakdownRow(String label, String value, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: Theme.of(context).textTheme.bodyMedium),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+                          // ─── Daily Breakdown ───
+                          if (state.dailyBreakdown.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Container(height: 8, color: Colors.grey.shade100),
+                            const SizedBox(height: 8),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              child: Text(
+                                Translations.get('gross_sales', lang),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            ...state.dailyBreakdown.map(
+                              (day) => _buildDetailRow(
+                                DateFormat('d MMM yyyy').format(day.date),
+                                CurrencyFormatter.formatLAKWithSymbol(
+                                  day.grossSales,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPaymentMethodsCard(
-    Map<String, double> paymentMethods,
-    String languageCode,
-  ) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              Translations.get('payment_methods', languageCode),
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            ...paymentMethods.entries.map(
-              (entry) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          _getPaymentIcon(entry.key),
-                          size: 20,
-                          color: AppTheme.neutral600,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          entry.key.toUpperCase(),
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ],
-                    ),
-                    Text(
-                      'LAK ${NumberFormat('#,##0').format(entry.value)}',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+  Widget _buildSummaryCard({
+    required String title,
+    required double amount,
+    bool isLarge = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
         ),
-      ),
-    );
-  }
-
-  Widget _buildErrorCard(String error, String languageCode) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            Text(
-              Translations.get('error_loading_report', languageCode),
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => ref.read(reportsProvider.notifier).refresh(),
-              child: Text(Translations.get('retry', languageCode)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNoDataCard(String languageCode) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Icon(
-              Icons.assessment_outlined,
-              size: 48,
-              color: AppTheme.neutral400,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              Translations.get('no_data_available', languageCode),
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${Translations.get('no_sales_data_found_for', languageCode)} ${displayFormat.format(selectedDate)}',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  IconData _getPaymentIcon(String method) {
-    switch (method.toLowerCase()) {
-      case 'cash':
-        return Icons.money;
-      case 'card':
-        return Icons.credit_card;
-      case 'bank_transfer':
-        return Icons.account_balance;
-      case 'qr':
-        return Icons.qr_code;
-      default:
-        return Icons.payment;
-    }
-  }
-
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(
-              context,
-            ).colorScheme.copyWith(primary: AppTheme.primaryOrange),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null && picked != selectedDate) {
-      setState(() {
-        selectedDate = picked;
-      });
-      ref.read(reportsProvider.notifier).setDateRange(picked, picked);
-    }
-  }
-}
-
-class _SummaryCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  const _SummaryCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            colors: [color.withOpacity(0.1), Colors.white],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+        const SizedBox(height: 4),
+        Text(
+          CurrencyFormatter.formatLAKWithSymbol(amount),
+          style: TextStyle(
+            fontSize: isLarge ? 22 : 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, size: 20, color: color),
-                ),
-                const Spacer(),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppTheme.neutral600),
-            ),
-          ],
-        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(fontSize: 15, color: Colors.grey.shade800),
+          ),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+          ),
+        ],
       ),
     );
   }

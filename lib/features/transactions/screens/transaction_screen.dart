@@ -74,7 +74,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
         key: _scaffoldKey,
         backgroundColor: Colors.white,
         drawer:
-            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
+            const Drawer(child: AppSidebar(isInDrawer: true)),
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 0,

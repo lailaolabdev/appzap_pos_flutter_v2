@@ -40,7 +40,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
       child: Scaffold(
         backgroundColor: AppTheme.scaffoldBackground,
         drawer:
-            isMobile ? const Drawer(child: AppSidebar(isInDrawer: true)) : null,
+            const Drawer(child: AppSidebar(isInDrawer: true)),
         appBar: AppBar(
           title: Text(Translations.get('customers', languageCode)),
           actions: [

@@ -9,6 +9,8 @@ class ReportsState {
   final DailySalesSummary? summary;
   final List<SalesByProductItem> topProducts;
   final List<SalesByStaffItem> employeePerformance;
+  final List<SalesByPaymentItem> paymentBreakdown;
+  final List<DailyBreakdownItem> dailyBreakdown;
   final bool isLoading;
   final String? error;
   final DateTime startDate;
@@ -18,6 +20,8 @@ class ReportsState {
     this.summary,
     this.topProducts = const [],
     this.employeePerformance = const [],
+    this.paymentBreakdown = const [],
+    this.dailyBreakdown = const [],
     this.isLoading = false,
     this.error,
     required this.startDate,
@@ -28,6 +32,8 @@ class ReportsState {
     DailySalesSummary? summary,
     List<SalesByProductItem>? topProducts,
     List<SalesByStaffItem>? employeePerformance,
+    List<SalesByPaymentItem>? paymentBreakdown,
+    List<DailyBreakdownItem>? dailyBreakdown,
     bool? isLoading,
     String? error,
     DateTime? startDate,
@@ -37,6 +43,8 @@ class ReportsState {
       summary: summary ?? this.summary,
       topProducts: topProducts ?? this.topProducts,
       employeePerformance: employeePerformance ?? this.employeePerformance,
+      paymentBreakdown: paymentBreakdown ?? this.paymentBreakdown,
+      dailyBreakdown: dailyBreakdown ?? this.dailyBreakdown,
       isLoading: isLoading ?? this.isLoading,
       error: error,
       startDate: startDate ?? this.startDate,
@@ -49,8 +57,9 @@ class ReportsState {
 class ReportsNotifier extends StateNotifier<ReportsState> {
   final ReportService _reportService;
   final String? _branchId;
+  final String? _restaurantId;
 
-  ReportsNotifier(this._reportService, this._branchId)
+  ReportsNotifier(this._reportService, this._branchId, this._restaurantId)
     : super(
         ReportsState(
           startDate: DateTime.now().subtract(const Duration(days: 7)),
@@ -70,17 +79,17 @@ class ReportsNotifier extends StateNotifier<ReportsState> {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      // Load reports individually to handle failures gracefully
       DailySalesSummary? summary;
       List<SalesByProductItem> topProducts = [];
       List<SalesByStaffItem> employeePerformance = [];
+      List<SalesByPaymentItem> paymentBreakdown = [];
 
-      // Load all reports in parallel
       final results = await Future.wait<dynamic>([
         _reportService.getSummaryForDateRange(
           branchId: _branchId,
           startDate: state.startDate,
           endDate: state.endDate,
+          restaurantId: _restaurantId,
         ).then<DailySalesSummary?>((v) => v).catchError((_) => null),
         _reportService.getSalesByProductForDateRange(
           branchId: _branchId,
@@ -92,11 +101,26 @@ class ReportsNotifier extends StateNotifier<ReportsState> {
           startDate: state.startDate,
           endDate: state.endDate,
         ).catchError((_) => <SalesByStaffItem>[]),
+        _reportService.getSalesByPaymentTypeForDateRange(
+          branchId: _branchId,
+          startDate: state.startDate,
+          endDate: state.endDate,
+        ).catchError((_) => <SalesByPaymentItem>[]),
+        (_restaurantId != null)
+            ? _reportService.getDailyBreakdown(
+                branchId: _branchId,
+                restaurantId: _restaurantId,
+                startDate: state.startDate,
+                endDate: state.endDate,
+              ).catchError((_) => <DailyBreakdownItem>[])
+            : Future.value(<DailyBreakdownItem>[]),
       ]);
 
       summary = results[0] as DailySalesSummary?;
       topProducts = results[1] as List<SalesByProductItem>;
       employeePerformance = results[2] as List<SalesByStaffItem>;
+      paymentBreakdown = results[3] as List<SalesByPaymentItem>;
+      final dailyBreakdown = results[4] as List<DailyBreakdownItem>;
 
       // Build summary from products data if summary API failed
       if (summary == null && topProducts.isNotEmpty) {
@@ -126,6 +150,8 @@ class ReportsNotifier extends StateNotifier<ReportsState> {
         summary: summary,
         topProducts: topProducts,
         employeePerformance: employeePerformance,
+        paymentBreakdown: paymentBreakdown,
+        dailyBreakdown: dailyBreakdown,
         isLoading: false,
       );
     } catch (e) {
@@ -169,7 +195,8 @@ final reportsProvider = StateNotifierProvider<ReportsNotifier, ReportsState>((
 ) {
   final reportService = ref.watch(reportServiceProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  return ReportsNotifier(reportService, branchId);
+  final restaurantId = ref.watch(currentRestaurantIdProvider);
+  return ReportsNotifier(reportService, branchId, restaurantId);
 });
 
 /// Today's end of day report provider

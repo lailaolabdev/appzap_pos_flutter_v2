@@ -59,7 +59,6 @@ class _PrinterSettingsCardState extends ConsumerState<PrinterSettingsCard> {
           enableReceiptPrinting: _enableReceiptPrinting,
           enableBarcodePrinting: _enableBarcodePrinting,
           receiptHeader: settings.receiptHeader,
-          receiptFooter: settings.receiptFooter,
         );
 
     if (mounted) {

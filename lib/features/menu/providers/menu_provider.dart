@@ -182,6 +182,7 @@ class MenuNotifier extends StateNotifier<MenuState> {
     int initialStock = 0,
     bool isActive = true,
     String? imagePath,
+    List<String>? customizationIds,
   }) async {
     if (_restaurantId == null) return false;
 
@@ -203,6 +204,7 @@ class MenuNotifier extends StateNotifier<MenuState> {
         lowStockThreshold: lowStockThreshold,
         initialStock: initialStock,
         isActive: isActive,
+        customizationIds: customizationIds,
       );
 
       // Upload image if provided
@@ -237,6 +239,7 @@ class MenuNotifier extends StateNotifier<MenuState> {
     int? lowStockThreshold,
     bool? isActive,
     String? imagePath,
+    List<String>? customizationIds,
   }) async {
     try {
       await _menuService.updateMenuItem(
@@ -251,6 +254,7 @@ class MenuNotifier extends StateNotifier<MenuState> {
         trackStock: trackStock,
         lowStockThreshold: lowStockThreshold,
         isActive: isActive,
+        customizationIds: customizationIds,
       );
 
       // Upload image if provided

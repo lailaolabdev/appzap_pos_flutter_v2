@@ -258,3 +258,73 @@ class EndOfDayReport extends Equatable {
   ];
 }
 
+/// Daily breakdown item (one row per day)
+class DailyBreakdownItem extends Equatable {
+  final DateTime date;
+  final double grossSales;
+  final int orderCount;
+
+  const DailyBreakdownItem({
+    required this.date,
+    required this.grossSales,
+    this.orderCount = 0,
+  });
+
+  @override
+  List<Object?> get props => [date, grossSales, orderCount];
+}
+
+/// Sales by payment type report item
+class SalesByPaymentItem extends Equatable {
+  final String method;
+  final int transactionCount;
+  final double totalAmount;
+  final double percentage;
+
+  const SalesByPaymentItem({
+    required this.method,
+    required this.transactionCount,
+    required this.totalAmount,
+    this.percentage = 0,
+  });
+
+  factory SalesByPaymentItem.fromJson(Map<String, dynamic> json) {
+    return SalesByPaymentItem(
+      method: json['method'] as String? ??
+          json['paymentMethod'] as String? ??
+          json['_id'] as String? ??
+          '',
+      transactionCount: json['transactionCount'] as int? ??
+          json['count'] as int? ??
+          0,
+      totalAmount: (json['totalAmount'] as num?)?.toDouble() ??
+          (json['total'] as num?)?.toDouble() ??
+          (json['netSales'] as num?)?.toDouble() ??
+          0,
+      percentage: (json['percentage'] as num?)?.toDouble() ?? 0,
+    );
+  }
+
+  String get displayName {
+    switch (method.toLowerCase()) {
+      case 'cash':
+        return 'Cash';
+      case 'card':
+        return 'Card';
+      case 'transfer':
+        return 'Transfer';
+      case 'bank_qr_jdb':
+        return 'JDB QR';
+      case 'bank_qr_bcel':
+        return 'BCEL QR';
+      case 'bank_qr_ldb':
+        return 'LDB QR';
+      default:
+        return method.replaceAll('_', ' ');
+    }
+  }
+
+  @override
+  List<Object?> get props => [method, transactionCount, totalAmount];
+}
+
