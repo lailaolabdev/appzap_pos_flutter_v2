@@ -1,10 +1,21 @@
 import 'package:appzap_pos/core/constants/translations.dart';
 import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:flutter_zxing/flutter_zxing.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme.dart';
+
+const int _posBarcodeFormats =
+    Format.ean13 |
+    Format.ean8 |
+    Format.code128 |
+    Format.code39 |
+    Format.code93 |
+    Format.codabar |
+    Format.upca |
+    Format.upce |
+    Format.qrCode;
 
 /// Search bar with barcode scanner for POS
 class POSSearchBar extends ConsumerStatefulWidget {
@@ -129,26 +140,14 @@ class _BarcodeScannerSheet extends ConsumerStatefulWidget {
 }
 
 class _BarcodeScannerSheetState extends ConsumerState<_BarcodeScannerSheet> {
-  final MobileScannerController _scannerController = MobileScannerController(
-    detectionSpeed: DetectionSpeed.normal,
-    facing: CameraFacing.back,
-  );
   bool _hasScanned = false;
 
-  @override
-  void dispose() {
-    _scannerController.dispose();
-    super.dispose();
-  }
-
-  void _onDetect(BarcodeCapture capture) {
+  void _onScan(Code code) {
     if (_hasScanned) return;
-
-    final barcode = capture.barcodes.firstOrNull;
-    if (barcode?.rawValue != null) {
-      _hasScanned = true;
-      widget.onBarcodeScanned(barcode!.rawValue!);
-    }
+    final value = code.text;
+    if (value == null || value.isEmpty) return;
+    _hasScanned = true;
+    widget.onBarcodeScanned(value);
   }
 
   @override
@@ -201,29 +200,39 @@ class _BarcodeScannerSheetState extends ConsumerState<_BarcodeScannerSheet> {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                MobileScanner(
-                  controller: _scannerController,
-                  onDetect: _onDetect,
+                ReaderWidget(
+                  onScan: _onScan,
+                  codeFormat: _posBarcodeFormats,
+                  tryHarder: true,
+                  tryInverted: true,
+                  showFlashlight: true,
+                  showToggleCamera: false,
+                  showGallery: false,
+                  showScannerOverlay: true,
+                  scanDelay: const Duration(milliseconds: 500),
+                  actionButtonsBackgroundColor: Colors.black54,
                 ),
 
                 // Scan overlay
-                Container(
-                  width: 250,
-                  height: 250,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: AppTheme.primaryOrange, width: 2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-
-                // Corner decorations
-                Positioned(
+                IgnorePointer(
                   child: Container(
                     width: 250,
                     height: 250,
                     decoration: BoxDecoration(
+                      border: Border.all(
+                        color: AppTheme.primaryOrange,
+                        width: 2,
+                      ),
                       borderRadius: BorderRadius.circular(12),
                     ),
+                  ),
+                ),
+
+                // Corner decorations
+                IgnorePointer(
+                  child: SizedBox(
+                    width: 250,
+                    height: 250,
                     child: CustomPaint(painter: _ScannerOverlayPainter()),
                   ),
                 ),
@@ -239,26 +248,6 @@ class _BarcodeScannerSheetState extends ConsumerState<_BarcodeScannerSheet> {
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.7),
                 fontSize: 14,
-              ),
-            ),
-          ),
-
-          // Flash toggle
-          Padding(
-            padding: const EdgeInsets.only(bottom: 30),
-            child: IconButton(
-              onPressed: () => _scannerController.toggleTorch(),
-              icon: ValueListenableBuilder(
-                valueListenable: _scannerController,
-                builder: (context, state, child) {
-                  return Icon(
-                    state.torchState == TorchState.on
-                        ? Icons.flash_on
-                        : Icons.flash_off,
-                    color: Colors.white,
-                    size: 32,
-                  );
-                },
               ),
             ),
           ),

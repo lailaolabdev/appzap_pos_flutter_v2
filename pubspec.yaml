@@ -47,7 +47,7 @@ dependencies:
   pin_code_fields: ^8.0.1
   
   # Barcode/QR
-  mobile_scanner: ^6.0.2
+  flutter_zxing: ^1.8.0
   qr_flutter: ^4.1.0
   
   # Image Picker

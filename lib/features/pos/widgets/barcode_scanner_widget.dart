@@ -2,9 +2,18 @@ import 'package:appzap_pos/core/constants/translations.dart';
 import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:flutter_zxing/flutter_zxing.dart';
 
-import '../../../app/theme.dart';
+const int _posBarcodeFormats =
+    Format.ean13 |
+    Format.ean8 |
+    Format.code128 |
+    Format.code39 |
+    Format.code93 |
+    Format.codabar |
+    Format.upca |
+    Format.upce |
+    Format.qrCode;
 
 /// Barcode Scanner Widget
 class BarcodeScannerWidget extends ConsumerStatefulWidget {
@@ -18,58 +27,19 @@ class BarcodeScannerWidget extends ConsumerStatefulWidget {
 }
 
 class _BarcodeScannerWidgetState extends ConsumerState<BarcodeScannerWidget> {
-  late MobileScannerController controller;
   bool isScanned = false;
 
-  @override
-  void initState() {
-    super.initState();
-    controller = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
-      formats: [
-        BarcodeFormat.ean13,
-        BarcodeFormat.ean8,
-        BarcodeFormat.code128,
-        BarcodeFormat.code39,
-        BarcodeFormat.code93,
-        BarcodeFormat.codabar,
-        BarcodeFormat.upcA,
-        BarcodeFormat.upcE,
-        BarcodeFormat.qrCode,
-      ],
-    );
-  }
+  void _onScan(Code code) {
+    if (isScanned) return;
+    final value = code.text;
+    if (value == null || value.isEmpty) return;
 
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
+    setState(() {
+      isScanned = true;
+    });
 
-  void _onBarcodeDetected(BarcodeCapture capture) {
-    if (isScanned) return; // Prevent multiple scans
-
-    final List<Barcode> barcodes = capture.barcodes;
-    if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
-      setState(() {
-        isScanned = true;
-      });
-
-      final barcode = barcodes.first.rawValue!;
-
-      // Haptic feedback
-      // HapticFeedback.lightImpact();
-
-      // Call the callback
-      widget.onBarcodeScanned(barcode);
-
-      // Close the scanner after successful scan
-      Navigator.of(context).pop(barcode);
-    }
-  }
-
-  void _toggleFlash() {
-    controller.toggleTorch();
+    widget.onBarcodeScanned(value);
+    Navigator.of(context).pop(value);
   }
 
   @override
@@ -83,43 +53,23 @@ class _BarcodeScannerWidgetState extends ConsumerState<BarcodeScannerWidget> {
         ),
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.flash_on),
-            onPressed: _toggleFlash,
-            tooltip: Translations.get(
-              'toggle_flash',
-              localization.languageCode,
-            ),
-          ),
-        ],
       ),
       backgroundColor: Colors.black,
       body: Column(
         children: [
           Expanded(
             flex: 4,
-            child: Stack(
-              children: [
-                // Scanner view
-                MobileScanner(
-                  controller: controller,
-                  onDetect: _onBarcodeDetected,
-                ),
-
-                // Overlay with scanning frame
-                Container(
-                  decoration: ShapeDecoration(
-                    shape: QrScannerOverlayShape(
-                      borderColor: AppTheme.primaryOrange,
-                      borderRadius: 12,
-                      borderLength: 30,
-                      borderWidth: 4,
-                      cutOutSize: 250,
-                    ),
-                  ),
-                ),
-              ],
+            child: ReaderWidget(
+              onScan: _onScan,
+              codeFormat: _posBarcodeFormats,
+              tryHarder: true,
+              tryInverted: true,
+              showFlashlight: true,
+              showToggleCamera: false,
+              showGallery: false,
+              showScannerOverlay: true,
+              scanDelay: const Duration(milliseconds: 500),
+              actionButtonsBackgroundColor: Colors.black54,
             ),
           ),
 
@@ -233,8 +183,6 @@ class QrScannerOverlayShape extends ShapeBorder {
 
   @override
   void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
-    final width = rect.width;
-    final height = rect.height;
     final borderLength = this.borderLength;
     final borderWidth = this.borderWidth;
     final borderRadius = this.borderRadius;

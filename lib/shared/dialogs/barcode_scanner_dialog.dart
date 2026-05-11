@@ -1,7 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:flutter_zxing/flutter_zxing.dart';
 
 import '../../app/theme.dart';
+
+const int _posBarcodeFormats =
+    Format.ean13 |
+    Format.ean8 |
+    Format.code128 |
+    Format.code39 |
+    Format.code93 |
+    Format.codabar |
+    Format.upca |
+    Format.upce |
+    Format.qrCode;
 
 /// Barcode scanner dialog
 class BarcodeScannerDialog extends StatefulWidget {
@@ -12,34 +23,15 @@ class BarcodeScannerDialog extends StatefulWidget {
 }
 
 class _BarcodeScannerDialogState extends State<BarcodeScannerDialog> {
-  final MobileScannerController controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
-    facing: CameraFacing.back,
-    torchEnabled: false,
-  );
-
   bool _isProcessing = false;
 
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
-  void _onDetect(BarcodeCapture capture) {
+  void _onScan(Code code) {
     if (_isProcessing) return;
+    final value = code.text;
+    if (value == null || value.isEmpty) return;
 
-    final List<Barcode> barcodes = capture.barcodes;
-
-    if (barcodes.isNotEmpty) {
-      final barcode = barcodes.first;
-      final String? code = barcode.rawValue;
-
-      if (code != null && code.isNotEmpty) {
-        setState(() => _isProcessing = true);
-        Navigator.pop(context, code);
-      }
-    }
+    setState(() => _isProcessing = true);
+    Navigator.pop(context, value);
   }
 
   @override
@@ -91,19 +83,32 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog> {
               child: ClipRRect(
                 child: Stack(
                   children: [
-                    MobileScanner(controller: controller, onDetect: _onDetect),
+                    ReaderWidget(
+                      onScan: _onScan,
+                      codeFormat: _posBarcodeFormats,
+                      tryHarder: true,
+                      tryInverted: true,
+                      showFlashlight: true,
+                      showToggleCamera: true,
+                      showGallery: false,
+                      showScannerOverlay: true,
+                      scanDelay: const Duration(milliseconds: 500),
+                      actionButtonsBackgroundColor: Colors.black54,
+                    ),
 
                     // Overlay with scanning frame
                     Center(
-                      child: Container(
-                        width: 250,
-                        height: 250,
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: AppTheme.primaryOrange,
-                            width: 3,
+                      child: IgnorePointer(
+                        child: Container(
+                          width: 250,
+                          height: 250,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: AppTheme.primaryOrange,
+                              width: 3,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
@@ -113,71 +118,27 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog> {
                       bottom: 32,
                       left: 0,
                       right: 0,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 32),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Text(
-                          'Position the barcode within the frame',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.white, fontSize: 14),
+                      child: IgnorePointer(
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 32),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Position the barcode within the frame',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ],
                 ),
-              ),
-            ),
-
-            // Controls
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.8),
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(20),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Toggle flash
-                  IconButton(
-                    icon: ValueListenableBuilder(
-                      valueListenable: controller,
-                      builder: (context, MobileScannerState state, child) {
-                        return Icon(
-                          state.torchState == TorchState.off
-                              ? Icons.flash_off
-                              : Icons.flash_on,
-                          color: Colors.white,
-                          size: 28,
-                        );
-                      },
-                    ),
-                    onPressed: () => controller.toggleTorch(),
-                  ),
-
-                  const SizedBox(width: 32),
-
-                  // Switch camera
-                  IconButton(
-                    icon: ValueListenableBuilder(
-                      valueListenable: controller,
-                      builder: (context, MobileScannerState state, child) {
-                        return const Icon(
-                          Icons.cameraswitch,
-                          color: Colors.white,
-                          size: 28,
-                        );
-                      },
-                    ),
-                    onPressed: () => controller.switchCamera(),
-                  ),
-                ],
               ),
             ),
           ],
