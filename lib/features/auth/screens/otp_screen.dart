@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 
 import '../../../app/router.dart';
-import '../../../app/theme.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/constants/translations.dart';
 import '../../../core/providers/localization_provider.dart';
@@ -14,8 +13,8 @@ import '../../../core/utils/responsive.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/error_banner.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/auth_scaffold.dart';
 
-/// OTP verification screen
 class OtpScreen extends ConsumerStatefulWidget {
   final String phone;
   final String purpose;
@@ -49,371 +48,442 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   void _startResendTimer() {
     _timer?.cancel();
     if (mounted) setState(() => _resendCountdown = 60);
-
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) {
-        timer.cancel();
+        t.cancel();
         return;
       }
       if (_resendCountdown > 0) {
         setState(() => _resendCountdown--);
       } else {
-        timer.cancel();
+        t.cancel();
       }
     });
   }
 
-  String _getErrorMessage(dynamic error, String languageCode) {
+  String _getErrorMessage(dynamic error, String code) {
     if (error is ApiException) {
       if (error.isNetworkError) {
         return Translations.get(
           'no_internet_connection_please_check_your_network',
-          languageCode,
+          code,
         );
       }
       if (error.isServerError) {
         return Translations.get(
           'server_is_temporarily_unavailable_please_try_again_later',
-          languageCode,
+          code,
         );
       }
       if (error.isRateLimited) {
         return Translations.get(
           'too_many_attempts_please_wait_a_moment',
-          languageCode,
+          code,
         );
       }
       return error.message;
     }
-    return Translations.get('invalid_otp_please_try_again', languageCode);
+    return Translations.get('invalid_otp_please_try_again', code);
   }
 
   Future<void> _resendOtp() async {
-    final languageCode = ref.read(localizationProvider).languageCode;
-    if (mounted) setState(() => _isLoading = true);
-
+    final code = ref.read(localizationProvider).languageCode;
+    setState(() => _isLoading = true);
     try {
       await ref
           .read(authProvider.notifier)
           .sendOtp(phone: widget.phone, purpose: widget.purpose);
       _startResendTimer();
-
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              Translations.get('otp_sent_successfully', languageCode),
-            ),
-            backgroundColor: AppTheme.success,
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: BrandPalette.success,
+          content: Text(
+            Translations.get('otp_sent_successfully', code),
+            style: BrandFonts.body(14, color: BrandPalette.paper),
           ),
-        );
-      }
+        ),
+      );
     } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_getErrorMessage(e, languageCode)),
-            backgroundColor: AppTheme.error,
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: BrandPalette.danger,
+          content: Text(
+            _getErrorMessage(e, code),
+            style: BrandFonts.body(14, color: BrandPalette.paper),
           ),
-        );
-      }
+        ),
+      );
     }
   }
 
   Future<void> _handleVerify() async {
-    final languageCode = ref.read(localizationProvider).languageCode;
+    final code = ref.read(localizationProvider).languageCode;
     final otp = _otpController.text.trim();
-    final error = Validators.otp(otp);
-
-    if (error != null) {
-      if (mounted) setState(() => _error = error);
+    final otpError = Validators.otp(otp);
+    if (otpError != null) {
+      setState(() => _error = otpError);
       return;
     }
-
-    if (mounted) {
-      setState(() {
-        _error = null;
-        _isLoading = true;
-      });
-    }
-
+    setState(() {
+      _error = null;
+      _isLoading = true;
+    });
     try {
       if (widget.purpose == 'login') {
-        // Smart OTP flow: Handles both login AND registration!
         final result = await ref
             .read(authProvider.notifier)
             .verifyOtpAndLogin(phone: widget.phone, otp: otp);
-
-        if (mounted) {
-          setState(() => _isLoading = false);
-
-          if (result.isRegistered) {
-            // ✅ SCENARIO 1: Existing User - LOGGED IN!
-            context.go(AppRoutes.pos);
-
-            // Show PIN setup suggestion if user doesn't have PIN
-            if (result.hasPIN == false) {
-              Future.delayed(const Duration(seconds: 2), () {
-                if (mounted) {
-                  _showPINSetupSuggestion(languageCode);
-                }
-              });
-            }
-          } else {
-            // 📝 SCENARIO 2: New User - Show Registration Screen
-            context.push(
-              AppRoutes.register,
-              extra: {
-                'registrationToken': result.registrationToken!,
-                'phone': result.phone!,
-              },
-            );
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        if (result.isRegistered) {
+          context.go(AppRoutes.pos);
+          if (result.hasPIN == false) {
+            Future.delayed(const Duration(seconds: 2), () {
+              if (mounted) _showPINSetupSuggestion(code);
+            });
           }
+        } else {
+          context.push(
+            AppRoutes.register,
+            extra: {
+              'registrationToken': result.registrationToken!,
+              'phone': result.phone!,
+            },
+          );
         }
       } else {
-        // Legacy flows (registration, forgot_pin)
         final tempToken = await ref
             .read(authProvider.notifier)
             .verifyOtp(phone: widget.phone, otp: otp);
-
-        if (mounted) {
-          setState(() => _isLoading = false);
-          if (widget.purpose == 'registration') {
-            context.pushReplacement(
-              AppRoutes.register,
-              extra: {'phone': widget.phone, 'tempToken': tempToken},
-            );
-          } else if (widget.purpose == 'forgot_pin') {
-            // Handle forgot PIN flow
-            context.pop(tempToken);
-          }
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        if (widget.purpose == 'registration') {
+          context.pushReplacement(
+            AppRoutes.register,
+            extra: {'phone': widget.phone, 'tempToken': tempToken},
+          );
+        } else if (widget.purpose == 'forgot_pin') {
+          context.pop(tempToken);
         }
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = _getErrorMessage(e, languageCode);
-          _isLoading = false;
-        });
-        _otpController.clear();
-      }
+      if (!mounted) return;
+      setState(() {
+        _error = _getErrorMessage(e, code);
+        _isLoading = false;
+      });
+      _otpController.clear();
     }
   }
 
-  void _showPINSetupSuggestion(String languageCode) {
+  void _showPINSetupSuggestion(String code) {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Row(
-              children: [
-                Icon(Icons.flash_on, color: AppTheme.primaryOrange),
-                const SizedBox(width: 8),
-                Text(
-                  Translations.get('setup_pin_for_faster_login', languageCode),
+      builder: (context) => AlertDialog(
+        backgroundColor: BrandPalette.paper,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.bolt_rounded, color: BrandPalette.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                Translations.get('setup_pin_for_faster_login', code),
+                style: BrandFonts.display(
+                  18,
+                  weight: FontWeight.w700,
                 ),
-              ],
-            ),
-            content: Text(
-              '${Translations.get('setup_a_4_digit_pin_for_quicker_logins_in_the_future', languageCode)} '
-              '${Translations.get('you_can_always_login_with_otp_if_you_forget_your_pin', languageCode)}\n\n'
-              '${Translations.get('⚡_pin_login_takes_only_2_seconds!', languageCode)}',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(Translations.get('skip', languageCode)),
               ),
-              ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-                  // Navigate to settings where user can setup PIN
-                  context.push(AppRoutes.settings);
-                },
-                icon: const Icon(Icons.security, size: 20),
-                label: Text(Translations.get('setup_pin', languageCode)),
+            ),
+          ],
+        ),
+        content: Text(
+          '${Translations.get('setup_a_4_digit_pin_for_quicker_logins_in_the_future', code)} '
+          '${Translations.get('you_can_always_login_with_otp_if_you_forget_your_pin', code)}',
+          style: BrandFonts.body(13.5, color: BrandPalette.inkSoft),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              Translations.get('skip', code),
+              style: BrandFonts.button(
+                14,
+                color: BrandPalette.inkMuted,
+                weight: FontWeight.w600,
               ),
-            ],
+            ),
           ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: BrandPalette.primary,
+              foregroundColor: BrandPalette.paper,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(40),
+              ),
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              context.push(AppRoutes.settings);
+            },
+            icon: const Icon(Icons.security_rounded, size: 18),
+            label: Text(Translations.get('setup_pin', code)),
+          ),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Use local loading state to avoid disposed widget issues
-    final isLoading = _isLoading;
+    final code = ref.watch(localizationProvider).languageCode;
+    final isLao = code == 'lo';
 
-    final languageCode = ref.watch(localizationProvider).languageCode;
+    final hero = HeroContent(
+      badge: isLao ? 'ຢືນຢັນເບີໂທ' : 'Verify your phone',
+      headline: isLao
+          ? 'ອີກໜຶ່ງ\nຂັ້ນຕອນ\nເທົ່ານັ້ນ.'
+          : 'Just one\nmore quick\nstep.',
+      subline: isLao
+          ? 'ພວກເຮົາໄດ້ສົ່ງລະຫັດ 6 ຕົວເລກໄປຍັງເບີຂອງທ່ານ — ໃສ່ດ້ານຂວາເພື່ອດຳເນີນຕໍ່.'
+          : 'We\'ve texted a six-digit code to your phone — drop it in to keep moving.',
+      features: isLao
+          ? const [
+              'ລະຫັດໝົດອາຍຸໃນ 5 ນາທີ',
+              'ສ່ົງໃໝ່ໄດ້ ຖ້າບໍ່ໄດ້ຮັບ',
+              'ການເຊື່ອມຕໍ່ປອດໄພແບບ end-to-end',
+            ]
+          : const [
+              'Codes expire in 5 minutes',
+              'Resend if you miss it',
+              'End-to-end encrypted delivery',
+            ],
+    );
 
-    return Scaffold(
-      backgroundColor: AppTheme.scaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
-        ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 20),
-
-              // Icon
-              Center(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final iconSize = constraints.maxWidth < 360 ? 64.0 : 80.0;
-                    return Container(
-                      width: iconSize,
-                      height: iconSize,
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryOrangeBackground,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Icon(
-                        Icons.sms_outlined,
-                        size: iconSize * 0.5,
-                        color: AppTheme.primaryOrange,
-                      ),
-                    );
-                  },
+    return AuthShell(
+      hero: hero,
+      topRight: _LangPill(),
+      form: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [_BackChip(onTap: () => context.pop())],
+          ),
+          const SizedBox(height: 28),
+          Center(child: AppZapMark(size: 56)),
+          const SizedBox(height: 18),
+          Center(
+            child: Text(
+              isLao ? 'ຢືນຢັນເບີໂທ' : 'Verify phone',
+              style: BrandFonts.small(
+                11.5,
+                color: BrandPalette.primary,
+                weight: FontWeight.w700,
+                letterSpacing: 1.6,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isLao ? 'ໃສ່ລະຫັດ 6 ຕົວເລກ' : 'Enter the 6-digit code',
+            textAlign: TextAlign.center,
+            style: BrandFonts.display(
+              26,
+              weight: FontWeight.w800,
+              letterSpacing: -0.6,
+            ),
+          ),
+          const SizedBox(height: 6),
+          RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
+              style: BrandFonts.body(
+                14,
+                color: BrandPalette.inkMuted,
+                weight: FontWeight.w500,
+              ),
+              children: [
+                TextSpan(
+                  text: isLao ? 'ສົ່ງໄປທີ່ ' : 'Sent to ',
                 ),
-              ),
-              const SizedBox(height: 32),
-
-              // Title
-              Text(
-                Translations.get('verify_your_phone', languageCode),
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                Translations.get('we_sent_a_6_digit_code_to', languageCode),
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                Validators.formatPhone(widget.phone),
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 48),
-
-              // OTP Input
-              PinCodeTextField(
-                appContext: context,
-                controller: _otpController,
-                length: 6,
-                keyboardType: TextInputType.number,
-                animationType: AnimationType.fade,
-                enabled: !isLoading,
-                pinTheme: PinTheme(
-                  shape: PinCodeFieldShape.box,
-                  borderRadius: BorderRadius.circular(12),
-                  fieldHeight: Responsive.getPinFieldHeight(context),
-                  fieldWidth: Responsive.getPinFieldWidth(context, fieldCount: 6),
-                  activeFillColor: Colors.white,
-                  selectedFillColor: Colors.white,
-                  inactiveFillColor: AppTheme.neutral50,
-                  activeColor: AppTheme.primaryOrange,
-                  selectedColor: AppTheme.primaryOrange,
-                  inactiveColor: AppTheme.neutral300,
-                  errorBorderColor: AppTheme.error,
-                ),
-                enableActiveFill: true,
-                onCompleted: (value) => _handleVerify(),
-                onChanged: (value) {
-                  if (_error != null) {
-                    setState(() => _error = null);
-                  }
-                },
-              ),
-
-              // Error message
-              if (_error != null) ...[
-                const SizedBox(height: 20),
-                ErrorBanner(
-                  key: ValueKey(_error),
-                  message: _error!,
-                  title: Translations.get('verification_failed', languageCode),
-                  onDismiss: () {
-                    if (mounted) setState(() => _error = null);
-                  },
-                  onRetry: () {
-                    if (mounted) {
-                      setState(() => _error = null);
-                      _otpController.clear();
-                    }
-                  },
+                TextSpan(
+                  text: '+856 ${Validators.formatPhone(widget.phone)}',
+                  style: BrandFonts.body(
+                    14,
+                    color: BrandPalette.ink,
+                    weight: FontWeight.w700,
+                  ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 28),
 
-              const SizedBox(height: 32),
+          PinCodeTextField(
+            appContext: context,
+            controller: _otpController,
+            length: 6,
+            keyboardType: TextInputType.number,
+            animationType: AnimationType.fade,
+            enabled: !_isLoading,
+            textStyle: BrandFonts.display(
+              22,
+              color: BrandPalette.ink,
+              weight: FontWeight.w700,
+            ),
+            pinTheme: PinTheme(
+              shape: PinCodeFieldShape.box,
+              borderRadius: BorderRadius.circular(14),
+              fieldHeight: Responsive.getPinFieldHeight(context),
+              fieldWidth: Responsive.getPinFieldWidth(context, fieldCount: 6),
+              activeFillColor: BrandPalette.cream,
+              selectedFillColor: BrandPalette.paper,
+              inactiveFillColor: BrandPalette.cream,
+              activeColor: BrandPalette.primary,
+              selectedColor: BrandPalette.primary,
+              inactiveColor: BrandPalette.border,
+              errorBorderColor: BrandPalette.danger,
+              borderWidth: 1,
+              activeBorderWidth: 1.6,
+              selectedBorderWidth: 1.6,
+            ),
+            enableActiveFill: true,
+            onCompleted: (_) => _handleVerify(),
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+          ),
 
-              // Verify Button
-              SizedBox(
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: isLoading ? null : _handleVerify,
-                  child:
-                      isLoading
-                          ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
+          if (_error != null) ...[
+            const SizedBox(height: 18),
+            ErrorBanner(
+              key: ValueKey(_error),
+              message: _error!,
+              title: Translations.get('verification_failed', code),
+              onDismiss: () => setState(() => _error = null),
+              onRetry: () {
+                setState(() => _error = null);
+                _otpController.clear();
+              },
+            ),
+          ],
+
+          const SizedBox(height: 28),
+          BrandPrimaryButton(
+            label: Translations.get('verify', code),
+            onPressed: _isLoading ? null : _handleVerify,
+            isLoading: _isLoading,
+            trailingIcon: Icons.east_rounded,
+          ),
+          const SizedBox(height: 18),
+
+          Center(
+            child: _resendCountdown > 0
+                ? RichText(
+                    text: TextSpan(
+                      style: BrandFonts.body(
+                        13,
+                        color: BrandPalette.inkMuted,
+                        weight: FontWeight.w500,
+                      ),
+                      children: [
+                        TextSpan(
+                          text:
+                              '${Translations.get('didnt_receive_the_code', code)} ',
+                        ),
+                        TextSpan(
+                          text:
+                              '${Translations.get('resend_in', code)} ${_resendCountdown}s',
+                          style: BrandFonts.body(
+                            13,
+                            color: BrandPalette.ink,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : RichText(
+                    text: TextSpan(
+                      style: BrandFonts.body(
+                        13,
+                        color: BrandPalette.inkMuted,
+                        weight: FontWeight.w500,
+                      ),
+                      children: [
+                        TextSpan(
+                          text:
+                              '${Translations.get('didnt_receive_the_code', code)} ',
+                        ),
+                        WidgetSpan(
+                          alignment: PlaceholderAlignment.middle,
+                          child: GestureDetector(
+                            onTap: _isLoading ? null : _resendOtp,
+                            child: Text(
+                              Translations.get('resend', code),
+                              style: BrandFonts.body(
+                                13,
+                                color: BrandPalette.primary,
+                                weight: FontWeight.w700,
+                              ),
                             ),
-                          )
-                          : Text(Translations.get('verify', languageCode)),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Resend OTP
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    Translations.get('didnt_receive_the_code', languageCode),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.neutral500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  if (_resendCountdown > 0)
-                    Text(
-                      '${Translations.get('resend_in', languageCode)} ${_resendCountdown}s',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.neutral400,
-                      ),
-                    )
-                  else
-                    TextButton(
-                      onPressed: isLoading ? null : _resendOtp,
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: Text(Translations.get('resend', languageCode)),
-                    ),
-                ],
-              ),
-            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LangPill extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final code = ref.watch(localizationProvider).languageCode;
+    return LangSwitch(
+      current: code,
+      onChanged: (c) =>
+          ref.read(localizationProvider.notifier).setLanguage(c),
+    );
+  }
+}
+
+class _BackChip extends StatelessWidget {
+  final VoidCallback onTap;
+  const _BackChip({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: BrandPalette.cream,
+      borderRadius: BorderRadius.circular(40),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(40),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(40),
+            border: Border.all(color: BrandPalette.border, width: 1),
+          ),
+          child: const Icon(
+            Icons.arrow_back_rounded,
+            size: 18,
+            color: BrandPalette.ink,
           ),
         ),
       ),

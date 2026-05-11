@@ -4,15 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
-import '../../../app/theme.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/constants/translations.dart';
 import '../../../core/providers/localization_provider.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/error_banner.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/auth_scaffold.dart';
 
-/// Login screen with phone number entry
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -25,6 +24,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _phoneController = TextEditingController();
   String? _error;
   bool _isLoading = false;
+  // 0 = Login, 1 = Register (sign up)
+  int _tab = 0;
 
   @override
   void dispose() {
@@ -54,190 +55,260 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Future<void> _sendOTP() async {
+  Future<void> _submit() async {
     final languageCode = ref.read(localizationProvider).languageCode;
     if (!_formKey.currentState!.validate()) return;
 
     final phone = Validators.normalizePhone(_phoneController.text.trim());
+    final purpose = _tab == 0 ? 'login' : 'registration';
 
-    if (mounted) {
-      setState(() {
-        _error = null;
-        _isLoading = true;
-      });
-    }
+    setState(() {
+      _error = null;
+      _isLoading = true;
+    });
 
     try {
-      // Send OTP for login (works for all users)
       await ref
           .read(authProvider.notifier)
-          .sendOtp(phone: phone, purpose: 'login');
-
-      if (mounted) {
-        setState(() => _isLoading = false);
-        // Go to OTP screen for verification
-        context.push(
-          AppRoutes.otp,
-          extra: {'phone': phone, 'purpose': 'login'},
-        );
-      }
+          .sendOtp(phone: phone, purpose: purpose);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      context.push(
+        AppRoutes.otp,
+        extra: {'phone': phone, 'purpose': purpose},
+      );
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = _getErrorMessage(e, languageCode);
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _error = _getErrorMessage(e, languageCode);
+        _isLoading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Use local loading state to avoid disposed widget issues
-    final isLoading = _isLoading;
-
     final languageCode = ref.watch(localizationProvider).languageCode;
+    final isLao = languageCode == 'lo';
 
-    return Scaffold(
-      backgroundColor: AppTheme.scaffoldBackground,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 40),
+    final hero = HeroContent(
+      badge: isLao ? 'POS ລຸ້ນໃໝ່ທັນສະໄໝ' : 'A modern POS for Laos',
+      headline: isLao
+          ? 'ໃຫ້ທຸລະກິດ\nເຕີບໃຫຍ່ໄປ\nພ້ອມ AppZap'
+          : 'Grow your\nrestaurant with\nAppZap.',
+      subline: isLao
+          ? 'ລະບົບ POS ທີ່ສົມບູນທີ່ສຸດ ສຳລັບຮ້ານອາຫານຂອງທ່ານ — ຮັບອໍເດີ, ຈັດການເມນູ ແລະ ໄດ້ລາຍງານໄວ.'
+          : 'A complete POS for restaurants — take orders, manage menus, and read crisp daily reports.',
+      features: isLao
+          ? const [
+              'ຮັບເງິນຫຼາຍຮູບແບບ ຮອງຮັບໂມບາຍແບງກິ້ງ',
+              'ລູກຄ້າສັ່ງຜ່ານ QR ທີ່ໂຕະ',
+              'ທີມງານດູແລ 24/7',
+            ]
+          : const [
+              'Accept cash, mobile banking, and card',
+              'Guests order from QR codes at the table',
+              '24/7 local support team',
+            ],
+    );
 
-                // Logo
-                Center(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final logoSize = constraints.maxWidth < 360 ? 80.0 : 100.0;
-                      return Container(
-                        width: logoSize,
-                        height: logoSize,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryOrangeBackground,
-                          borderRadius: BorderRadius.circular(24),
+    return AuthShell(
+      hero: hero,
+      topRight: _LangPill(),
+      form: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(child: AppZapMark(size: 64)),
+            const SizedBox(height: 28),
+
+            BrandSegmented(
+              labels: isLao
+                  ? const ['ເຂົ້າສູ່ລະບົບ', 'ສະໝັກສະມາຊິກໃໝ່']
+                  : const ['Sign in', 'Create account'],
+              selected: _tab,
+              onChanged: (v) => setState(() => _tab = v),
+            ),
+            const SizedBox(height: 24),
+
+            Text(
+              _tab == 0
+                  ? (isLao
+                      ? 'ເຂົ້າສູ່ລະບົບເພື່ອດຳເນີນທຸລະກິດ'
+                      : 'Sign in to keep your kitchen running')
+                  : (isLao
+                      ? 'ສ້າງບັນຊີໃໝ່ໃນ 1 ນາທີ — ບໍ່ມີຄ່າໃຊ້ຈ່າຍ'
+                      : 'Create an account in a minute — no card needed'),
+              style: BrandFonts.body(
+                14,
+                color: BrandPalette.inkMuted,
+                weight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 26),
+
+            if (_error != null) ...[
+              ErrorBanner(
+                key: ValueKey(_error),
+                message: _error!,
+                onDismiss: () => setState(() => _error = null),
+              ),
+              const SizedBox(height: 18),
+            ],
+
+            BrandPhoneField(
+              label: isLao ? 'ເບີໂທລະສັບ' : 'Phone number',
+              hint: '20 1234 5678',
+              helper: isLao
+                  ? 'ພວກເຮົາຈະສົ່ງລະຫັດ OTP ໃຫ້ທ່ານ'
+                  : 'We\'ll text you a 6-digit verification code',
+              controller: _phoneController,
+              enabled: !_isLoading,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(11),
+                _PhoneNumberFormatter(),
+              ],
+              validator: Validators.phone,
+              textInputAction: TextInputAction.done,
+              onSubmitted: () {
+                if (!_isLoading) _submit();
+              },
+            ),
+            const SizedBox(height: 22),
+
+            BrandPrimaryButton(
+              label: _tab == 0
+                  ? Translations.get('send_otp', languageCode)
+                  : (isLao ? 'ສ້າງບັນຊີດ້ວຍ OTP' : 'Continue with OTP'),
+              onPressed: _isLoading ? null : _submit,
+              isLoading: _isLoading,
+            ),
+            const SizedBox(height: 14),
+
+            if (_tab == 0)
+              _SecondaryButton(
+                icon: Icons.bolt_rounded,
+                label: Translations.get(
+                  'login_with_pin_instead_⚡_faster',
+                  languageCode,
+                ),
+                onTap: _isLoading
+                    ? null
+                    : () => context.push(AppRoutes.pinLogin),
+              ),
+
+            const SizedBox(height: 24),
+
+            Center(
+              child: RichText(
+                textAlign: TextAlign.center,
+                text: TextSpan(
+                  style: BrandFonts.body(
+                    13,
+                    color: BrandPalette.inkMuted,
+                    weight: FontWeight.w500,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: _tab == 0
+                          ? (isLao ? 'ຍັງບໍ່ມີບັນຊີ? ' : 'New here? ')
+                          : (isLao ? 'ມີບັນຊີແລ້ວ? ' : 'Have an account? '),
+                    ),
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: GestureDetector(
+                        onTap: () => setState(() => _tab = _tab == 0 ? 1 : 0),
+                        child: Text(
+                          _tab == 0
+                              ? (isLao ? 'ສະໝັກ — ຟຣີ' : 'Sign up — free')
+                              : (isLao ? 'ເຂົ້າສູ່ລະບົບ' : 'Sign in'),
+                          style: BrandFonts.body(
+                            13,
+                            color: BrandPalette.primary,
+                            weight: FontWeight.w700,
+                          ),
                         ),
-                        child: Icon(
-                          Icons.point_of_sale_rounded,
-                          size: logoSize * 0.5,
-                          color: AppTheme.primaryOrange,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 32),
-
-                // Title
-                Text(
-                  Translations.get('welcome_to_appzap_pos', languageCode),
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  Translations.get(
-                    'enter_your_phone_number_to_receive_otp',
-                    languageCode,
-                  ),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
-
-                // Error Banner
-                if (_error != null) ...[
-                  ErrorBanner(
-                    key: ValueKey(_error),
-                    message: _error!,
-                    onDismiss: () {
-                      if (mounted) setState(() => _error = null);
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                ],
-
-                // Phone Input
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(12),
-                    _PhoneNumberFormatter(),
+                      ),
+                    ),
                   ],
-                  decoration: InputDecoration(
-                    labelText: Translations.get('phone_number', languageCode),
-                    hintText: '020 1234 5678',
-                    prefixIcon: const Icon(Icons.phone_outlined),
-                    prefixText: '+856 ',
-                    prefixStyle: TextStyle(
-                      color: AppTheme.neutral700,
-                      fontSize: 16,
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Center(
+              child: Text(
+                Translations.get(
+                  'by_continuing_you_agree_to_our_terms_of_service_and_privacy_policy',
+                  languageCode,
+                ),
+                style: BrandFonts.small(11, color: BrandPalette.inkMuted),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LangPill extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final code = ref.watch(localizationProvider).languageCode;
+    return LangSwitch(
+      current: code,
+      onChanged: (c) =>
+          ref.read(localizationProvider.notifier).setLanguage(c),
+    );
+  }
+}
+
+class _SecondaryButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  const _SecondaryButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: Material(
+        color: BrandPalette.cream,
+        borderRadius: BorderRadius.circular(40),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(40),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(40),
+              border: Border.all(color: BrandPalette.border, width: 1),
+            ),
+            alignment: Alignment.center,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 18, color: BrandPalette.primary),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: BrandFonts.button(
+                      14,
+                      color: BrandPalette.ink,
+                      weight: FontWeight.w600,
                     ),
+                    textAlign: TextAlign.center,
                   ),
-                  validator: Validators.phone,
-                  enabled: !isLoading,
-                ),
-                const SizedBox(height: 32),
-
-                // Send OTP Button
-                SizedBox(
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: isLoading ? null : _sendOTP,
-                    child:
-                        isLoading
-                            ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: Colors.white,
-                              ),
-                            )
-                            : Text(Translations.get('send_otp', languageCode)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Login with PIN instead (for returning users)
-                TextButton.icon(
-                  onPressed:
-                      isLoading ? null : () => context.push(AppRoutes.pinLogin),
-                  icon: const Icon(Icons.flash_on, size: 20),
-                  label: Text(
-                    Translations.get(
-                      'login_with_pin_instead_⚡_faster',
-                      languageCode,
-                    ),
-                  ),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppTheme.primaryOrange,
-                  ),
-                ),
-
-                const SizedBox(height: 48),
-
-                // Footer
-                Text(
-                  Translations.get(
-                    'by_continuing_you_agree_to_our_terms_of_service_and_privacy_policy',
-                    languageCode,
-                  ),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: AppTheme.neutral400),
-                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -248,23 +319,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 }
 
-/// Phone number formatter (020 1234 5678)
+/// Formats a Lao mobile number (without the +856 country code) as
+/// "20 XXXX XXXX". A leading zero is stripped automatically so users
+/// can type "020..." and still land on the canonical "20 ..." form.
 class _PhoneNumberFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final text = newValue.text.replaceAll(' ', '');
+    var digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('0')) digits = digits.substring(1);
+    if (digits.length > 10) digits = digits.substring(0, 10);
+
     final buffer = StringBuffer();
-
-    for (int i = 0; i < text.length; i++) {
-      if (i == 3 || i == 7) {
-        buffer.write(' ');
-      }
-      buffer.write(text[i]);
+    for (int i = 0; i < digits.length; i++) {
+      if (i == 2 || i == 6) buffer.write(' ');
+      buffer.write(digits[i]);
     }
-
     final formatted = buffer.toString();
     return TextEditingValue(
       text: formatted,

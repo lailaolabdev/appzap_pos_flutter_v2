@@ -1,18 +1,17 @@
-import 'package:appzap_pos/core/constants/translations.dart';
-import 'package:appzap_pos/core/providers/localization_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 
-import '../../../app/theme.dart';
 import '../../../core/api/api_exception.dart';
+import '../../../core/constants/translations.dart';
+import '../../../core/providers/localization_provider.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/error_banner.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/auth_scaffold.dart';
 
-/// Registration screen after OTP verification
 class RegisterScreen extends ConsumerStatefulWidget {
   final String phone;
   final String tempToken;
@@ -39,19 +38,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   String? _registrationError;
   bool _isLoading = false;
 
-  String _getErrorMessage(dynamic error) {
-    if (error is ApiException) {
-      if (error.isNetworkError) {
-        return 'No internet connection. Please check your network.';
-      }
-      if (error.isServerError) {
-        return 'Server is temporarily unavailable. Please try again later.';
-      }
-      return error.message;
-    }
-    return 'Registration failed. Please try again.';
-  }
-
   @override
   void dispose() {
     _nameController.dispose();
@@ -61,27 +47,44 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     super.dispose();
   }
 
+  String _getErrorMessage(dynamic error, String code) {
+    if (error is ApiException) {
+      if (error.isNetworkError) {
+        return Translations.get(
+          'no_internet_connection_please_check_your_network',
+          code,
+        );
+      }
+      if (error.isServerError) {
+        return Translations.get(
+          'server_is_temporarily_unavailable_please_try_again_later',
+          code,
+        );
+      }
+      return error.message;
+    }
+    return Translations.get('registration_failed_please_try_again', code);
+  }
+
+  String _pinsMismatchLabel(String code) =>
+      code == 'lo' ? 'ລະຫັດ PIN ບໍ່ກົງກັນ' : 'PINs do not match';
+
   Future<void> _handleRegister() async {
-    // Validate PIN match
+    final code = ref.read(localizationProvider).languageCode;
     if (_pinController.text != _confirmPinController.text) {
-      if (mounted) setState(() => _pinError = 'PINs do not match');
+      setState(() => _pinError = _pinsMismatchLabel(code));
       return;
     }
-
     final pinError = Validators.pin(_pinController.text);
     if (pinError != null) {
-      if (mounted) setState(() => _pinError = pinError);
+      setState(() => _pinError = pinError);
       return;
     }
-
-    if (mounted) {
-      setState(() {
-        _pinError = null;
-        _registrationError = null;
-        _isLoading = true;
-      });
-    }
-
+    setState(() {
+      _pinError = null;
+      _registrationError = null;
+      _isLoading = true;
+    });
     try {
       await ref
           .read(authProvider.notifier)
@@ -92,29 +95,32 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             pin: _pinController.text,
             restaurantId: _restaurantIdController.text.trim(),
           );
-      // Navigation handled by router redirect
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _registrationError = _getErrorMessage(e);
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _registrationError = _getErrorMessage(e, code);
+        _isLoading = false;
+      });
     }
   }
 
   void _nextStep() {
+    final code = ref.read(localizationProvider).languageCode;
     if (_currentStep == 0) {
-      // Validate name
       if (!_formKey.currentState!.validate()) return;
       setState(() => _currentStep = 1);
     } else if (_currentStep == 1) {
-      // Validate restaurant ID
       if (_restaurantIdController.text.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter your store/restaurant ID'),
-            backgroundColor: AppTheme.error,
+          SnackBar(
+            backgroundColor: BrandPalette.primary,
+            content: Text(
+              Translations.get(
+                'please_enter_your_store_restaurant_id',
+                code,
+              ),
+              style: BrandFonts.body(14, color: BrandPalette.paper),
+            ),
           ),
         );
         return;
@@ -131,342 +137,445 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
-  Widget _buildStepIcon(IconData icon) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final iconSize = constraints.maxWidth < 360 ? 64.0 : 80.0;
-        return Container(
-          width: iconSize,
-          height: iconSize,
-          decoration: BoxDecoration(
-            color: AppTheme.primaryOrangeBackground,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Icon(
-            icon,
-            size: iconSize * 0.5,
-            color: AppTheme.primaryOrange,
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    // Use local loading state to avoid disposed widget issues
-    final isLoading = _isLoading;
-    final languageCode = ref.read(localizationProvider).languageCode;
+    final code = ref.watch(localizationProvider).languageCode;
+    final isLao = code == 'lo';
 
-    return Scaffold(
-      backgroundColor: AppTheme.scaffoldBackground,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: _previousStep,
-        ),
-        title: Text(
-          Translations.get('step ${_currentStep + 1}', languageCode) +
-              Translations.get('of 3', languageCode),
-        ),
-      ),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: Column(
+    final hero = HeroContent(
+      badge: isLao ? 'ສ້າງບັນຊີ' : 'Set up your kitchen',
+      headline: isLao
+          ? 'ເຮັດໃຫ້\nຮ້ານຂອງທ່ານ\nພ້ອມແລ້ວ.'
+          : 'Get your\nrestaurant set\nup in minutes.',
+      subline: isLao
+          ? 'ສາມຂັ້ນຕອນສັ້ນໆ — ຊື່, ລະຫັດຮ້ານ, ແລ້ວສ້າງລະຫັດ PIN ສຳລັບເຂົ້າສູ່ລະບົບໄວ.'
+          : 'Three short steps — your name, your store ID, then a PIN for fast daily sign-ins.',
+      features: isLao
+          ? const [
+              'ບໍ່ມີຄ່າເລີ່ມຕົ້ນ ໃຊ້ໄດ້ທັນທີ',
+              'ນຳເຂົ້າເມນູ ແລະ ສາງເບື້ອງຫຼັງ',
+              'ສະຫຼັບລະຫວ່າງສາຂາໃນຄຣິກດຽວ',
+            ]
+          : const [
+              'Free to start, ready in seconds',
+              'Import menus & inventory later',
+              'Switch between branches in one tap',
+            ],
+    );
+
+    return AuthShell(
+      hero: hero,
+      topRight: _LangPill(),
+      form: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              // Progress indicator
-              LinearProgressIndicator(
-                value: (_currentStep + 1) / 3,
-                backgroundColor: AppTheme.neutral200,
-                valueColor: const AlwaysStoppedAnimation(
-                  AppTheme.primaryOrange,
-                ),
-              ),
-
+              _BackChip(onTap: _previousStep),
+              const SizedBox(width: 14),
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: _buildCurrentStep(isLoading, languageCode),
+                child: _StepProgress(
+                  step: _currentStep,
+                  total: 3,
+                  isLao: isLao,
                 ),
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 28),
+
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 280),
+            switchInCurve: Curves.easeOutCubic,
+            transitionBuilder: (child, animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.04, 0),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
+              );
+            },
+            child: KeyedSubtree(
+              key: ValueKey(_currentStep),
+              child: _buildCurrentStep(code, isLao),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildCurrentStep(bool isLoading, String languageCode) {
+  Widget _buildCurrentStep(String code, bool isLao) {
     switch (_currentStep) {
       case 0:
-        return _buildNameStep(isLoading, languageCode);
+        return _stepWrapper(
+          eyebrow: isLao ? 'ຂັ້ນຕອນ 1 ຈາກ 3' : 'Step 1 of 3',
+          title: isLao ? 'ເຈົ້າຊື່ຫຍັງ?' : 'What\'s your name?',
+          subtitle: isLao
+              ? 'ຊື່ນີ້ຈະປະກົດຢູ່ໃບຮັບເງິນທຸກໃບ.'
+              : 'It will appear on every receipt you print.',
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                BrandField(
+                  label: Translations.get('full_name', code),
+                  hint: Translations.get('enter_your_full_name', code),
+                  controller: _nameController,
+                  enabled: !_isLoading,
+                  textCapitalization: TextCapitalization.words,
+                  validator: Validators.name,
+                  autofocus: true,
+                ),
+                const SizedBox(height: 24),
+                BrandPrimaryButton(
+                  label: Translations.get('continue', code),
+                  onPressed: _isLoading ? null : _nextStep,
+                ),
+                const SizedBox(height: 16),
+                _PhoneFootnote(phone: widget.phone, isLao: isLao),
+              ],
+            ),
+          ),
+        );
       case 1:
-        return _buildRestaurantStep(isLoading, languageCode);
+        return _stepWrapper(
+          eyebrow: isLao ? 'ຂັ້ນຕອນ 2 ຈາກ 3' : 'Step 2 of 3',
+          title: isLao ? 'ຮ້ານໃດ?' : 'Which kitchen?',
+          subtitle: isLao
+              ? 'ຖາມຜູ້ຈັດການຂອງທ່ານສຳລັບລະຫັດຮ້ານ.'
+              : 'Ask your manager for the store ID — it\'s a short code.',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              BrandField(
+                label: Translations.get('store_restaurant_id', code),
+                hint: Translations.get('enter_store_id', code),
+                controller: _restaurantIdController,
+                enabled: !_isLoading,
+                autofocus: true,
+              ),
+              const SizedBox(height: 24),
+              BrandPrimaryButton(
+                label: Translations.get('continue', code),
+                onPressed: _isLoading ? null : _nextStep,
+              ),
+              const SizedBox(height: 16),
+              _PhoneFootnote(phone: widget.phone, isLao: isLao),
+            ],
+          ),
+        );
       case 2:
-        return _buildPinStep(isLoading, languageCode);
+        return _stepWrapper(
+          eyebrow: isLao ? 'ຂັ້ນຕອນ 3 ຈາກ 3' : 'Step 3 of 3',
+          title: isLao ? 'ສ້າງລະຫັດ PIN' : 'Set a quick PIN',
+          subtitle: isLao
+              ? 'ໃຊ້ສຳລັບເຂົ້າສູ່ລະບົບໄວ ໃນຄາບເຮັດວຽກຕໍ່ໄປ.'
+              : 'You\'ll punch this in for fast sign-ins between shifts.',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _PinBlock(
+                label: Translations.get('enter_pin', code),
+                controller: _pinController,
+                enabled: !_isLoading,
+                onChanged: (_) {
+                  if (_pinError != null) setState(() => _pinError = null);
+                },
+              ),
+              const SizedBox(height: 18),
+              _PinBlock(
+                label: Translations.get('confirm_pin', code),
+                controller: _confirmPinController,
+                enabled: !_isLoading,
+                onChanged: (_) {
+                  if (_pinError != null) setState(() => _pinError = null);
+                },
+              ),
+              if (_pinError != null || _registrationError != null) ...[
+                const SizedBox(height: 18),
+                ErrorBanner(
+                  key: ValueKey(_pinError ?? _registrationError),
+                  message: _registrationError ?? _pinError!,
+                  title: _registrationError != null
+                      ? Translations.get('registration_failed', code)
+                      : Translations.get('invalid_pin', code),
+                  onDismiss: () => setState(() {
+                    _pinError = null;
+                    _registrationError = null;
+                  }),
+                  onRetry: _registrationError != null
+                      ? () => setState(() => _registrationError = null)
+                      : null,
+                ),
+              ],
+              const SizedBox(height: 24),
+              BrandPrimaryButton(
+                label: Translations.get('create_account', code),
+                onPressed: _isLoading ? null : _handleRegister,
+                isLoading: _isLoading,
+                trailingIcon: Icons.east_rounded,
+              ),
+              const SizedBox(height: 16),
+              _PhoneFootnote(phone: widget.phone, isLao: isLao),
+            ],
+          ),
+        );
       default:
         return const SizedBox.shrink();
     }
   }
 
-  Widget _buildNameStep(bool isLoading, String languageCode) {
+  Widget _stepWrapper({
+    required String eyebrow,
+    required String title,
+    required String subtitle,
+    required Widget child,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 40),
-
-        // Icon
+        Center(child: AppZapMark(size: 56)),
+        const SizedBox(height: 18),
         Center(
-          child: _buildStepIcon(Icons.person_outline_rounded),
-        ),
-        const SizedBox(height: 32),
-
-        Text(
-          Translations.get('what_s_your_name', languageCode),
-          style: Theme.of(
-            context,
-          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
+          child: Text(
+            eyebrow,
+            style: BrandFonts.small(
+              11.5,
+              color: BrandPalette.primary,
+              weight: FontWeight.w700,
+              letterSpacing: 1.6,
+            ),
+          ),
         ),
         const SizedBox(height: 8),
         Text(
-          Translations.get('this_will_be_displayed_on_receipts', languageCode),
-          style: Theme.of(
-            context,
-          ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
+          title,
           textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 48),
-
-        TextFormField(
-          controller: _nameController,
-          textCapitalization: TextCapitalization.words,
-          decoration: InputDecoration(
-            labelText: Translations.get('full_name', languageCode),
-            hintText: Translations.get('enter_your_full_name', languageCode),
-            prefixIcon: Icon(Icons.person_outline),
-          ),
-          validator: Validators.name,
-          enabled: !isLoading,
-        ),
-        const SizedBox(height: 32),
-
-        SizedBox(
-          height: 56,
-          child: ElevatedButton(
-            onPressed: isLoading ? null : _nextStep,
-            child: Text(Translations.get('continue', languageCode)),
+          style: BrandFonts.display(
+            26,
+            weight: FontWeight.w800,
+            letterSpacing: -0.6,
           ),
         ),
+        const SizedBox(height: 6),
+        Text(
+          subtitle,
+          textAlign: TextAlign.center,
+          style: BrandFonts.body(
+            14,
+            color: BrandPalette.inkMuted,
+            weight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 28),
+        child,
       ],
     );
   }
+}
 
-  Widget _buildRestaurantStep(bool isLoading, String languageCode) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 40),
+class _StepProgress extends StatelessWidget {
+  final int step;
+  final int total;
+  final bool isLao;
+  const _StepProgress({
+    required this.step,
+    required this.total,
+    required this.isLao,
+  });
 
-        // Icon
-        Center(
-          child: _buildStepIcon(Icons.store_outlined),
-        ),
-        const SizedBox(height: 32),
-
-        Text(
-          Translations.get('enter_your_store_id', languageCode),
-          style: Theme.of(
-            context,
-          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          Translations.get('ask_your_manager_for_the_store_id', languageCode),
-          style: Theme.of(
-            context,
-          ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 48),
-
-        TextFormField(
-          controller: _restaurantIdController,
-          decoration: InputDecoration(
-            labelText: Translations.get('store_restaurant_id', languageCode),
-            hintText: Translations.get('enter_store_id', languageCode),
-            prefixIcon: Icon(Icons.tag),
-          ),
-          enabled: !isLoading,
-        ),
-        const SizedBox(height: 32),
-
-        SizedBox(
-          height: 56,
-          child: ElevatedButton(
-            onPressed: isLoading ? null : _nextStep,
-            child: Text(Translations.get('continue', languageCode)),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPinStep(bool isLoading, String languageCode) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 40),
-
-        // Icon
-        Center(
-          child: _buildStepIcon(Icons.lock_outline_rounded),
-        ),
-        const SizedBox(height: 32),
-
-        Text(
-          Translations.get('create_your_pin', languageCode),
-          style: Theme.of(
-            context,
-          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          Translations.get(
-            'you_ll_use_this_pin_to_login_quickly',
-            languageCode,
-          ),
-          style: Theme.of(
-            context,
-          ).textTheme.bodyLarge?.copyWith(color: AppTheme.neutral500),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 32),
-
-        // PIN Input
-        Text(
-          Translations.get('enter_pin', languageCode),
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 12),
-        PinCodeTextField(
-          appContext: context,
-          controller: _pinController,
-          length: 4,
-          keyboardType: TextInputType.number,
-          obscureText: true,
-          obscuringCharacter: '●',
-          animationType: AnimationType.fade,
-          enabled: !isLoading,
-          pinTheme: PinTheme(
-            shape: PinCodeFieldShape.box,
-            borderRadius: BorderRadius.circular(12),
-            fieldHeight: Responsive.getPinFieldHeight(context),
-            fieldWidth: Responsive.getPinFieldWidth(context, fieldCount: 4),
-            activeFillColor: Colors.white,
-            selectedFillColor: Colors.white,
-            inactiveFillColor: AppTheme.neutral50,
-            activeColor: AppTheme.primaryOrange,
-            selectedColor: AppTheme.primaryOrange,
-            inactiveColor: AppTheme.neutral300,
-          ),
-          enableActiveFill: true,
-          onChanged: (value) {
-            if (_pinError != null) {
-              setState(() => _pinError = null);
-            }
-          },
-        ),
-        const SizedBox(height: 24),
-
-        // Confirm PIN
-        Text(
-          Translations.get('confirm_pin', languageCode),
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 12),
-        PinCodeTextField(
-          appContext: context,
-          controller: _confirmPinController,
-          length: 4,
-          keyboardType: TextInputType.number,
-          obscureText: true,
-          obscuringCharacter: '●',
-          animationType: AnimationType.fade,
-          enabled: !isLoading,
-          pinTheme: PinTheme(
-            shape: PinCodeFieldShape.box,
-            borderRadius: BorderRadius.circular(12),
-            fieldHeight: Responsive.getPinFieldHeight(context),
-            fieldWidth: Responsive.getPinFieldWidth(context, fieldCount: 4),
-            activeFillColor: Colors.white,
-            selectedFillColor: Colors.white,
-            inactiveFillColor: AppTheme.neutral50,
-            activeColor: AppTheme.primaryOrange,
-            selectedColor: AppTheme.primaryOrange,
-            inactiveColor: AppTheme.neutral300,
-          ),
-          enableActiveFill: true,
-          onChanged: (value) {
-            if (_pinError != null) {
-              setState(() => _pinError = null);
-            }
-          },
-        ),
-
-        // Error message
-        if (_pinError != null || _registrationError != null) ...[
-          const SizedBox(height: 20),
-          ErrorBanner(
-            key: ValueKey(_pinError ?? _registrationError),
-            message: _registrationError ?? _pinError!,
-            title:
-                _registrationError != null
-                    ? Translations.get('registration_failed', languageCode)
-                    : Translations.get('invalid_pin', languageCode),
-            onDismiss: () {
-              if (mounted) {
-                setState(() {
-                  _pinError = null;
-                  _registrationError = null;
-                });
-              }
-            },
-            onRetry:
-                _registrationError != null
-                    ? () {
-                      if (mounted) setState(() => _registrationError = null);
-                    }
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: List.generate(total, (i) {
+        final isOn = i <= step;
+        final isCurrent = i == step;
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: i == total - 1 ? 0 : 6),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 320),
+              height: 6,
+              decoration: BoxDecoration(
+                color: isOn ? BrandPalette.primary : BrandPalette.border,
+                borderRadius: BorderRadius.circular(40),
+                boxShadow: isCurrent
+                    ? [
+                        BoxShadow(
+                          color: BrandPalette.primary.withValues(alpha: 0.40),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
                     : null,
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class _BackChip extends StatelessWidget {
+  final VoidCallback onTap;
+  const _BackChip({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: BrandPalette.cream,
+      borderRadius: BorderRadius.circular(40),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(40),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(40),
+            border: Border.all(color: BrandPalette.border, width: 1),
+          ),
+          child: const Icon(
+            Icons.arrow_back_rounded,
+            size: 18,
+            color: BrandPalette.ink,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PhoneFootnote extends StatelessWidget {
+  final String phone;
+  final bool isLao;
+  const _PhoneFootnote({required this.phone, required this.isLao});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: BrandPalette.cream,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: BrandPalette.border, width: 1),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.verified_rounded,
+            size: 18,
+            color: BrandPalette.success,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: BrandFonts.body(
+                  12.5,
+                  color: BrandPalette.inkMuted,
+                  weight: FontWeight.w500,
+                ),
+                children: [
+                  TextSpan(
+                    text: isLao ? 'ຢືນຢັນເບີ ' : 'Verified for ',
+                  ),
+                  TextSpan(
+                    text: '+856 ${Validators.formatPhone(phone)}',
+                    style: BrandFonts.body(
+                      12.5,
+                      color: BrandPalette.ink,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
 
-        const SizedBox(height: 32),
+class _LangPill extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final code = ref.watch(localizationProvider).languageCode;
+    return LangSwitch(
+      current: code,
+      onChanged: (c) =>
+          ref.read(localizationProvider.notifier).setLanguage(c),
+    );
+  }
+}
 
-        SizedBox(
-          height: 56,
-          child: ElevatedButton(
-            onPressed: isLoading ? null : _handleRegister,
-            child:
-                isLoading
-                    ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: Colors.white,
-                      ),
-                    )
-                    : Text(Translations.get('create_account', languageCode)),
+class _PinBlock extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+
+  const _PinBlock({
+    required this.label,
+    required this.controller,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: BrandFonts.body(
+            13,
+            color: BrandPalette.ink,
+            weight: FontWeight.w600,
           ),
+        ),
+        const SizedBox(height: 10),
+        PinCodeTextField(
+          appContext: context,
+          controller: controller,
+          length: 4,
+          keyboardType: TextInputType.number,
+          obscureText: true,
+          obscuringCharacter: '●',
+          animationType: AnimationType.fade,
+          enabled: enabled,
+          textStyle: BrandFonts.display(
+            22,
+            color: BrandPalette.ink,
+            weight: FontWeight.w700,
+          ),
+          pinTheme: PinTheme(
+            shape: PinCodeFieldShape.box,
+            borderRadius: BorderRadius.circular(14),
+            fieldHeight: Responsive.getPinFieldHeight(context),
+            fieldWidth: Responsive.getPinFieldWidth(context, fieldCount: 4),
+            activeFillColor: BrandPalette.cream,
+            selectedFillColor: BrandPalette.paper,
+            inactiveFillColor: BrandPalette.cream,
+            activeColor: BrandPalette.primary,
+            selectedColor: BrandPalette.primary,
+            inactiveColor: BrandPalette.border,
+            borderWidth: 1,
+            activeBorderWidth: 1.6,
+            selectedBorderWidth: 1.6,
+            inactiveBorderWidth: 1,
+          ),
+          enableActiveFill: true,
+          onChanged: onChanged,
         ),
       ],
     );
